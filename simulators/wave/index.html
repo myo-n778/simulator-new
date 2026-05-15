@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>進行波シミュレータ（y = A sin[2π(t/T − x/λ)]）</title>
+<link rel="stylesheet" href="../../assets/common-sim.css">
+<script src="../../assets/sim-shell.js"></script>
+<script src="../../assets/sim-clock.js"></script>
+<link rel="preconnect" href="https://cdn.plot.ly">
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+<style>
+  :root{--bg:#0b1020;--panel:#121933;--ink:#e9ecff;--muted:#9aa4c7;--accent:#6aa6ff;--red:#ff4d6d;--blue:#4da3ff;}
+  html,body{height:100%;margin:0;background:var(--bg);color:var(--ink);font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,"Apple Color Emoji","Segoe UI Emoji";}
+  .wrap{max-width:1100px;margin:0 auto;padding:20px;display:grid;grid-template-columns:320px 1fr;gap:18px;}
+  .card{background:var(--panel);border-radius:16px;box-shadow:0 10px 30px rgba(0,0,0,.25);}
+  .head{padding:14px 18px;border-bottom:1px solid rgba(255,255,255,.06);display:flex;align-items:center;gap:10px}
+  .head .dot{width:10px;height:10px;border-radius:50%;background:var(--accent);box-shadow:0 0 12px var(--accent);}
+  h1{font-size:18px;margin:0}
+  .controls{padding:14px 18px;display:grid;gap:14px}
+  .row{display:grid;grid-template-columns:92px 1fr 90px;gap:8px;align-items:center}
+  .row label{color:var(--muted)}
+  .row input[type="range"]{width:100%}
+  .row input[type="number"]{width:100%;background:#0c1430;border:1px solid rgba(255,255,255,.12);color:var(--ink);border-radius:10px;padding:6px 8px}
+  .stats{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .stat{background:#0d1640;border:1px solid rgba(255,255,255,.09);border-radius:12px;padding:10px}
+  .stat .k{color:var(--muted);font-size:12px}
+  .stat .v{font-variant-numeric:tabular-nums;font-size:16px}
+  .actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .actions button{padding:10px 14px;border-radius:12px;border:1px solid rgba(255,255,255,.12);background:#0d1640;color:var(--ink);cursor:pointer}
+  .actions .live{font-variant-numeric:tabular-nums;color:var(--muted)}
+  .plot{height:560px}
+  .foot{padding:10px 16px;color:var(--muted);font-size:12px;border-top:1px solid rgba(255,255,255,.06)}
+  .tiny{font-size:12px;color:var(--muted)}
+  @media (max-width:960px){.wrap{grid-template-columns:1fr}.plot{height:420px}}
+</style>
+</head>
+<body>
+<script>
+  PhysicsSimShell.create({
+    title: '進行波',
+    subtitle: '波形・位相・観測点の変位',
+    basePath: '../../'
+  });
+</script>
+<div class="wrap">
+  <!-- Control panel -->
+  <section class="card">
+    <div class="head"><span class="dot"></span><h1>進行波（x–yグラフ, 時間発展）</h1></div>
+    <div class="controls">
+      <div class="row">
+        <label for="A">A（振幅）</label>
+        <input id="A" type="range" min="0" max="5" step="0.01" value="1">
+        <input id="A_num" type="number" min="0" max="5" step="0.01" value="1">
+      </div>
+      <div class="row">
+        <label>ω（角周波数）</label>
+        <div class="tiny" style="grid-column:2 / span 2">2π（固定）</div>
+      </div>
+      <div class="row">
+        <label for="T">T（周期）</label>
+        <input id="T" type="range" min="0.1" max="10" step="0.01" value="1">
+        <input id="T_num" type="number" min="0.1" max="10" step="0.01" value="1">
+      </div>
+      <div class="row">
+        <label for="lambda">λ（波長）</label>
+        <input id="lambda" type="range" min="0.1" max="20" step="0.01" value="2">
+        <input id="lambda_num" type="number" min="0.1" max="20" step="0.01" value="2">
+      </div>
+      <div class="row">
+        <label for="domain">x範囲L（右端）</label>
+        <input id="domain" type="range" min="1" max="50" step="1" value="10">
+        <input id="domain_num" type="number" min="1" max="50" step="1" value="10">
+      </div>
+      <div class="row">
+        <label for="points">点数</label>
+        <input id="points" type="range" min="50" max="2000" step="10" value="600">
+        <input id="points_num" type="number" min="50" max="2000" step="10" value="600">
+      </div>
+      <div class="row">
+        <label for="speed">再生速度</label>
+        <input id="speed" type="range" min="0" max="3" step="0.01" value="1">
+        <input id="speed_num" type="number" min="0" max="3" step="0.01" value="1">
+      </div>
+
+      <div class="stats">
+        <div class="stat">
+          <div class="k">周波数 f</div>
+          <div class="v" id="fReadout">1.00 Hz</div>
+        </div>
+        <div class="stat">
+          <div class="k">位相速度 v</div>
+          <div class="v" id="vReadout">2.00 u/s</div>
+        </div>
+      </div>
+
+      <div class="row">
+        <label for="markerX">観測点 x（青玉）</label>
+        <input id="markerX" type="number" step="0.01" value="0.50">
+        <div class="tiny">範囲は表示内に自動クランプ</div>
+      </div>
+
+      <div class="actions">
+        <button id="play">▶ 再生</button>
+        <button id="pause">⏸ 一時停止</button>
+        <button id="reset">↺ リセット</button>
+        <span class="live" id="timeLabel">t = 0.00</span>
+      </div>
+      <div class="tiny">式：y = A · sin[ 2π · ( t/T − x/λ ) ]（yは変位, xは位置, tは時間, Aは振幅, Tは周期, λは波長）</div>
+      <div class="tiny">表示レンジは x∈[−0.1L, L]。x=0は左端より少し右。赤玉はx=0、青玉は任意のxの変位。</div>
+    </div>
+    <div class="foot">マウスホイールでズーム（scrollZoom有効）、ドラッグでパン、ダブルクリックでリセット。</div>
+  </section>
+
+  <!-- Plot -->
+  <section class="card">
+    <div class="head"><span class="dot"></span><h1>可視化</h1></div>
+    <div id="plot" class="plot"></div>
+    <div class="foot">赤玉: y(0,t) / 青玉: y(x_mark,t)。数値はパネルで調整。</div>
+  </section>
+</div>
+
+<script>
+(function(){
+  const els = {
+    A: q('#A'), A_num: q('#A_num'),
+    T: q('#T'), T_num: q('#T_num'),
+    lambda: q('#lambda'), lambda_num: q('#lambda_num'),
+    domain: q('#domain'), domain_num: q('#domain_num'),
+    points: q('#points'), points_num: q('#points_num'),
+    speed: q('#speed'), speed_num: q('#speed_num'),
+    markerX: q('#markerX'),
+    play: q('#play'), pause: q('#pause'), reset: q('#reset'),
+    timeLabel: q('#timeLabel'),
+    fReadout: q('#fReadout'),
+    vReadout: q('#vReadout'),
+    plot: q('#plot')
+  };
+
+  // sync helpers
+  link(els.A, els.A_num);
+  link(els.T, els.T_num);
+  link(els.lambda, els.lambda_num);
+  link(els.domain, els.domain_num);
+  link(els.points, els.points_num);
+  link(els.speed, els.speed_num);
+
+  function q(sel){return document.querySelector(sel)}
+  function link(range, box){
+    const sync = () => { box.value = range.value; updateStats(); draw(); };
+    const syncBack = () => { range.value = box.value; updateStats(); draw(); };
+    range.addEventListener('input', sync);
+    box.addEventListener('input', syncBack);
+  }
+
+  const state = {
+    t: 0,
+    playing: false
+  };
+
+  // buttons
+  els.play.addEventListener('click', ()=>{
+    if(state.playing) return;
+    state.playing = true;
+  });
+  els.pause.addEventListener('click', ()=>{
+    state.playing = false;
+  });
+  els.reset.addEventListener('click', ()=>{ state.t = 0; draw(); });
+
+  // marker input
+  els.markerX.addEventListener('input', draw);
+
+  // react to inputs
+  ['A','T','lambda','domain','points'].forEach(k=>{
+    els[k].addEventListener('input', ()=>{ updateStats(); draw(); });
+    els[k + '_num'].addEventListener('input', ()=>{ updateStats(); draw(); });
+  });
+
+  // initial plot
+  let initialized = false;
+  function ensurePlot(){
+    if(initialized) return;
+    const layout = {
+      margin:{l:50,r:20,t:10,b:45},
+      paper_bgcolor:'#121933',
+      plot_bgcolor:'#0b1020',
+      dragmode:'pan',
+      xaxis:{title:'x（位置）',gridcolor:'rgba(255,255,255,.08)',zerolinecolor:'rgba(255,255,255,.25)'},
+      yaxis:{title:'y（変位）',gridcolor:'rgba(255,255,255,.08)',zerolinecolor:'rgba(255,255,255,.25)'},
+      showlegend:false
+    };
+    const config = {displaylogo:false,responsive:true,scrollZoom:true};
+    Plotly.newPlot(els.plot, [emptyTrace(), dotTrace(0,0,'#ff4d6d'), dotTrace(0,0,'#4da3ff')], layout, config);
+    initialized = true;
+  }
+
+  function emptyTrace(){ return {x:[0], y:[0], mode:'lines'}; }
+  function dotTrace(x,y,color){
+    return {x:[x], y:[y], mode:'markers', marker:{size:10, color:color}, hoverinfo:'skip'};
+  }
+
+  function generateData(){
+    const A = +els.A.value;
+    const omega = Math.PI * 2; // 2π 固定
+    const T = +els.T.value;
+    const lambda = +els.lambda.value;
+    const L = +els.domain.value;
+    const left = -0.1*L; // x=0 を左端より少し右に
+    const right = L;
+    const n = Math.max(50, Math.min(2000, (+els.points.value|0)));
+
+    const xs = new Array(n+1);
+    const ys = new Array(n+1);
+    const step = (right-left)/n;
+    for(let i=0;i<=n;i++){
+      const x = left + i*step;
+      const phase = (state.t / T) - (x / lambda);
+      const y = A * Math.sin(omega * phase);
+      xs[i] = x;
+      ys[i] = y;
+    }
+    // 赤玉（x=0）
+    const y0 = A * Math.sin(omega * (state.t / T));
+    // 青玉（任意 x）
+    let mx = parseFloat(els.markerX.value);
+    if(!Number.isFinite(mx)) mx = 0;
+    // クランプ（表示レンジ外のときは端に合わせる）
+    mx = Math.max(left, Math.min(right, mx));
+    if(mx != parseFloat(els.markerX.value)) els.markerX.value = mx.toFixed(2);
+    const my = A * Math.sin(omega * ((state.t / T) - (mx / lambda)));
+    return {x: xs, y: ys, left, right, y0, mx, my};
+  }
+
+  function updateStats(){
+    const T = +els.T.value;
+    const lambda = +els.lambda.value;
+    const f = 1/ T;
+    const v = lambda / T;
+    els.fReadout.textContent = `${f.toFixed(2)} Hz`;
+    els.vReadout.textContent = `${v.toFixed(2)} u/s`;
+  }
+
+  function draw(){
+    ensurePlot();
+    const d = generateData();
+    els.timeLabel.textContent = `t = ${state.t.toFixed(2)}`;
+    const traces = [
+      {x: d.x, y: d.y, mode:'lines'},
+      dotTrace(0, d.y0, '#ff4d6d'),
+      dotTrace(d.mx, d.my, '#4da3ff')
+    ];
+    Plotly.react(els.plot, traces, {
+      margin:{l:50,r:20,t:10,b:45},
+      paper_bgcolor:'#121933',
+      plot_bgcolor:'#0b1020',
+      dragmode:'pan',
+      xaxis:{title:'x（位置）',range:[d.left, d.right],gridcolor:'rgba(255,255,255,.08)',zerolinecolor:'rgba(255,255,255,.25)'},
+      yaxis:{title:'y（変位）',gridcolor:'rgba(255,255,255,.08)',zerolinecolor:'rgba(255,255,255,.25)'}
+    }, {displaylogo:false,responsive:true,scrollZoom:true});
+  }
+
+  const clock = new PhysicsSimClock.FixedStepClock({
+    step: 1 / 120,
+    onStep(dt){
+      if(!state.playing) return;
+      const speed = +els.speed.value;
+      state.t += dt * speed;
+    },
+    onRender(){
+      draw();
+    }
+  });
+
+  // start
+  ensurePlot();
+  updateStats();
+  draw();
+  clock.start();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>水平2重ばね振り子シミュレーター（左右ばね＋クーロン摩擦）</title>
+  <!-- MathJax for rendering equations -->
+  <script>
+    window.MathJax = {
+      tex: { inlineMath: [['$', '$'], ['\\(', '\\)']] },
+      svg: { fontCache: 'global' }
+    };
+  </script>
+  <script async id="MathJax-script" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-svg.js"></script>
+  <style>
+    :root { --bg:#0b1220; --panel:#0f172a; --ink:#e5e7eb; --sub:#94a3b8; --accent:#38bdf8; --grid:#1f2937; --frame:#334155; }
+    html, body { height: 100%; }
+    body { margin: 0; background: var(--bg); color: var(--ink); font-family: ui-sans-serif, -apple-system, system-ui, Segoe UI, Roboto, Helvetica, Arial; }
+    .wrap { max-width: 1120px; margin: 0 auto; padding: 10px; }
+
+    /* 左：アニメ＋下に3グラフ / 右：パラメータ */
+    .layout { display: grid; grid-template-columns: 1fr 330px; gap: 10px; align-items: start; }
+    @media (max-width: 960px){ .layout { grid-template-columns: 1fr; } }
+
+    .card { background: var(--panel); border: 1px solid var(--frame); border-radius: 14px; padding: 12px; box-shadow: 0 10px 30px rgb(0 0 0 / 0.25); }
+    .title { font-weight: 700; font-size: 16px; margin-bottom: 8px; }
+    .subtitle { color: var(--sub); font-size: 11px; margin-top: 6px; }
+
+    .sceneBox { position: relative; }
+    canvas { display:block; }
+
+    .graphsRow { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 8px; }
+    @media (max-width: 880px){ .graphsRow { grid-template-columns: 1fr; } }
+    .gItem { min-height: 120px; }
+    .gTitle { color: var(--sub); font-size: 12px; margin: 0 0 2px 2px; }
+    .gBox { border:1px solid var(--frame); border-radius:10px; padding: 0; background:#0f172a; height: 120px; }
+    .gBox canvas { width: 100%; height: 100%; }
+
+    .controls { display: grid; grid-template-columns: 1fr; gap: 6px; font-size: 12px; }
+    .row { display: grid; grid-template-columns: 1fr auto; gap: 6px; align-items: center; }
+    .row label { font-size: 12px; color: var(--ink); }
+    .row input[type="number"] { width: 90px; background:#0b1220; color: var(--ink); border:1px solid var(--frame); border-radius:8px; padding:4px 6px; text-align:right; font-size: 12px; }
+    .row input[type="range"] { width: 100%; height: 20px; }
+    .check { display:flex; align-items:center; gap:6px; font-size: 12px; color: var(--sub); }
+    .btns { display:flex; gap:8px; align-items:center; margin-top:8px; }
+    .btn { background: var(--accent); color:#002; border:none; padding:6px 12px; border-radius:10px; font-weight:700; cursor:pointer; font-size: 12px; }
+    .btn.secondary { background:#1f2937; color: var(--ink); }
+
+    .statsInline { display:grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: 8px 0; }
+    .statInline { background:#0b1220; border:1px solid var(--frame); border-radius:10px; padding:6px 8px; }
+    .statInline .k { color: var(--sub); font-size: 11px; }
+    .statInline .v { font-weight: 700; font-size: 14px; }
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <div class="layout">
+    <!-- LEFT: Scene + graphs -->
+    <div class="leftCol">
+      <div class="card">
+        <div class="title">水平2重ばね振り子（左右ばね・クーロン摩擦可）</div>
+
+        <div class="statsInline">
+          <div class="statInline"><div class="k">有効ばね定数 k_eff = kL + kR</div><div class="v" id="keffDisp">—</div></div>
+          <div class="statInline"><div class="k">固有角振動数 ω₀</div><div class="v" id="w0Disp">—</div></div>
+          <div class="statInline"><div class="k">小振幅の周期 T₀</div><div class="v" id="T0Disp">—</div></div>
+        </div>
+
+        <div class="sceneBox">
+          <canvas id="scene" width="820" height="260"></canvas>
+        </div>
+
+        <div class="btns">
+          <button id="runBtn" class="btn">再生</button>
+          <button id="resetBtn" class="btn secondary">リセット</button>
+          <div id="rtVals" style="display:flex; gap:12px; align-items:center; font-size:12px; color:var(--sub); margin-left:12px;">
+            <div>x=<span id="rtX">0.300</span> m</div>
+            <div>v=<span id="rtV">0.000</span> m/s</div>
+            <div>a=<span id="rtA">0.000</span> m/s²</div>
+          </div>
+          <div style="margin-left:auto; color:var(--sub); font-size:12px;">t = <span id="tDisp">0.00</span> s</div>
+        </div>
+
+        <!-- GRAPHS under the scene -->
+        <div class="graphsRow">
+          <div class="gItem">
+            <div class="gTitle">変位 x(t) [m] <span id="xRange" style="float:right; color:#cbd5e1; font-size:10px"></span></div>
+            <div class="gBox"><canvas id="gx"></canvas></div>
+          </div>
+          <div class="gItem">
+            <div class="gTitle">速度 v(t) [m/s] <span id="vRange" style="float:right; color:#cbd5e1; font-size:10px"></span></div>
+            <div class="gBox"><canvas id="gv"></canvas></div>
+          </div>
+          <div class="gItem">
+            <div class="gTitle">加速度 a(t) [m/s²] <span id="aRange" style="float:right; color:#cbd5e1; font-size:10px"></span></div>
+            <div class="gBox"><canvas id="ga"></canvas></div>
+          </div>
+        </div>
+        <div class="subtitle">左右の自然長は「x=0で釣り合い」として取り、線形化で $F=-(k_L+k_R)x$。粘性は無し、乾性（クーロン）摩擦のみ。</div>
+      </div>
+
+      <!-- MathJax：周期カード（縦に短め） -->
+      <div class="card" style="margin-top:12px; max-height:120px; overflow-y:auto">
+        <div class="title">理論値（微小振幅）</div>
+        <div style="line-height:1.7;">
+          $$k_{\mathrm{eff}} = k_L + k_R,\quad \omega_0 = \sqrt{\dfrac{k_L+k_R}{m}},\quad
+            T_0 = \dfrac{2\pi}{\omega_0} = 2\pi\sqrt{\dfrac{m}{k_L+k_R}}$$
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT: Controls -->
+    <div class="rightCol">
+      <div class="card">
+        <div class="title">パラメータ</div>
+        <div class="controls">
+          <label class="check"><input id="coulombOn" type="checkbox" checked> クーロン摩擦（乾性摩擦）を有効化</label>
+
+          <div class="row"><label>質量 m [kg] = <span id="mDisp">1.00</span></label><input id="mVal" type="number" step="0.10" value="1.0"></div>
+          <input id="m" type="range" min="0.1" max="10" step="0.01" value="1.0">
+
+          <div class="row"><label>左ばね定数 kL [N/m] = <span id="kLDisp">40.0</span></label><input id="kLVal" type="number" step="1" value="40"></div>
+          <input id="kL" type="range" min="1" max="300" step="0.1" value="40">
+
+          <div class="row"><label>右ばね定数 kR [N/m] = <span id="kRDisp">60.0</span></label><input id="kRVal" type="number" step="1" value="60"></div>
+          <input id="kR" type="range" min="1" max="300" step="0.1" value="60">
+
+          <div class="row"><label>摩擦係数 μ = <span id="muDisp">0.000</span></label><input id="muVal" type="number" step="0.100" value="0"></div>
+          <input id="mu" type="range" min="0" max="1" step="0.01" value="0">
+
+          <div class="row"><label>初期変位 x0 [m] = <span id="x0Disp">0.300</span></label><input id="x0Val" type="number" step="0.01" value="0.30"></div>
+          <input id="x0" type="range" min="-1.0" max="1.0" step="0.001" value="0.30">
+
+          <div class="row"><label>初期速度 v0 [m/s] = <span id="v0Disp">0.000</span></label><input id="v0Val" type="number" step="0.001" value="0"></div>
+          <input id="v0" type="range" min="-3" max="3" step="0.001" value="0">
+
+          <div class="row"><label>拡大率 [px/m] = <span id="pxDisp">180</span></label><input id="pxVal" type="number" step="1" value="10"></div>
+          <input id="px" type="range" min="1" max="500" step="1" value="10">
+
+          <div class="row"><label>グラフ時間幅 [s] = <span id="winDisp">12</span></label><input id="winVal" type="number" step="1" value="12"></div>
+          <input id="win" type="range" min="4" max="30" step="1" value="12">
+
+          <label class="check"><input id="eqOn" type="checkbox" checked> 原点（x=0）ガイド線を表示</label>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  // ====== State ======
+  let m = 1.0;
+  let kL = 40.0, kR = 60.0;           // 左右ばね定数
+  let mu = 0.0;                       // クーロン摩擦係数
+  let x0 = 0.30, v0 = 0.0;            // 初期条件
+  let x = x0, v = v0;                 // 状態
+  let t = 0; let running = false;
+  let PX_PER_M = 10;                  // 表示スケール
+  let plotWindow = 12;                // グラフ横幅[s]
+  let lastTS = null;                  // rAF timestamp
+  const graphBuf = [];                // {t,x,v,a}
+
+  // クーロン摩擦の滑らか近似
+  const v_eps = 0.02;                 // 付近で符号遷移をスムーズに
+  const g = 9.8;                      // 水平面での法線=mg を用いる
+
+  // ====== Elements ======
+  const scene = document.getElementById('scene');
+  const gx = document.getElementById('gx');
+  const gv = document.getElementById('gv');
+  const ga = document.getElementById('ga');
+  const xRange = document.getElementById('xRange');
+  const vRange = document.getElementById('vRange');
+  const aRange = document.getElementById('aRange');
+  const tDisp = document.getElementById('tDisp');
+  const rtX = document.getElementById('rtX');
+  const rtV = document.getElementById('rtV');
+  const rtA = document.getElementById('rtA');
+
+  const el = (id) => document.getElementById(id);
+  const i_m = el('m'), i_mVal = el('mVal'), mDisp = el('mDisp');
+  const i_kL = el('kL'), i_kLVal = el('kLVal'), kLDisp = el('kLDisp');
+  const i_kR = el('kR'), i_kRVal = el('kRVal'), kRDisp = el('kRDisp');
+  const i_mu = el('mu'), i_muVal = el('muVal'), muDisp = el('muDisp');
+  const coulombOn = el('coulombOn');
+  const i_x0 = el('x0'), i_x0Val = el('x0Val'), x0Disp = el('x0Disp');
+  const i_v0 = el('v0'), i_v0Val = el('v0Val'), v0Disp = el('v0Disp');
+  const i_px = el('px'), i_pxVal = el('pxVal'), pxDisp = el('pxDisp');
+  const i_win = el('win'), i_winVal = el('winVal'), winDisp = el('winDisp');
+  const eqOn = el('eqOn');
+
+  const T0Disp = el('T0Disp');
+  const w0Disp = el('w0Disp');
+  const keffDisp = el('keffDisp');
+
+  const runBtn = document.getElementById('runBtn');
+  const resetBtn = document.getElementById('resetBtn');
+
+  // ====== DPR helpers ======
+  function fitCanvasDPRFull(cnv){
+    const dpr = window.devicePixelRatio || 1;
+    cnv.style.width = '100%';
+    cnv.style.height = '100%';
+    const rect = cnv.getBoundingClientRect();
+    const cssW = Math.max(1, rect.width);
+    const cssH = Math.max(1, rect.height);
+    cnv.width  = Math.floor(cssW * dpr);
+    cnv.height = Math.floor(cssH * dpr);
+    cnv._dpr = dpr; cnv._cssW = cssW; cnv._cssH = cssH;
+    const ctx = cnv.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    return ctx;
+  }
+  function fitCanvasDPRFixed(cnv){
+    const dpr = window.devicePixelRatio || 1;
+    cnv.style.width = cnv.width + 'px';
+    cnv.style.height = cnv.height + 'px';
+    cnv._dpr = dpr; cnv._cssW = cnv.width; cnv._cssH = cnv.height;
+    const ctx = cnv.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    return ctx;
+  }
+
+  const sceneCtx = fitCanvasDPRFixed(scene);
+  const gxCtx = fitCanvasDPRFull(gx);
+  const gvCtx = fitCanvasDPRFull(gv);
+  const gaCtx = fitCanvasDPRFull(ga);
+
+  const ro = new ResizeObserver(() => {
+    fitCanvasDPRFull(gx); fitCanvasDPRFull(gv); fitCanvasDPRFull(ga);
+    drawAllGraphs();
+    drawScene();
+  });
+  ro.observe(gx.parentElement); ro.observe(gv.parentElement); ro.observe(ga.parentElement);
+
+  // ====== Physics ======
+  // x: 中央釣り合い位置からの変位（x=0で左右ばねが釣り合い）
+  // 運動方程式: x'' = -((kL+kR)/m) x - (μ g) * smoothSign(x')  （クーロンON時）
+  function smoothSign(vel){ return Math.tanh(vel / v_eps); }
+  function accel(x, v){
+    const aHooke = -((kL + kR)/m) * x;
+    let aFric = 0;
+    if (coulombOn.checked && mu > 0){ aFric = -(mu * g) * smoothSign(v); }
+    return aHooke + aFric;
+  }
+  function stepRK4(x, v, dt){
+    const k1x = v;                  const k1v = accel(x, v);
+    const k2x = v + 0.5*dt*k1v;     const k2v = accel(x + 0.5*dt*k1x, v + 0.5*dt*k1v);
+    const k3x = v + 0.5*dt*k2v;     const k3v = accel(x + 0.5*dt*k2x, v + 0.5*dt*k2v);
+    const k4x = v + dt*k3v;         const k4v = accel(x + dt*k3x, v + dt*k3v);
+    const xNext = x + (dt/6)*(k1x + 2*k2x + 2*k3x + k4x);
+    const vNext = v + (dt/6)*(k1v + 2*k2v + 2*k3v + k4v);
+    return [xNext, vNext];
+  }
+
+  // ====== Drawing (Animation) ======
+  const WALL_W = 6;                  // 壁の幅
+  const SPRING_W = 12;               // ジグザグ振幅
+  const TURNS = 10;
+  const BLOCK_W = 36, BLOCK_H = 36;  // 物体
+  const END_MARGIN = 18;             // 端の余白
+  const BASE_GAP_PX = 90;            // 自然長相当の余白（左右とも）
+
+  // レール線接触ギャップ（見た目調整）
+  let TRACK_OFFSET_MULT = 2;         // 中央からおもり縦幅×2だけ上
+  let CONTACT_GAP_PX = 2.0;
+
+  function drawSpring(ctx, x0, x1, y){
+    const len = Math.max(10, Math.abs(x1 - x0));
+    const dir = Math.sign(x1 - x0) || 1;
+    ctx.beginPath();
+    ctx.moveTo(x0, y);
+    for(let i=1;i<=TURNS;i++){
+      const xx = x0 + dir * (i*(len/TURNS));
+      const yy = y + ((i%2===0)? -SPRING_W : SPRING_W);
+      ctx.lineTo(xx, yy);
+    }
+    ctx.lineTo(x1, y);
+    ctx.stroke();
+  }
+
+  function drawScene(){
+    const ctx = sceneCtx;
+    const dpr = scene._dpr || (window.devicePixelRatio || 1);
+    const W = (scene._cssW ?? (scene.width / dpr));
+    const H = (scene._cssH ?? (scene.height / dpr));
+    ctx.clearRect(0,0,W,H); ctx.fillStyle = '#0f172a'; ctx.fillRect(0,0,W,H);
+
+    // トラック基準線
+    const TRACK_Y = H / 2 - BLOCK_H * TRACK_OFFSET_MULT;
+    const railY = TRACK_Y + BLOCK_H/2 + CONTACT_GAP_PX;
+    ctx.strokeStyle = '#64748b'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(10, railY); ctx.lineTo(W-10, railY); ctx.stroke();
+
+    // 壁（左右）
+    const leftWallX = END_MARGIN;      // 左壁左端
+    const rightWallX = W - END_MARGIN - WALL_W; // 右壁左端
+    ctx.fillStyle = '#475569';
+    ctx.fillRect(leftWallX, TRACK_Y - 60, WALL_W, 120);
+    ctx.fillRect(rightWallX, TRACK_Y - 60, WALL_W, 120);
+
+    // 原点（x=0）位置＝左右の幾何学中心＋自然長余白
+    const centerX = W/2;
+    const x0px = centerX; // x=0 の物体中心
+    const cx = x0px + (PX_PER_M * x);
+    const cy = TRACK_Y;
+
+    // ばね：左（壁→物体左面）
+    const leftAnchor = leftWallX + WALL_W;
+    const leftAttach = cx - BLOCK_W/2;
+    const leftRestGap = BASE_GAP_PX;
+    ctx.strokeStyle = '#93c5fd'; ctx.lineWidth = 2;
+    drawSpring(ctx, leftAnchor + leftRestGap, leftAttach, cy);
+
+    // ばね：右（物体右面→壁）
+    const rightAnchor = rightWallX;
+    const rightAttach = cx + BLOCK_W/2;
+    const rightRestGap = BASE_GAP_PX;
+    ctx.strokeStyle = '#93c5fd'; ctx.lineWidth = 2;
+    drawSpring(ctx, rightAttach, rightAnchor - rightRestGap, cy);
+
+    // 原点ガイド
+    if (eqOn.checked){
+      ctx.setLineDash([5,5]); ctx.strokeStyle = '#94a3b8';
+      ctx.beginPath(); ctx.moveTo(x0px, cy - 70); ctx.lineTo(x0px, cy + 70); ctx.stroke(); ctx.setLineDash([]);
+    }
+
+    // 物体
+    ctx.fillStyle = 'rgba(125,211,252,0.85)';
+    ctx.strokeStyle = '#38bdf8'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.rect(cx - BLOCK_W/2, cy - BLOCK_H/2, BLOCK_W, BLOCK_H); ctx.fill(); ctx.stroke();
+
+    // スケール目盛
+    const baseY = cy + BLOCK_H/2 + 20;
+    ctx.strokeStyle = '#334155'; ctx.fillStyle = '#cbd5e1'; ctx.lineWidth = 1;
+    ctx.beginPath();
+    for(let xm=-1.0; xm<=1.0; xm+=0.2){
+      const xp = x0px + xm*PX_PER_M;
+      ctx.moveTo(xp, baseY-5); ctx.lineTo(xp, baseY+5);
+    }
+    ctx.stroke();
+    ctx.font = '10px ui-sans-serif'; ctx.textAlign='center';
+    ctx.fillText('x=0', x0px, baseY+14);
+  }
+
+  // ====== Graphs ======
+  function clearMini(ctx){
+    const cnv = ctx.canvas; const dpr = cnv._dpr || (window.devicePixelRatio || 1);
+    const W = (cnv._cssW ?? (cnv.width / dpr)); const H = (cnv._cssH ?? (cnv.height / dpr));
+    ctx.clearRect(0,0,W,H); ctx.fillStyle = '#0f172a'; ctx.fillRect(0,0,W,H);
+    ctx.strokeStyle = '#1f2937'; ctx.lineWidth = 1; ctx.beginPath();
+    for(let i=1;i<5;i++){ const x = (W*i/5) + 0.5; ctx.moveTo(x,0); ctx.lineTo(x,H); } ctx.stroke();
+  }
+  function drawSeries({ctx, data, valueOf, unit, rangeEl, minSpan=1e-3, hlineVal}){
+    const cnv = ctx.canvas; const dpr = cnv._dpr || (window.devicePixelRatio || 1);
+    const W = (cnv._cssW ?? (cnv.width / dpr)); const H = (cnv._cssH ?? (cnv.height / dpr));
+    clearMini(ctx);
+    if (data.length < 1) { if(rangeEl) rangeEl.textContent = ''; return; }
+    const tMax = data[data.length-1].t; const tMin = Math.max(0, tMax - plotWindow);
+
+    let sMin = Infinity, sMax = -Infinity; let seen=false;
+    for(const p of data){ if(p.t < tMin) continue; const val = valueOf(p); if(!Number.isFinite(val)) continue; sMin = Math.min(sMin, val); sMax = Math.max(sMax, val); seen=true; }
+    if(!seen){ if(rangeEl) rangeEl.textContent=''; return; }
+
+    const mag = Math.max(Math.abs(sMin), Math.abs(sMax));
+    const span = Math.max(mag, minSpan);
+    const ymax = span * 1.35; const yMin = -ymax, yMax = ymax;
+
+    const xOfT = (tt) => ((tt - tMin) / (tMax - tMin || 1e-6)) * (W-1);
+    const yOfS = (sv) => (H-1) - ((sv - yMin) / (yMax - yMin)) * (H-1);
+
+    // 0ライン
+    ctx.strokeStyle = '#64748b'; ctx.setLineDash([4,4]);
+    const y0 = yOfS(0); ctx.beginPath(); ctx.moveTo(0, y0); ctx.lineTo(W, y0); ctx.stroke(); ctx.setLineDash([]);
+
+    if (typeof hlineVal === 'number' && Number.isFinite(hlineVal)){
+      ctx.strokeStyle = '#475569'; ctx.setLineDash([2,3]);
+      const yh = yOfS(hlineVal); ctx.beginPath(); ctx.moveTo(0, yh); ctx.lineTo(W, yh); ctx.stroke(); ctx.setLineDash([]);
+    }
+
+    // データ線
+    ctx.strokeStyle = '#93c5fd'; ctx.lineWidth = 2; ctx.beginPath();
+    let started=false;
+    for(let i=0;i<data.length;i++){
+      const p = data[i]; if(p.t < tMin) continue; const val = valueOf(p); if(!Number.isFinite(val)) continue; const xpx = xOfT(p.t), ypx = yOfS(val);
+      if (!started) { ctx.moveTo(xpx, ypx); started = true; } else { ctx.lineTo(xpx, ypx); }
+    }
+    if(started) ctx.stroke();
+
+    if(rangeEl) rangeEl.textContent = `${sMin.toPrecision(3)} … ${sMax.toPrecision(3)} ${unit||''}`;
+    ctx.fillStyle = '#e5e7eb'; ctx.font = '10px ui-sans-serif';
+    ctx.textAlign = 'left'; ctx.fillText((yMax).toPrecision(3), 4, 10);
+    ctx.textAlign = 'left'; ctx.fillText((yMin).toPrecision(3), 4, H-2);
+    ctx.textAlign = 'right'; ctx.fillText(`t=${tMin.toFixed(1)}→${tMax.toFixed(1)}s`, W-4, 10);
+  }
+  function drawAllGraphs(){
+    drawSeries({ ctx: gxCtx, data: graphBuf, valueOf: (p)=> p.x, unit:'m', rangeEl: xRange, minSpan: 1e-3, hlineVal: 0 });
+    drawSeries({ ctx: gvCtx, data: graphBuf, valueOf: (p)=> p.v, unit:'m/s', rangeEl: vRange, minSpan: 1e-3, hlineVal: 0 });
+    drawSeries({ ctx: gaCtx, data: graphBuf, valueOf: (p)=> p.a, unit:'m/s²', rangeEl: aRange, minSpan: 1e-2, hlineVal: 0 });
+  }
+
+  // ====== Loop ======
+  function loop(ts){
+    if (!running) return;
+    if (lastTS === null) lastTS = ts;
+    let dt = (ts - lastTS) / 1000; lastTS = ts; dt = Math.min(dt, 0.033);
+
+    // 固定サブステップで安定化
+    let acc = dt; const h = 1/240;
+    while(acc > 1e-9){ const step = Math.min(h, acc); const nxt = stepRK4(x, v, step); x = nxt[0]; v = nxt[1]; acc -= step; }
+
+    t += dt; tDisp.textContent = t.toFixed(2);
+    const a = accel(x, v);
+
+    // リアルタイム表示
+    if (rtX) rtX.textContent = x.toFixed(3);
+    if (rtV) rtV.textContent = v.toFixed(3);
+    if (rtA) rtA.textContent = a.toFixed(3);
+
+    drawScene();
+
+    // バッファ追記 & 古い点削除
+    graphBuf.push({ t, x, v, a });
+    const tMin = Math.max(0, t - plotWindow);
+    while(graphBuf.length && graphBuf[0].t < tMin - 0.05){ graphBuf.shift(); }
+
+    drawAllGraphs();
+    requestAnimationFrame(loop);
+  }
+
+  // ====== Derived values & Controls ======
+  function recalcDerived(){
+    const keff = (kL + kR);
+    const w0 = Math.sqrt(keff/m);
+    const T0 = 2*Math.PI / w0;
+    keffDisp.textContent = keff.toFixed(2) + ' N/m';
+    w0Disp.textContent = w0.toFixed(3) + ' rad/s';
+    T0Disp.textContent = T0.toFixed(3) + ' s';
+  }
+  function syncDisplays(){
+    mDisp.textContent = (+m).toFixed(2);
+    kLDisp.textContent = (+kL).toFixed(1);
+    kRDisp.textContent = (+kR).toFixed(1);
+    muDisp.textContent = (+mu).toFixed(3);
+    x0Disp.textContent = (+x0).toFixed(3);
+    v0Disp.textContent = (+v0).toFixed(3);
+    pxDisp.textContent = (+PX_PER_M).toFixed(0);
+    winDisp.textContent = (+plotWindow).toFixed(0);
+    recalcDerived();
+  }
+  function seedInitialPoint(){
+    if (rtX) rtX.textContent = x0.toFixed(3);
+    if (rtV) rtV.textContent = v0.toFixed(3);
+    if (rtA) rtA.textContent = accel(x0, v0).toFixed(3);
+    graphBuf.length = 0; t = 0; lastTS = null; tDisp.textContent = '0.00';
+    graphBuf.push({ t:0, x:x0, v:v0, a:accel(x0, v0) });
+  }
+  function applyStoppedParams(){ if (running) return; x = x0; v = v0; seedInitialPoint(); drawScene(); drawAllGraphs(); }
+  function bindPair(rangeEl, numEl, setter){
+    function setBoth(val){
+      setter(val);
+      rangeEl.value = String(val);
+      numEl.value = String(val);
+      syncDisplays();
+      applyStoppedParams();
+    }
+    rangeEl.addEventListener('input', e => setBoth(parseFloat(e.target.value)));
+    numEl.addEventListener('change', e => setBoth(parseFloat(e.target.value)));
+  }
+
+  bindPair(i_m, i_mVal, v=> m=v);
+  bindPair(i_kL, i_kLVal, v=> kL=v);
+  bindPair(i_kR, i_kRVal, v=> kR=v);
+  bindPair(i_mu, i_muVal, v=> mu=v);
+  bindPair(i_x0, i_x0Val, v=> x0=v);
+  bindPair(i_v0, i_v0Val, v=> v0=v);
+  bindPair(i_px, i_pxVal, v=> PX_PER_M=v);
+  bindPair(i_win, i_winVal, v=> plotWindow=v);
+
+  coulombOn.addEventListener('change', () => { applyStoppedParams(); });
+
+  runBtn.addEventListener('click', () => {
+    running = !running;
+    if (running){ runBtn.textContent = '一時停止'; lastTS = null; requestAnimationFrame(loop); }
+    else { runBtn.textContent = '再生'; }
+  });
+  resetBtn.addEventListener('click', () => {
+    running = false; runBtn.textContent = '再生';
+    // 便利な初期値に戻す
+    m = 1.0; kL = 40.0; kR = 60.0; mu = 0.0; x0 = 0.30; v0 = 0.0; PX_PER_M = 180; plotWindow = 12;
+    i_m.value = i_mVal.value = String(m);
+    i_kL.value = i_kLVal.value = String(kL);
+    i_kR.value = i_kRVal.value = String(kR);
+    i_mu.value = i_muVal.value = String(mu);
+    i_x0.value = i_x0Val.value = String(x0);
+    i_v0.value = i_v0Val.value = String(v0);
+    i_px.value = i_pxVal.value = String(PX_PER_M);
+    i_win.value = i_winVal.value = String(plotWindow);
+    syncDisplays(); seedInitialPoint(); drawScene(); drawAllGraphs();
+  });
+
+  // ====== Initial draw ======
+  x = x0; v = v0; seedInitialPoint(); syncDisplays(); drawScene(); drawAllGraphs();
+})();
+</script>
+</body>
+</html>

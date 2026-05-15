@@ -1,0 +1,446 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>運動量保存 剛体(質点)2体シミュレーター</title>
+<style>
+  :root{
+    --w: 800px;
+    --h: 120px;
+    --fs: 12px;
+    --rowh: 22px;
+  }
+  body{font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; font-size:var(--fs); margin:10px; color:#222;}
+  h1{font-size:14px; margin:4px 0 6px;}
+  .wrap{max-width: calc(var(--w) + 12px);} 
+  .bar{display:flex; gap:8px; align-items:center; margin:6px 0;}
+  .bar label{min-width:82px;}
+  .bar input[type="number"]{width:70px; height:var(--rowh); font-size:var(--fs);} 
+  .bar input[type="range"]{width:170px; height:var(--rowh);} 
+  .bar .chk{display:flex; align-items:center; gap:4px;}
+  .row{display:grid; grid-template-columns: 1fr 1fr; gap:10px;}
+  .panel{border:1px solid #ddd; border-radius:6px; padding:6px;}
+  canvas{display:block; background:linear-gradient(#fff,#fafafa); border:1px solid #ddd; border-radius:6px;}
+  .btns{display:flex; gap:6px; flex-wrap:wrap}
+  button{height:var(--rowh); font-size:var(--fs); padding:0 10px;}
+  .mini{font-size:11px; opacity:.85}
+  .readout{display:grid; grid-template-columns:1fr 1fr 1fr; gap:6px; margin-top:4px}
+  .readout div{border:1px solid #eee; border-radius:6px; padding:4px 6px; background:#fff}
+  .legend{display:flex; gap:10px; align-items:center; margin:4px 0}
+  .dot{width:10px;height:10px;border-radius:50%}
+</style>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+  #graphSection { margin-top: 8px; max-width: calc(var(--w) + 12px); margin-left: 0; margin-right: auto; }}
+  #historyChart { width: 100%; height: 220px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>運動量保存（質点2体・1次元+摩擦）シミュレーター</h1>
+
+  <canvas id="sim" width="800" height="120"></canvas>
+
+  <div class="legend">
+    <span class="dot" style="background:#0d6efd"></span><span class="mini">物体A</span>
+    <span class="dot" style="background:#dc3545"></span><span class="mini">物体B</span>
+  </div>
+
+  <div class="row">
+    <div class="panel">
+      <div class="bar"><label>反発係数 e</label><input id="e" type="range" min="0" max="1" step="0.01" value="1"><input id="eNum" type="number" min="0" max="1" step="0.01" value="1"/><span id="eVal">1.00</span></div>
+      <div class="bar"><label>壁 反発e</label><input id="ew" type="range" min="0" max="1" step="0.01" value="1"><input id="ewNum" type="number" min="0" max="1" step="0.01" value="1"/><span id="ewVal">1.00</span></div>
+      <div class="bar"><label>全体Δt</label><input id="dt" type="range" min="0.2" max="2" step="0.1" value="1"><input id="dtNum" type="number" min="0.2" max="2" step="0.1" value="1"/><span id="dtVal">1.0 ms</span></div>
+      <div class="bar"><label>サブステップ</label><input id="sub" type="range" min="1" max="8" step="1" value="3"><input id="subNum" type="number" min="1" max="8" step="1" value="3"/><span id="subVal">3</span></div>
+      <div class="bar"><label>床摩擦μ</label><input id="mu" type="range" min="0" max="0.5" step="0.01" value="0"><input id="muNum" type="number" min="0" max="0.5" step="0.01" value="0"/><span id="muVal">0.00</span></div>
+      <div class="bar"><label>A 初期x</label><input id="x1" type="range" min="0" max="300" step="1" value="140"><input id="x1Num" type="number" min="0" max="300" step="1" value="140"/><span id="x1Val">140</span></div>
+      <div class="bar"><label>B 初期x</label><input id="x2" type="range" min="0" max="300" step="1" value="140"><input id="x2Num" type="number" min="0" max="300" step="1" value="140"/><span id="x2Val">140</span></div>
+      <div class="btns">
+        <button id="start">▶ 再生</button>
+        <button id="pause">⏸ 一時停止</button>
+        <button id="reset">↺ リセット</button>
+      </div>
+    </div>
+
+    <div class="panel">
+      <div class="bar"><label>A 質量(kg)</label><input id="m1" type="number" min="0.1" step="0.1" value="1.0">
+        <div class="chk"><input id="fr1" type="checkbox"><label for="fr1" class="mini">個別摩擦ON</label></div>
+      </div>
+      <div class="bar"><label>A 速さ(m/s)</label><input id="v1" type="range" min="-5" max="5" step="0.1" value="2"><input id="v1Num" type="number" min="-5" max="5" step="0.1" value="2"/><span id="v1Val">2.0</span></div>
+      <div class="bar"><label>A 摩擦μ</label><input id="mu1" type="range" min="0" max="0.5" step="0.01" value="0"><input id="mu1Num" type="number" min="0" max="0.5" step="0.01" value="0"/><span id="mu1Val">0.00</span></div>
+      <div class="bar"><label>A 固定</label><input id="fix1" type="checkbox"><span class="mini">固定</span></div>
+
+      <hr class="mini" />
+
+      <div class="bar"><label>B 質量(kg)</label><input id="m2" type="number" min="0.1" step="0.1" value="1.0">
+        <div class="chk"><input id="fr2" type="checkbox"><label for="fr2" class="mini">個別摩擦ON</label></div>
+      </div>
+      <div class="bar"><label>B 速さ(m/s)</label><input id="v2" type="range" min="-5" max="5" step="0.1" value="-1"><input id="v2Num" type="number" min="-5" max="5" step="0.1" value="-1"/><span id="v2Val">-1.0</span></div>
+      <div class="bar"><label>B 摩擦μ</label><input id="mu2" type="range" min="0" max="0.5" step="0.01" value="0"><input id="mu2Num" type="number" min="0" max="0.5" step="0.01" value="0"/><span id="mu2Val">0.00</span></div>
+      <div class="bar"><label>B 固定</label><input id="fix2" type="checkbox"><span class="mini">固定</span></div>
+    </div>
+  </div>
+
+  <div class="readout">
+    <div id="momA">pA = 0.000 kg·m/s</div>
+    <div id="momB">pB = 0.000 kg·m/s</div>
+    <div id="momTot"><strong>p合計</strong> = 0.000</div>
+    <div id="enA">EA = 0.000 J</div>
+    <div id="enB">EB = 0.000 J</div>
+    <div id="enTot"><strong>E合計</strong> = 0.000</div>
+  </div>
+</div>
+
+<script>
+(function(){
+  const canvas = document.getElementById('sim');
+  const ctx = canvas.getContext('2d');
+
+  const R = 6;
+  const EDGE = R;
+  const LEFT = EDGE, RIGHT = canvas.width - EDGE;
+
+  const bodyA = { x: LEFT + 140, v: 2, m: 1, color:'#0d6efd' };
+  const bodyB = { x: RIGHT - 140, v: -1, m: 1, color:'#dc3545' };
+
+  const $ = (id)=>document.getElementById(id);
+  const e = $('e'), eVal=$('eVal');
+  const ew = $('ew'), ewVal=$('ewVal');
+  const dt = $('dt'), dtVal=$('dtVal');
+  const sub = $('sub'), subVal=$('subVal');
+  const mu = $('mu'), muVal=$('muVal');
+  const x1=$('x1'), x1Val=$('x1Val');
+  const x2=$('x2'), x2Val=$('x2Val');
+  const eNum=$('eNum');
+  const ewNum=$('ewNum');
+  const dtNum=$('dtNum');
+  const subNum=$('subNum');
+  const muNum=$('muNum');
+  const x1Num=$('x1Num');
+  const x2Num=$('x2Num');
+
+  const m1=$('m1'), m2=$('m2');
+  const v1=$('v1'), v1Val=$('v1Val');
+  const v2=$('v2'), v2Val=$('v2Val');
+  const fr1=$('fr1'), fr2=$('fr2');
+  const mu1=$('mu1'), mu1Val=$('mu1Val');
+  const mu2=$('mu2'), mu2Val=$('mu2Val');
+  const v1Num=$('v1Num');
+  const v2Num=$('v2Num');
+  const mu1Num=$('mu1Num');
+  const mu2Num=$('mu2Num');
+  const fix1=$('fix1'), fix2=$('fix2');
+
+  const momA=$('momA'), momB=$('momB'), momTot=$('momTot');
+  const enA=$('enA'), enB=$('enB'), enTot=$('enTot');
+
+  const start=$('start'), pause=$('pause'), reset=$('reset');
+
+  function bindRange(r, out, fmt=(x)=>x){
+    const f=()=> out.textContent = fmt(parseFloat(r.value));
+    r.addEventListener('input', f); f();
+  }
+  bindRange(e, eVal, v=>(+v).toFixed(2));
+  bindRange(ew, ewVal, v=>(+v).toFixed(2));
+  bindRange(dt, dtVal, v=>(+v).toFixed(1)+' ms');
+  bindRange(sub, subVal, v=>v);
+  bindRange(mu, muVal, v=>(+v).toFixed(2));
+  bindRange(x1, x1Val, v=>v|0);
+  bindRange(x2, x2Val, v=>v|0);
+  bindRange(v1, v1Val, v=>(+v).toFixed(1));
+  bindRange(v2, v2Val, v=>(+v).toFixed(1));
+  bindRange(mu1, mu1Val, v=>(+v).toFixed(2));
+  bindRange(mu2, mu2Val, v=>(+v).toFixed(2));
+
+  function bindPair(rangeEl, numberEl, outEl, fmt){
+    const syncFromRange = ()=>{
+      if(numberEl) numberEl.value = rangeEl.value;
+      if(outEl) outEl.textContent = fmt(parseFloat(rangeEl.value));
+    };
+    const syncFromNumber = ()=>{
+      if(!numberEl) return;
+      const min = parseFloat(numberEl.min);
+      const max = parseFloat(numberEl.max);
+      let v = parseFloat(numberEl.value);
+      if (Number.isFinite(min)) v = Math.max(min, v);
+      if (Number.isFinite(max)) v = Math.min(max, v);
+      rangeEl.value = v;
+      if(outEl) outEl.textContent = fmt(parseFloat(rangeEl.value));
+      rangeEl.dispatchEvent(new Event('input'));
+    };
+    rangeEl.addEventListener('input', syncFromRange);
+    if(numberEl){ numberEl.addEventListener('change', syncFromNumber); }
+    syncFromRange();
+  }
+
+  bindPair(e, eNum, eVal, v=>(+v).toFixed(2));
+  bindPair(ew, ewNum, ewVal, v=>(+v).toFixed(2));
+  bindPair(dt, dtNum, dtVal, v=>(+v).toFixed(1)+' ms');
+  bindPair(sub, subNum, subVal, v=>v|0);
+  bindPair(mu, muNum, muVal, v=>(+v).toFixed(2));
+  bindPair(x1, x1Num, x1Val, v=>v|0);
+  bindPair(x2, x2Num, x2Val, v=>v|0);
+  bindPair(v1, v1Num, v1Val, v=>(+v).toFixed(1));
+  bindPair(v2, v2Num, v2Val, v=>(+v).toFixed(1));
+  bindPair(mu1, mu1Num, mu1Val, v=>(+v).toFixed(2));
+  bindPair(mu2, mu2Num, mu2Val, v=>(+v).toFixed(2));
+
+  function applyUItoState(){
+    bodyA.m = Math.max(0.0001, parseFloat(m1.value)||1);
+    bodyB.m = Math.max(0.0001, parseFloat(m2.value)||1);
+    bodyA.v = parseFloat(v1.value)||0;
+    bodyB.v = parseFloat(v2.value)||0;
+  }
+
+  function placeInitial(){
+    bodyA.x = LEFT + parseFloat(x1.value||"140");
+    bodyB.x = RIGHT - parseFloat(x2.value||"140");
+  }
+  placeInitial();
+  applyUItoState();
+
+  let running = false;
+  window.__simRunning = false;
+  let last=performance.now();
+
+  function collide1D(a, b, e){
+    const m1=a.m, m2=b.m, u1=a.v, u2=b.v;
+    const v1 = (m1*u1 + m2*u2 - m2*e*(u1-u2)) / (m1+m2);
+    const v2 = (m1*u1 + m2*u2 + m1*e*(u1-u2)) / (m1+m2);
+    a.v = v1; b.v = v2;
+  }
+
+  function wallReflect(b, e){
+    if (b.x <= LEFT){
+      b.x = LEFT;
+      b.v = Math.max(0, -b.v*e);
+    } else if (b.x >= RIGHT){
+      b.x = RIGHT;
+      b.v = Math.min(0, -b.v*e);
+    }
+  }
+
+  const g = 9.81;
+  function applyFriction(b, dtSec){
+    let muEff = parseFloat(mu.value);
+    if (fr1.checked && b===bodyA) muEff = parseFloat(mu1.value);
+    if (fr2.checked && b===bodyB) muEff = parseFloat(mu2.value);
+    if (muEff<=0) return;
+    if (Math.abs(b.v) < 1e-6){ b.v=0; return; }
+    const decel = muEff * g;
+    const dv = decel * dtSec * Math.sign(b.v);
+    const newv = b.v - dv;
+    if (Math.sign(newv) !== Math.sign(b.v)) b.v = 0; else b.v = newv;
+  }
+
+  function step(dtMs){
+    const eCoef = parseFloat(e.value);
+    const eWall = parseFloat(ew.value);
+    const subSteps = parseInt(sub.value,10);
+    const dtSec = (dtMs/1000) / subSteps;
+
+    for (let k=0; k<subSteps; k++){
+      if (fix1.checked) bodyA.v = 0;
+      if (fix2.checked) bodyB.v = 0;
+
+      if (!fix1.checked) bodyA.x += bodyA.v * dtSec * 100;
+      if (!fix2.checked) bodyB.x += bodyB.v * dtSec * 100;
+
+      if (!fix1.checked) wallReflect(bodyA, eWall);
+      if (!fix2.checked) wallReflect(bodyB, eWall);
+
+      const contact = (bodyB.x - bodyA.x) <= (2*R);
+      if (contact){
+        const ePair = eCoef;
+        if (fix1.checked && !fix2.checked){
+          bodyB.x = bodyA.x + 2*R;
+          bodyB.v = -ePair * bodyB.v;
+        } else if (!fix1.checked && fix2.checked){
+          bodyA.x = bodyB.x - 2*R;
+          bodyA.v = -ePair * bodyA.v;
+        } else if (!fix1.checked && !fix2.checked){
+          const mid = (bodyA.x + bodyB.x)/2;
+          bodyA.x = mid - R;
+          bodyB.x = mid + R;
+          collide1D(bodyA, bodyB, ePair);
+          bodyA.x -= 0.001;
+          bodyB.x += 0.001;
+        } else {
+          
+        }
+      }
+
+      if (!fix1.checked) applyFriction(bodyA, dtSec);
+      if (!fix2.checked) applyFriction(bodyB, dtSec);
+    }
+  }
+
+  function draw(){
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    ctx.strokeStyle="#ddd";
+    ctx.beginPath();
+    ctx.moveTo(LEFT, canvas.height/2);
+    ctx.lineTo(RIGHT, canvas.height/2);
+    ctx.stroke();
+
+    ctx.fillStyle = bodyA.color;
+    ctx.beginPath();
+    ctx.arc(bodyA.x, canvas.height/2, R, 0, Math.PI*2);
+    ctx.fill();
+
+    ctx.fillStyle = bodyB.color;
+    ctx.beginPath();
+    ctx.arc(bodyB.x, canvas.height/2, R, 0, Math.PI*2);
+    ctx.fill();
+  }
+
+  function updateReadout(){
+    const vA = bodyA.v;
+    const vB = bodyB.v;
+    const pA = bodyA.m * vA;
+    const pB = bodyB.m * vB;
+    const EA = 0.5 * bodyA.m * vA*vA;
+    const EB = 0.5 * bodyB.m * vB*vB;
+
+    momA.textContent = `pA = ${pA.toFixed(3)} kg·m/s`;
+    momB.textContent = `pB = ${pB.toFixed(3)} kg·m/s`;
+    momTot.innerHTML = `<strong>p合計</strong> = ${(pA+pB).toFixed(3)}`;
+
+    enA.textContent = `EA = ${EA.toFixed(3)} J`;
+    enB.textContent = `EB = ${EB.toFixed(3)} J`;
+    enTot.innerHTML = `<strong>E合計</strong> = ${(EA+EB).toFixed(3)} J`;
+  }
+
+  function loop(now){
+    if (!running){ last=now; requestAnimationFrame(loop); return; }
+    const dtMs = parseFloat(dt.value);
+    let acc = now - last;
+    if (acc > 50) acc = 50;
+    while (acc >= dtMs){
+      step(dtMs);
+      acc -= dtMs;
+      last += dtMs;
+    }
+    draw();
+    updateReadout();
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
+
+  start.addEventListener('click', ()=>{ running = true; window.__simRunning = true; });
+  pause.addEventListener('click', ()=>{ running = false; window.__simRunning = false; });
+  reset.addEventListener('click', ()=>{
+    running=false;
+    window.__simRunning = false;
+    placeInitial();
+    applyUItoState();
+    draw();
+    updateReadout();
+    window.__clearHistoryChart?.();
+  });
+
+  [m1,m2,v1,v2].forEach(el=>{
+    el.addEventListener('input', ()=>{
+      applyUItoState();
+      if (!running){ draw(); updateReadout(); }
+    });
+  });
+  [x1,x2].forEach(el=>{
+    el.addEventListener('input', ()=>{
+      if (!running){ placeInitial(); draw(); updateReadout(); }
+    });
+  });
+
+  draw();
+  updateReadout();
+})();
+</script>
+<section id="graphSection">
+  <canvas id="historyChart"></canvas>
+</section>
+<script>
+(() => {
+  const TOTAL_IDS = {
+    momentum: 'momTot',
+    energy:   'enTot'
+  };
+
+  function readNumber(id){
+    const el = document.getElementById(id);
+    if (!el) return null;
+    const s = (el.textContent || el.innerText || '').trim();
+    const m = s.match(/[-+]?\d+(?:\.\d+)?(?:[eE][-+]?\d+)?/g);
+    if (!m || m.length === 0) return null;
+    const v = Number(m[m.length - 1]);
+    return Number.isFinite(v) ? v : null;
+  }
+
+  const ctx = document.getElementById('historyChart').getContext('2d');
+  const maxPoints = 600;
+  const labels = [];
+  const dataP  = [];
+  const dataKE = [];
+
+  const chart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        { label: '運動量 合計', data: dataP, borderColor: '#0d6efd', borderWidth: 1, pointRadius: 0, tension: 0.15 },
+        { label: '運動エネルギー 合計', data: dataKE, borderColor: '#dc3545', borderWidth: 1, pointRadius: 0, tension: 0.15 }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: false,
+      scales: {
+        x: {
+          type: 'linear',
+          min: 0,
+          ticks: { display: true },
+          grid: { display: false }
+        },
+        y: { ticks: { beginAtZero: true }, grid: { color: 'rgba(0,0,0,0.08)' } }
+      },
+      plugins: { legend: { position: 'top' } }
+    }
+  });
+
+  window.__clearHistoryChart = () => {
+    labels.length = 0;
+    dataP.length = 0;
+    dataKE.length = 0;
+    timeCounter = 0;
+    chart.update();
+  };
+
+  let timeCounter = 0;
+  function pump(){
+    if (window.__simRunning === true){
+      const p  = readNumber(TOTAL_IDS.momentum);
+      const ke = readNumber(TOTAL_IDS.energy);
+      if(p !== null || ke !== null){
+        labels.push(timeCounter);
+        dataP.push(p ?? null);
+        dataKE.push(ke ?? null);
+        timeCounter += 1;
+        if(labels.length > maxPoints){
+          const down = (arr)=>{ const out=[arr[0]]; for(let i=1;i<arr.length;i+=2){ out.push(arr[i]); } return out; };
+          const labs=[labels[0]]; for(let i=1;i<labels.length;i+=2){ labs.push(labels[i]); }
+          labels.length=0; labels.push(...labs);
+          const p0=down(dataP); dataP.length=0; dataP.push(...p0);
+          const k0=down(dataKE); dataKE.length=0; dataKE.push(...k0);
+          chart.update();
+        }
+        chart.update();
+      }
+    }
+    setTimeout(pump, 10);
+  }
+  pump();
+})();
+</script>
+</body>
+</html>

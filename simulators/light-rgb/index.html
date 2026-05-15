@@ -1,0 +1,855 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>三原色シミュレーター</title>
+<link rel="stylesheet" href="../../assets/common-sim.css">
+<script src="../../assets/sim-shell.js"></script>
+<style>
+  :root {
+    --bg: #f4f7fb;
+    --surface: #ffffff;
+    --surface-2: #f8fafc;
+    --ink: #17202a;
+    --muted: #627184;
+    --line: #d9e1ec;
+    --panel: #111827;
+    --panel-2: #182235;
+    --accent: #2563eb;
+    --ok: #15803d;
+    --warn: #b45309;
+    --radius: 8px;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    min-height: 100%;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: ui-sans-serif, system-ui, -apple-system, "Hiragino Kaku Gothic ProN", Meiryo, sans-serif;
+    font-size: 14px;
+    line-height: 1.5;
+  }
+  button, input { font: inherit; }
+  .wrap {
+    width: min(1180px, calc(100% - 24px));
+    margin: 16px auto 30px;
+  }
+  .title-row {
+    display: flex;
+    align-items: end;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 12px;
+  }
+  h1 {
+    margin: 0;
+    font-size: 22px;
+    line-height: 1.25;
+  }
+  .summary {
+    margin: 4px 0 0;
+    color: var(--muted);
+    font-size: 13px;
+  }
+  .mode-tabs {
+    display: inline-grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 4px;
+    padding: 4px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--surface);
+  }
+  .tab-stack {
+    display: grid;
+    gap: 8px;
+    justify-items: end;
+  }
+  .mode-tabs button,
+  .tool-button {
+    min-height: 34px;
+    border: 1px solid transparent;
+    border-radius: 6px;
+    background: transparent;
+    color: #334155;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  .mode-tabs button[aria-pressed="true"] {
+    border-color: #bcd2ff;
+    background: #eaf1ff;
+    color: #174ea6;
+  }
+  .layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(320px, 370px);
+    gap: 12px;
+    align-items: start;
+  }
+  .panel {
+    min-width: 0;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--surface);
+    box-shadow: 0 10px 24px rgba(15, 23, 42, .06);
+  }
+  .panel-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 11px 12px;
+    border-bottom: 1px solid var(--line);
+  }
+  .panel-title {
+    margin: 0;
+    color: #273241;
+    font-size: 13px;
+    font-weight: 800;
+  }
+  .view-panel {
+    background: #0f172a;
+    color: #f8fafc;
+  }
+  .view-panel .panel-head {
+    border-color: rgba(255,255,255,.1);
+  }
+  .view-panel .panel-title { color: #f8fafc; }
+  .canvas-shell {
+    position: relative;
+    padding: 14px;
+  }
+  canvas {
+    display: block;
+    width: 100%;
+    height: min(62vh, 570px);
+    min-height: 430px;
+    border: 1px solid rgba(255,255,255,.1);
+    border-radius: var(--radius);
+    background: radial-gradient(circle at 50% 46%, #1f2937 0, #121826 58%, #0b1020 100%);
+  }
+  .rgb-readout {
+    position: absolute;
+    left: 26px;
+    bottom: 26px;
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    max-width: calc(100% - 52px);
+    padding: 8px 10px;
+    border: 1px solid rgba(255,255,255,.12);
+    border-radius: 7px;
+    background: rgba(15, 23, 42, .78);
+    color: #e5eefc;
+    backdrop-filter: blur(10px);
+    font-variant-numeric: tabular-nums;
+  }
+  .current-swatch {
+    width: 26px;
+    height: 26px;
+    flex: 0 0 auto;
+    border: 1px solid rgba(255,255,255,.3);
+    border-radius: 6px;
+    background: rgb(255,255,255);
+  }
+  .controls {
+    display: grid;
+    gap: 12px;
+    padding: 12px;
+  }
+  .control-group {
+    display: grid;
+    gap: 10px;
+  }
+  .slider-row {
+    display: grid;
+    grid-template-columns: 26px minmax(0, 1fr) 48px;
+    gap: 9px;
+    align-items: center;
+  }
+  .channel-label {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    border-radius: 6px;
+    color: #fff;
+    font-weight: 900;
+  }
+  .channel-label.red { background: #dc2626; }
+  .channel-label.green { background: #16a34a; }
+  .channel-label.blue { background: #2563eb; }
+  .channel-label.cyan { background: #0891b2; }
+  .channel-label.magenta { background: #c026d3; }
+  .channel-label.yellow { background: #ca8a04; }
+  input[type="range"] { width: 100%; }
+  output {
+    color: #334155;
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+  }
+  .tool-row {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 7px;
+  }
+  .tool-button {
+    border-color: var(--line);
+    background: var(--surface-2);
+  }
+  .tool-button:hover,
+  .tool-button:focus-visible {
+    border-color: var(--accent);
+    outline: none;
+  }
+  .mission {
+    display: grid;
+    gap: 10px;
+    padding: 10px;
+    border: 1px solid #e2e8f0;
+    border-radius: var(--radius);
+    background: var(--surface-2);
+  }
+  .mission-title {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    color: #263241;
+    font-size: 13px;
+    font-weight: 800;
+  }
+  .mission-text {
+    margin: 0;
+    min-height: 42px;
+    color: #334155;
+  }
+  .target-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+  .color-box {
+    min-height: 68px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 8px;
+    background: #fff;
+  }
+  .color-label {
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 800;
+  }
+  .color-chip {
+    width: 100%;
+    height: 32px;
+    margin-top: 6px;
+    border: 1px solid rgba(15,23,42,.18);
+    border-radius: 6px;
+  }
+  .mission-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 7px;
+  }
+  .primary,
+  .secondary {
+    min-height: 36px;
+    border-radius: 7px;
+    font-size: 13px;
+    font-weight: 800;
+    cursor: pointer;
+  }
+  .primary {
+    border: 1px solid #1d4ed8;
+    background: #2563eb;
+    color: #fff;
+  }
+  .secondary {
+    border: 1px solid var(--line);
+    background: #fff;
+    color: #334155;
+  }
+  .status {
+    min-height: 27px;
+    padding: 4px 8px;
+    border-radius: 6px;
+    background: #eef2ff;
+    color: #334155;
+    font-size: 12px;
+    font-weight: 800;
+  }
+  .status.ok { background: #e7f6ed; color: var(--ok); }
+  .status.warn { background: #fff7ed; color: var(--warn); }
+  .palette {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 7px;
+  }
+  .palette-item {
+    min-height: 58px;
+    border: 1px solid var(--line);
+    border-radius: 7px;
+    padding: 7px;
+    background: #fff;
+    color: #334155;
+    font-size: 11px;
+    font-weight: 800;
+  }
+  .palette-swatch {
+    height: 24px;
+    margin-bottom: 5px;
+    border-radius: 5px;
+    border: 1px solid rgba(15,23,42,.16);
+  }
+  .hint {
+    margin: 0;
+    color: var(--muted);
+    font-size: 12px;
+  }
+  .hidden { display: none; }
+  @media (max-width: 900px) {
+    .title-row {
+      align-items: stretch;
+      flex-direction: column;
+    }
+    .mode-tabs { width: min(360px, 100%); }
+    .tab-stack { justify-items: stretch; }
+    .layout { grid-template-columns: 1fr; }
+    canvas {
+      height: 520px;
+      min-height: 380px;
+    }
+  }
+  @media (max-width: 520px) {
+    .wrap { width: min(100% - 16px, 1180px); }
+    h1 { font-size: 19px; }
+    .canvas-shell { padding: 10px; }
+    canvas {
+      height: 430px;
+      min-height: 330px;
+    }
+    .rgb-readout {
+      left: 18px;
+      bottom: 18px;
+      font-size: 12px;
+    }
+    .tool-row,
+    .palette,
+    .target-row,
+    .mission-actions {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>
+</head>
+<body>
+<script>
+  PhysicsSimShell.create({
+    title: '三原色',
+    subtitle: '光の三原色と色の三原色',
+    basePath: '../../'
+  });
+</script>
+<main class="wrap">
+  <div class="title-row">
+    <div>
+      <h1 id="mainTitle">光の三原色シミュレーター</h1>
+      <p class="summary" id="summaryText">赤・緑・青の光を重ねると、強いほど白に近づくことを確かめます。</p>
+    </div>
+    <div class="tab-stack">
+      <div class="mode-tabs" role="group" aria-label="三原色の種類">
+        <button id="lightSystem" type="button" aria-pressed="true">光の三原色</button>
+        <button id="pigmentSystem" type="button" aria-pressed="false">色の三原色</button>
+      </div>
+      <div class="mode-tabs" role="group" aria-label="表示モード">
+        <button id="vennMode" type="button" aria-pressed="true">ベン図</button>
+        <button id="missionMode" type="button" aria-pressed="false">ミッション</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="layout">
+    <section class="panel view-panel">
+      <div class="panel-head">
+        <p class="panel-title" id="viewTitle">RGBの重なり</p>
+        <p class="panel-title" id="mixName">白</p>
+      </div>
+      <div class="canvas-shell">
+        <canvas id="scene" width="900" height="620" aria-label="三原色の重なり"></canvas>
+        <div class="rgb-readout">
+          <span class="current-swatch" id="currentSwatch"></span>
+          <span id="rgbFormula">RGB(255, 255, 255)</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-head">
+        <p class="panel-title" id="controlTitle">光の強さ</p>
+        <p class="panel-title">0 - 255</p>
+      </div>
+      <div class="controls">
+        <div class="control-group">
+          <div class="slider-row">
+            <span class="channel-label red" id="redLabel">R</span>
+            <input id="red" type="range" min="0" max="255" step="1" value="255" aria-label="赤の強さ">
+            <output id="redOut">255</output>
+          </div>
+          <div class="slider-row">
+            <span class="channel-label green" id="greenLabel">G</span>
+            <input id="green" type="range" min="0" max="255" step="1" value="255" aria-label="緑の強さ">
+            <output id="greenOut">255</output>
+          </div>
+          <div class="slider-row">
+            <span class="channel-label blue" id="blueLabel">B</span>
+            <input id="blue" type="range" min="0" max="255" step="1" value="255" aria-label="青の強さ">
+            <output id="blueOut">255</output>
+          </div>
+        </div>
+
+        <div class="tool-row">
+          <button class="tool-button" id="whiteBtn" type="button">白</button>
+          <button class="tool-button" id="blackBtn" type="button">消灯</button>
+          <button class="tool-button" id="randomBtn" type="button">ランダム</button>
+        </div>
+
+        <section class="mission" id="missionPanel">
+          <div class="mission-title">
+            <span id="missionStep">ミッション 1 / 6</span>
+            <span id="missionGoalName">黄色を作る</span>
+          </div>
+          <p class="mission-text" id="missionText">赤と緑を強くして、青を消してください。</p>
+          <div class="target-row">
+            <div class="color-box">
+              <div class="color-label">現在</div>
+              <div class="color-chip" id="nowChip"></div>
+            </div>
+            <div class="color-box">
+              <div class="color-label">目標</div>
+              <div class="color-chip" id="targetChip"></div>
+            </div>
+          </div>
+          <div class="status" id="missionStatus">スライダーを動かしてください。</div>
+          <div class="mission-actions">
+            <button class="secondary" id="prevMission" type="button">前へ</button>
+            <button class="primary" id="nextMission" type="button">次へ</button>
+          </div>
+        </section>
+
+        <section>
+          <p class="panel-title">よく出る混色</p>
+          <div class="palette" id="palette"></div>
+        </section>
+        <p class="hint" id="hintText">光の混色は絵の具と逆です。赤+緑=黄、緑+青=シアン、青+赤=マゼンタ、3色を強く重ねると白になります。</p>
+      </div>
+    </section>
+  </div>
+</main>
+
+<script>
+(function(){
+  const canvas = document.querySelector('#scene');
+  const ctx = canvas.getContext('2d');
+  const controls = {
+    a: document.querySelector('#red'),
+    b: document.querySelector('#green'),
+    c: document.querySelector('#blue')
+  };
+  const outs = {
+    a: document.querySelector('#redOut'),
+    b: document.querySelector('#greenOut'),
+    c: document.querySelector('#blueOut')
+  };
+  const els = {
+    lightSystem: document.querySelector('#lightSystem'),
+    pigmentSystem: document.querySelector('#pigmentSystem'),
+    vennMode: document.querySelector('#vennMode'),
+    missionMode: document.querySelector('#missionMode'),
+    missionPanel: document.querySelector('#missionPanel'),
+    mainTitle: document.querySelector('#mainTitle'),
+    summaryText: document.querySelector('#summaryText'),
+    controlTitle: document.querySelector('#controlTitle'),
+    redLabel: document.querySelector('#redLabel'),
+    greenLabel: document.querySelector('#greenLabel'),
+    blueLabel: document.querySelector('#blueLabel'),
+    viewTitle: document.querySelector('#viewTitle'),
+    mixName: document.querySelector('#mixName'),
+    rgbFormula: document.querySelector('#rgbFormula'),
+    currentSwatch: document.querySelector('#currentSwatch'),
+    nowChip: document.querySelector('#nowChip'),
+    targetChip: document.querySelector('#targetChip'),
+    missionStep: document.querySelector('#missionStep'),
+    missionGoalName: document.querySelector('#missionGoalName'),
+    missionText: document.querySelector('#missionText'),
+    missionStatus: document.querySelector('#missionStatus'),
+    prevMission: document.querySelector('#prevMission'),
+    nextMission: document.querySelector('#nextMission'),
+    palette: document.querySelector('#palette'),
+    hintText: document.querySelector('#hintText'),
+    whiteBtn: document.querySelector('#whiteBtn'),
+    blackBtn: document.querySelector('#blackBtn'),
+    randomBtn: document.querySelector('#randomBtn')
+  };
+  const systems = {
+    light: {
+      title: '光の三原色シミュレーター',
+      summary: '赤・緑・青の光を重ねると、強いほど白に近づくことを確かめます。',
+      viewTitle: 'RGBの重なり',
+      controlTitle: '光の強さ',
+      hint: '光の混色は絵の具と逆です。赤+緑=黄、緑+青=シアン、青+赤=マゼンタ、3色を強く重ねると白になります。',
+      formula: 'RGB',
+      whiteButton: '白',
+      blackButton: '消灯',
+      labels: [
+        { key: 'R', name: '赤', className: 'red', color: [255,0,0], text: '#fecaca' },
+        { key: 'G', name: '緑', className: 'green', color: [0,255,0], text: '#bbf7d0' },
+        { key: 'B', name: '青', className: 'blue', color: [0,0,255], text: '#bfdbfe' }
+      ],
+      overlaps: [
+        { name: '黄', x: 0, y: -.37, color: '#fef08a' },
+        { name: 'マゼンタ', x: -.76, y: .5, color: '#fbcfe8' },
+        { name: 'シアン', x: .76, y: .5, color: '#bae6fd' },
+        { name: '白', x: 0, y: .2, color: '#ffffff' }
+      ],
+      missions: [
+        { name: '黄色を作る', text: '赤と緑を強くして、青を消してください。', levels: [255,255,0] },
+        { name: 'シアンを作る', text: '緑と青を強くして、赤を消してください。', levels: [0,255,255] },
+        { name: 'マゼンタを作る', text: '赤と青を強くして、緑を消してください。', levels: [255,0,255] },
+        { name: '白に近づける', text: '赤・緑・青をすべて強くしてください。', levels: [255,255,255] },
+        { name: '暗い灰色を作る', text: '3色を同じくらい弱くしてください。', levels: [80,80,80] },
+        { name: 'あたたかい橙を作る', text: '赤を強く、緑を中くらい、青を少しだけにしてください。', levels: [255,140,30] }
+      ],
+      palette: [
+        ['赤', [255,0,0]], ['緑', [0,255,0]], ['青', [0,0,255]], ['白', [255,255,255]],
+        ['黄', [255,255,0]], ['シアン', [0,255,255]], ['マゼンタ', [255,0,255]], ['灰', [128,128,128]]
+      ],
+      mix(levels){ return levels; },
+      whiteLevels: [255,255,255],
+      blackLevels: [0,0,0],
+      background: 'dark',
+      blend: 'lighter'
+    },
+    pigment: {
+      title: '色の三原色シミュレーター',
+      summary: 'シアン・マゼンタ・イエローの色材を重ねると、強いほど黒に近づくことを確かめます。',
+      viewTitle: 'CMYの重なり',
+      controlTitle: '色材の量',
+      hint: '色の三原色は減法混色です。シアン+マゼンタ=青、マゼンタ+イエロー=赤、イエロー+シアン=緑、3色を濃く重ねると黒に近づきます。',
+      formula: 'CMY',
+      whiteButton: '白紙',
+      blackButton: '黒',
+      labels: [
+        { key: 'C', name: 'シアン', className: 'cyan', color: [0,210,230], text: '#cffafe' },
+        { key: 'M', name: 'マゼンタ', className: 'magenta', color: [230,0,210], text: '#fbcfe8' },
+        { key: 'Y', name: '黄', className: 'yellow', color: [255,230,0], text: '#713f12' }
+      ],
+      overlaps: [
+        { name: '青', x: 0, y: -.37, color: '#bfdbfe' },
+        { name: '緑', x: -.76, y: .5, color: '#bbf7d0' },
+        { name: '赤', x: .76, y: .5, color: '#fecaca' },
+        { name: '黒', x: 0, y: .2, color: '#f8fafc' }
+      ],
+      missions: [
+        { name: '赤を作る', text: 'マゼンタと黄を濃くして、シアンを少なくしてください。', levels: [0,255,255] },
+        { name: '緑を作る', text: 'シアンと黄を濃くして、マゼンタを少なくしてください。', levels: [255,0,255] },
+        { name: '青を作る', text: 'シアンとマゼンタを濃くして、黄を少なくしてください。', levels: [255,255,0] },
+        { name: '黒に近づける', text: 'シアン・マゼンタ・黄をすべて濃くしてください。', levels: [255,255,255] },
+        { name: '白に近づける', text: '3色の色材をすべて少なくしてください。', levels: [0,0,0] },
+        { name: '暗い灰色を作る', text: '3色を同じくらい中くらいにしてください。', levels: [140,140,140] }
+      ],
+      palette: [
+        ['シアン', [255,0,0]], ['マゼンタ', [0,255,0]], ['黄', [0,0,255]], ['白紙', [0,0,0]],
+        ['赤', [0,255,255]], ['緑', [255,0,255]], ['青', [255,255,0]], ['黒', [255,255,255]]
+      ],
+      mix(levels){ return [255 - levels[0], 255 - levels[1], 255 - levels[2]]; },
+      whiteLevels: [0,0,0],
+      blackLevels: [255,255,255],
+      background: 'paper',
+      blend: 'multiply'
+    }
+  };
+  let systemName = 'light';
+  let mode = 'venn';
+  let missionIndex = 0;
+
+  Object.values(controls).forEach(input => input.addEventListener('input', update));
+  els.lightSystem.addEventListener('click', () => setSystem('light'));
+  els.pigmentSystem.addEventListener('click', () => setSystem('pigment'));
+  els.vennMode.addEventListener('click', () => setMode('venn'));
+  els.missionMode.addEventListener('click', () => setMode('mission'));
+  els.whiteBtn.addEventListener('click', () => setLevels(system().whiteLevels));
+  els.blackBtn.addEventListener('click', () => setLevels(system().blackLevels));
+  els.randomBtn.addEventListener('click', () => setLevels([rand255(), rand255(), rand255()]));
+  els.prevMission.addEventListener('click', () => {
+    missionIndex = (missionIndex + system().missions.length - 1) % system().missions.length;
+    updateMissionText();
+    update();
+  });
+  els.nextMission.addEventListener('click', () => {
+    missionIndex = (missionIndex + 1) % system().missions.length;
+    updateMissionText();
+    update();
+  });
+  window.addEventListener('resize', draw);
+
+  function rand255(){ return Math.round(Math.random() * 255); }
+  function system(){ return systems[systemName]; }
+  function getLevels(){
+    return [Number(controls.a.value), Number(controls.b.value), Number(controls.c.value)];
+  }
+  function setLevels(levels){
+    controls.a.value = levels[0];
+    controls.b.value = levels[1];
+    controls.c.value = levels[2];
+    update();
+  }
+  function setSystem(nextSystem){
+    if (systemName === nextSystem) return;
+    systemName = nextSystem;
+    missionIndex = 0;
+    setLevels(system().whiteLevels);
+    renderSystemChrome();
+    renderPalette();
+    updateMissionText();
+    update();
+  }
+  function setMode(nextMode){
+    mode = nextMode;
+    els.vennMode.setAttribute('aria-pressed', String(mode === 'venn'));
+    els.missionMode.setAttribute('aria-pressed', String(mode === 'mission'));
+    els.missionPanel.classList.toggle('hidden', mode !== 'mission');
+    els.viewTitle.textContent = mode === 'venn' ? system().viewTitle : '指示に合わせて色を作る';
+    update();
+  }
+  function renderSystemChrome(){
+    const s = system();
+    els.lightSystem.setAttribute('aria-pressed', String(systemName === 'light'));
+    els.pigmentSystem.setAttribute('aria-pressed', String(systemName === 'pigment'));
+    els.mainTitle.textContent = s.title;
+    els.summaryText.textContent = s.summary;
+    els.controlTitle.textContent = s.controlTitle;
+    els.hintText.textContent = s.hint;
+    els.whiteBtn.textContent = s.whiteButton;
+    els.blackBtn.textContent = s.blackButton;
+    [els.redLabel, els.greenLabel, els.blueLabel].forEach((label, index) => {
+      const channel = s.labels[index];
+      label.textContent = channel.key;
+      label.className = 'channel-label ' + channel.className;
+    });
+    controls.a.setAttribute('aria-label', s.labels[0].name + 'の強さ');
+    controls.b.setAttribute('aria-label', s.labels[1].name + 'の強さ');
+    controls.c.setAttribute('aria-label', s.labels[2].name + 'の強さ');
+    setMode(mode);
+  }
+  function updateMissionText(){
+    const list = system().missions;
+    const m = list[missionIndex];
+    const targetRgb = system().mix(m.levels);
+    els.missionStep.textContent = 'ミッション ' + (missionIndex + 1) + ' / ' + list.length;
+    els.missionGoalName.textContent = m.name;
+    els.missionText.textContent = m.text;
+    els.targetChip.style.background = rgbCss(targetRgb);
+  }
+  function update(){
+    const levels = getLevels();
+    const rgb = system().mix(levels);
+    outs.a.textContent = levels[0];
+    outs.b.textContent = levels[1];
+    outs.c.textContent = levels[2];
+    els.rgbFormula.textContent = system().formula + '(' + levels.join(', ') + ') = RGB(' + rgb.join(', ') + ')';
+    els.currentSwatch.style.background = rgbCss(rgb);
+    els.nowChip.style.background = rgbCss(rgb);
+    els.mixName.textContent = nameColor(rgb);
+    updateMissionStatus(rgb);
+    draw();
+  }
+  function updateMissionStatus(rgb){
+    const target = system().mix(system().missions[missionIndex].levels);
+    const d = Math.sqrt(
+      Math.pow(rgb[0] - target[0], 2) +
+      Math.pow(rgb[1] - target[1], 2) +
+      Math.pow(rgb[2] - target[2], 2)
+    );
+    const percent = Math.max(0, Math.round(100 - d / 441.7 * 100));
+    els.missionStatus.className = 'status' + (d <= 28 ? ' ok' : d <= 80 ? ' warn' : '');
+    els.missionStatus.textContent = d <= 28 ? '達成です。かなり近い色になっています。' : '目標への近さ ' + percent + '%';
+  }
+  function rgbCss(rgb){ return 'rgb(' + rgb[0] + ',' + rgb[1] + ',' + rgb[2] + ')'; }
+  function rgba(rgb, a){ return 'rgba(' + rgb[0] + ',' + rgb[1] + ',' + rgb[2] + ',' + a + ')'; }
+  function nameColor(rgb){
+    const [r,g,b] = rgb;
+    const high = 190;
+    const low = 65;
+    if (r < low && g < low && b < low) return '黒に近い';
+    if (r > high && g > high && b > high) return '白に近い';
+    if (Math.abs(r-g) < 20 && Math.abs(g-b) < 20) return '灰色';
+    if (r > high && g > high && b < low) return '黄色';
+    if (g > high && b > high && r < low) return 'シアン';
+    if (r > high && b > high && g < low) return 'マゼンタ';
+    if (r >= g && r >= b) return g > b ? '赤寄りの黄・橙' : '赤・マゼンタ寄り';
+    if (g >= r && g >= b) return b > r ? '緑・シアン寄り' : '緑・黄色寄り';
+    return r > g ? '青・マゼンタ寄り' : '青・シアン寄り';
+  }
+  function fitCanvas(){
+    const rect = canvas.getBoundingClientRect();
+    const scale = window.devicePixelRatio || 1;
+    const width = Math.max(320, Math.round(rect.width * scale));
+    const height = Math.max(320, Math.round(rect.height * scale));
+    if (canvas.width !== width || canvas.height !== height) {
+      canvas.width = width;
+      canvas.height = height;
+    }
+    ctx.setTransform(scale, 0, 0, scale, 0, 0);
+    return { w: rect.width, h: rect.height };
+  }
+  function draw(){
+    const { w, h } = fitCanvas();
+    const levels = getLevels();
+    ctx.clearRect(0, 0, w, h);
+    drawGrid(w, h);
+    drawVenn(w, h, levels);
+    if (mode === 'mission') drawTargetOverlay(w, h);
+  }
+  function drawGrid(w, h){
+    const paper = system().background === 'paper';
+    ctx.fillStyle = paper ? '#f8fafc' : '#0f172a';
+    ctx.fillRect(0, 0, w, h);
+    ctx.strokeStyle = paper ? 'rgba(15,23,42,.06)' : 'rgba(255,255,255,.055)';
+    ctx.lineWidth = 1;
+    for (let x = 24; x < w; x += 36) {
+      ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke();
+    }
+    for (let y = 24; y < h; y += 36) {
+      ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(w, y); ctx.stroke();
+    }
+  }
+  function drawVenn(w, h, levels){
+    const cx = w / 2;
+    const cy = h * .46;
+    const radius = Math.min(w * .28, h * .31, 190);
+    const offset = radius * .54;
+    const points = [
+      [cx - offset, cy - radius * .18],
+      [cx + offset, cy - radius * .18],
+      [cx, cy + radius * .62]
+    ];
+    ctx.save();
+    ctx.globalCompositeOperation = system().blend;
+    system().labels.forEach((channel, index) => {
+      drawPrimary(points[index][0], points[index][1], radius, channel.color, levels[index]);
+    });
+    ctx.restore();
+    drawLabels(cx, cy, radius, offset);
+    drawStrengthBars(w, levels);
+  }
+  function drawPrimary(x, y, radius, color, strength){
+    const paper = system().background === 'paper';
+    const alpha = strength / 255 * (paper ? .72 : .74);
+    const gradient = ctx.createRadialGradient(x, y, radius * .08, x, y, radius);
+    gradient.addColorStop(0, rgba(color, strength > 0 ? Math.min(.96, alpha + .16) : 0));
+    gradient.addColorStop(.68, rgba(color, alpha));
+    gradient.addColorStop(1, rgba(color, 0));
+    ctx.fillStyle = gradient;
+    ctx.beginPath();
+    ctx.arc(x, y, radius, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = rgba(color, strength > 0 ? .62 : .22);
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(x, y, radius, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+  function drawLabels(cx, cy, radius, offset){
+    const s = system();
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.font = '800 22px system-ui, sans-serif';
+    label(s.labels[0].key, cx - offset - radius * .56, cy - radius * .42, s.labels[0].text);
+    label(s.labels[1].key, cx + offset + radius * .56, cy - radius * .42, s.labels[1].text);
+    label(s.labels[2].key, cx, cy + radius * 1.44, s.labels[2].text);
+    ctx.font = '800 14px system-ui, sans-serif';
+    s.overlaps.forEach(item => {
+      label(item.name, cx + offset * item.x, cy + radius * item.y, item.color);
+    });
+  }
+  function label(text, x, y, color){
+    ctx.fillStyle = system().background === 'paper' ? 'rgba(15,23,42,.72)' : 'rgba(15,23,42,.72)';
+    const width = ctx.measureText(text).width + 18;
+    ctx.beginPath();
+    roundedRect(x - width / 2, y - 13, width, 26, 6);
+    ctx.fill();
+    ctx.fillStyle = color;
+    ctx.fillText(text, x, y + 1);
+  }
+  function drawStrengthBars(w, levels){
+    const bars = system().labels.map((channel, index) => [channel.key, levels[index], rgbCss(channel.color)]);
+    const x = Math.max(18, w - 170);
+    let y = 22;
+    ctx.font = '700 12px system-ui, sans-serif';
+    bars.forEach(([name, value, color]) => {
+      ctx.fillStyle = system().background === 'paper' ? 'rgba(15,23,42,.08)' : 'rgba(255,255,255,.08)';
+      ctx.fillRect(x + 28, y, 112, 8);
+      ctx.fillStyle = color;
+      ctx.fillRect(x + 28, y, 112 * value / 255, 8);
+      ctx.fillStyle = system().background === 'paper' ? '#1f2937' : '#e5e7eb';
+      ctx.fillText(name + ' ' + value, x, y + 8);
+      y += 22;
+    });
+  }
+  function drawTargetOverlay(w, h){
+    const m = system().missions[missionIndex];
+    const target = system().mix(m.levels);
+    const boxW = Math.min(240, w - 36);
+    const x = 18;
+    const y = 18;
+    ctx.fillStyle = system().background === 'paper' ? 'rgba(15,23,42,.08)' : 'rgba(255,255,255,.08)';
+    ctx.beginPath();
+    roundedRect(x, y, boxW, 76, 8);
+    ctx.fill();
+    ctx.fillStyle = system().background === 'paper' ? '#1e293b' : '#dbeafe';
+    ctx.font = '800 13px system-ui, sans-serif';
+    ctx.fillText(m.name, x + 12, y + 22);
+    ctx.fillStyle = rgbCss(target);
+    ctx.beginPath();
+    roundedRect(x + 12, y + 38, 58, 24, 5);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(15,23,42,.25)';
+    ctx.stroke();
+    ctx.fillStyle = system().background === 'paper' ? '#1f2937' : '#e5e7eb';
+    ctx.font = '700 12px system-ui, sans-serif';
+    ctx.fillText('目標 RGB(' + target.join(', ') + ')', x + 80, y + 55);
+  }
+  function roundedRect(x, y, width, height, radius){
+    ctx.moveTo(x + radius, y);
+    ctx.arcTo(x + width, y, x + width, y + height, radius);
+    ctx.arcTo(x + width, y + height, x, y + height, radius);
+    ctx.arcTo(x, y + height, x, y, radius);
+    ctx.arcTo(x, y, x + width, y, radius);
+  }
+  function renderPalette(){
+    els.palette.innerHTML = '';
+    system().palette.forEach(([name, levels]) => {
+      const rgb = system().mix(levels);
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'palette-item';
+      button.innerHTML = '<div class="palette-swatch"></div><span></span>';
+      button.querySelector('.palette-swatch').style.background = rgbCss(rgb);
+      button.querySelector('span').textContent = name + ' ' + system().formula + '(' + levels.join(',') + ')';
+      button.addEventListener('click', () => setLevels(levels));
+      els.palette.appendChild(button);
+    });
+  }
+  renderSystemChrome();
+  renderPalette();
+  updateMissionText();
+  setMode('venn');
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>金星の見え方シミュレーター（地球視点 & ヘリオセントリック）</title>
+<link rel="stylesheet" href="../../assets/common-sim.css">
+<script src="../../assets/sim-shell.js"></script>
+<script src="../../assets/sim-clock.js"></script>
+<style>
+  :root{ --bg:#0b1020; --panel:#121a33; --accent:#6aa6ff; --grid:#223055; --text:#e8f0ff; --muted:#9fb2d8; --sun:#ffd95e; --earth:#5ec1ff; --venus:#ffd3b8; }
+  html,body{height:100%;margin:0;background:var(--bg);color:var(--text);font-family:ui-sans-serif,system-ui,"Hiragino Kaku Gothic ProN","Noto Sans JP",Meiryo,sans-serif;letter-spacing:.02em}
+  .wrap{display:grid;grid-template-rows:auto 1fr;grid-template-columns:1.25fr 0.75fr;gap:14px;padding:14px}
+  .card{background:var(--panel);border:1px solid #1e2747;border-radius:14px;box-shadow:0 6px 18px rgba(0,0,0,.25)}
+  .title{font-weight:700;padding:10px 14px;border-bottom:1px solid #243156;color:#cfe1ff}
+  .inner{padding:12px 14px}
+  canvas{display:block;width:100%;height:100%}
+  #controlsHolder{grid-column:1 / span 2}
+  #heliosHolder{grid-row:2;grid-column:1;height:680px}
+  #viewHolder{grid-row:2;grid-column:2;height:620px}
+  .row{display:flex;align-items:center;gap:12px;margin:6px 0;flex-wrap:wrap}
+  .btns{display:flex;gap:8px;flex-wrap:wrap}
+  button{background:#1b2550;color:var(--text);border:1px solid #2d3a6e;border-radius:10px;padding:6px 10px;cursor:pointer;font-weight:600}
+  button:hover{filter:brightness(1.1)}
+  .small{font-size:.88rem;color:var(--muted)}
+  .legend{display:flex;gap:12px;flex-wrap:wrap;align-items:center;font-size:.85rem;color:var(--muted)}
+  .dot{width:12px;height:12px;border-radius:50%}
+  .mono{font-family:ui-monospace,SFMono-Regular,Consolas,monospace; font-variant-numeric: tabular-nums;}
+  .pill{background:#0f1633;border:1px solid #253061;border-radius:999px;padding:2px 8px}
+
+  /* 地球視点の左右2カラムレイアウト（スクロール不要に） */
+  .viewGrid{display:grid;grid-template-columns:minmax(440px,0.9fr) 360px;gap:14px;align-items:start}
+  .statsCol{display:grid;gap:10px; width:360px}
+  .statBox{background:#0f1633;border:1px solid #253061;border-radius:12px;padding:8px 10px}
+  .statGrid{display:grid;grid-template-columns:auto 1fr auto 1fr;gap:6px 10px;align-items:baseline}
+  .k{color:#9fb2d8;font-size:.9rem}
+  .v{font-weight:700}
+  /* 変動幅でレイアウトが揺れないよう固定幅 */
+  .val{display:inline-block;text-align:right;letter-spacing:.02em}
+  .val.au{min-width:9ch}
+  .val.km{min-width:14ch}
+  .val.arc{min-width:8ch}
+  .val.mag{min-width:6ch}
+  .val.time{min-width:9ch}
+  .val.deg{min-width:7ch}
+
+  /* ヘルプUI */
+  #viewHolder .inner{ position:relative; }
+  .helpBtn{position:absolute; bottom:10px; right:12px; background:#243156; border:1px solid #2e3d72; color:#e8f0ff; border-radius:999px; padding:4px 10px; font-weight:700}
+  .helpBtn:hover{filter:brightness(1.1)}
+  .helpPanel{position:absolute; bottom:52px; right:12px; width:340px; max-height:70%; overflow:auto; background:#0f1633; border:1px solid #2b3a6c; border-radius:12px; box-shadow:0 12px 32px rgba(0,0,0,.45); padding:12px 14px; z-index:5}
+  .helpPanel h4{margin:6px 0 8px 0; font-size:1rem; color:#d7e6ff}
+  .helpPanel .p{font-size:.92rem; color:#c7d5ff; line-height:1.45}
+  .helpPanel code{background:#0b122a; border:1px solid #26335e; padding:1px 5px; border-radius:6px}
+  .hidden{display:none}
+</style>
+</head>
+<body>
+<script>
+  PhysicsSimShell.create({
+    title: '金星の見え方',
+    subtitle: '満ち欠け・見かけの大きさ・位置関係',
+    basePath: '../../'
+  });
+</script>
+<div class="wrap">
+  <!-- 操作（横長） -->
+  <div class="card" id="controlsHolder">
+    <div class="title">操作・表示</div>
+    <div class="inner">
+      <div class="row">
+        <label class="mono">サイズ表示:</label>
+        <label><input type="radio" name="scaleMode" value="viz" checked> 見やすさ</label>
+        <label><input type="radio" name="scaleMode" value="real"> 実寸</label>
+        <span style="margin-left:18px"></span>
+        <label class="mono">ズーム(A):</label>
+        <input id="zoomA" type="range" min="0.6" max="2.5" step="0.05" value="1.0" />
+        <span id="zoomVal" class="small mono"></span>
+        <span style="margin-left:18px"></span>
+        <label class="mono">緯度 φ (観測地):</label>
+        <input id="lat" type="range" min="-60" max="60" step="1" value="35" />
+        <span id="latVal" class="small mono pill"></span>
+        <span style="margin-left:18px"></span>
+        <label class="mono">速度:</label>
+        <input id="speed" type="range" min="0" max="10" step="0.1" value="2" />
+        <span id="speedVal" class="small mono"></span>
+        <span style="margin-left:18px"></span>
+        <label class="mono">時刻 (日):</label>
+        <input id="time" type="range" min="0" max="3652.5" step="5" value="0" />
+        <span id="timeVal" class="small mono"></span>
+        <div class="btns" style="margin-left:auto">
+          <button id="playBtn">▶ 再生</button>
+          <button id="pauseBtn">⏸ 停止</button>
+          <button id="resetBtn">⟲ リセット</button>
+          <button id="fullBtn">⤢ 全体表示</button>
+        </div>
+      </div>
+      <div class="row">
+        <label><input type="checkbox" id="showOrbits" checked> A: 軌道</label>
+        <label><input type="checkbox" id="showSunRays" checked> A: 太陽方向ガイド</label>
+        <label><input type="checkbox" id="hideSun"> A: 太陽は描かない（方向のみ）</label>
+        <label><input type="checkbox" id="sizeByDistance" checked> B: 距離で金星サイズ変化</label>
+      </div>
+      <div class="legend">
+        <div><span class="dot" style="background:var(--sun)"></span>太陽</div>
+        <div><span class="dot" style="background:var(--earth)"></span>地球</div>
+        <div><span class="dot" style="background:var(--venus)"></span>金星</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 左：ヘリオセントリック -->
+  <div class="card" id="heliosHolder">
+    <div class="title">ヘリオセントリック（太陽—地球—金星）</div>
+    <div class="inner" style="height:calc(100% - 44px)"><canvas id="heliosCanvas"></canvas></div>
+  </div>
+
+  <!-- 右：地球視点 -->
+  <div class="card" id="viewHolder">
+    <div class="title">地球視点（太陽方向は自動／金星の位相と見かけ）</div>
+    <div class="inner" style="height:calc(100% - 44px)">
+      <button id="helpBtn" class="helpBtn">？解説</button>
+      <div id="helpPanel" class="helpPanel hidden">
+        <h4>用語のミニ解説</h4>
+        <div class="p"><b>位相角 α</b>：金星で見たときの「太陽−金星−地球」の角度。α=0°で満ち、αが大きいほど欠けます。</div>
+        <div class="p"><b>離角 ε</b>：地球から見た太陽と金星の角距離（見かけの離れ）。大きいほど太陽から離れて見やすい傾向。</div>
+        <div class="p"><b>照らされ率</b>：明るい面の面積比 <code>(1+cosα)/2</code>。0〜1（0〜100%）。</div>
+        <div class="p"><b>視等級 V</b>：明るさの尺度。数値が小さいほど明るい（例：−4 は −3 より明るい）。</div>
+        <div class="p"><b>見かけ直径</b>：空での見かけの大きさ（角度）。地球−金星距離が近いほど大きくなります。</div>
+        <div class="p"><b>時間差</b>：日没/日の出から「見頃」までのおおよその時間。<code>Δα/15</code>（Δα=赤経差，15°≒1h）で近似。</div>
+        <div class="p small">※ 簡略計算のため季節・緯度で数分〜数十分程度ずれることがあります。</div>
+      </div>
+      <div class="viewGrid">
+        <div class="viewCanvasWrap">
+          <canvas id="viewCanvas" style="background:#020813;border-radius:12px;border:1px solid #1a2346;height:480px"></canvas>
+        </div>
+        <div class="statsCol">
+          <div class="statBox statGrid">
+            <div class="k">位相角 α</div><div class="v mono val deg" id="phaseAngle">—</div>
+            <div class="k">離角 ε</div><div class="v mono val deg" id="elong">—</div>
+          </div>
+          <div class="statBox statGrid">
+            <div class="k">照らされ率</div><div class="v mono val" id="illumFrac">—</div>
+            <div class="k">視等級 V</div><div class="v mono val mag" id="magV">—</div>
+          </div>
+          <div class="statBox statGrid">
+            <div class="k">距離</div><div class="v mono val au" id="distAU">— AU</div>
+            <div class="k">同（km）</div><div class="v mono val km" id="distKM">— km</div>
+          </div>
+          <div class="statBox statGrid">
+            <div class="k">見かけ直径</div><div class="v mono val arc" id="apparentArc">—</div>
+            <div class="k">時間差</div><div class="v mono val time" id="deltaT">—</div>
+          </div>
+          <div class="statBox statGrid">
+            <div class="k">種別</div><div class="v mono" id="kindDir">—</div>
+            <div class="k">可視性</div><div class="v mono" id="visibilityNote">—</div>
+          </div>
+          <div class="statBox statGrid">
+            <div class="k">方角</div><div class="v mono" id="azTxt">—</div>
+            <div class="k">高度</div><div class="v mono" id="altTxt">—</div>
+          </div>
+          <div class="small" style="opacity:.8">※ 時間差は Δα/15 ≈ 時間の概算（Δα=赤経差，15°≒1時間）</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(function(){
+  const TAU=Math.PI*2, DEG=180/Math.PI;
+  const AU_KM=149_597_870; // [km]
+  const R_VENUS=6052;      // [km]
+  const ORB_EARTH_R=1.0;   // [AU]
+  const ORB_VENUS_R=0.723; // [AU] (円軌道近似)
+  const T_EARTH=365.256;   // [d]
+  const T_VENUS=224.701;   // [d]
+  const T_MAX=3652.5;      // 10 years
+  const BASE_PX_PER_AU=300; // reference; will auto-fit at init
+  const K_VENUS=900_000;   // apparent size scaler for B
+
+  // vec helpers
+  const dot=(a,b)=>a.x*b.x+a.y*b.y; const norm=(a)=>Math.hypot(a.x,a.y);
+  const sub=(a,b)=>({x:a.x-b.x,y:a.y-b.y}); const unit=(a)=>{const n=norm(a)||1;return {x:a.x/n,y:a.y/n}};
+  const clamp=(x,a,b)=>Math.min(b,Math.max(a,x));
+  const ang=(v)=>Math.atan2(v.y,v.x);
+  const normAng=(a)=>{let x=a; while(x<=-Math.PI) x+=TAU; while(x>Math.PI) x-=TAU; return x; };
+  const smooth=(a,b,x)=>{ const t=clamp((x-a)/(b-a),0,1); return t*t*(3-2*t); };
+
+  // DOM
+  const cA=document.getElementById('heliosCanvas');
+  const cB=document.getElementById('viewCanvas');
+  const speedEl=document.getElementById('speed');
+  const timeEl=document.getElementById('time');
+  const timeVal=document.getElementById('timeVal');
+  const speedVal=document.getElementById('speedVal');
+  const zoomEl=document.getElementById('zoomA');
+  const zoomVal=document.getElementById('zoomVal');
+  const latEl=document.getElementById('lat');
+  const latVal=document.getElementById('latVal');
+  const playBtn=document.getElementById('playBtn');
+  const pauseBtn=document.getElementById('pauseBtn');
+  const resetBtn=document.getElementById('resetBtn');
+  const fullBtn=document.getElementById('fullBtn');
+  const showOrbits=document.getElementById('showOrbits');
+  const showSunRays=document.getElementById('showSunRays');
+  const hideSun=document.getElementById('hideSun');
+  const sizeByDist=document.getElementById('sizeByDistance');
+  const phaseAngleEl=document.getElementById('phaseAngle');
+  const elongEl=document.getElementById('elong');
+  const illumFracEl=document.getElementById('illumFrac');
+  const distAUEl=document.getElementById('distAU');
+  const distKMEl=document.getElementById('distKM');
+  const apparentArcEl=document.getElementById('apparentArc');
+  const magVEl=document.getElementById('magV');
+  const deltaTEl=document.getElementById('deltaT');
+  const kindDirEl=document.getElementById('kindDir');
+  const visibilityNoteEl=document.getElementById('visibilityNote');
+  const azTxt=document.getElementById('azTxt');
+  const altTxt=document.getElementById('altTxt');
+  const helpBtn=document.getElementById('helpBtn');
+  const helpPanel=document.getElementById('helpPanel');
+  const scaleEls=[...document.querySelectorAll('input[name=scaleMode]')];
+  const getScaleMode=()=>scaleEls.find(r=>r.checked).value;
+
+  // canvas size
+  function fit(el){ const r=el.parentElement.getBoundingClientRect(); const d=window.devicePixelRatio||1; el.width=Math.max(640,Math.floor(r.width*d)); el.height=Math.max(300,Math.floor(r.height*d)); }
+  function resizeAll(){ fit(cA); fit(cB);} window.addEventListener('resize',resizeAll); resizeAll();
+
+  // orbits (circular, coplanar simplified)
+  const posSun = ()=>({x:0,y:0});
+  const posEarth = (t)=>{const th=TAU*(t/T_EARTH);return {x:Math.cos(th)*ORB_EARTH_R,y:Math.sin(th)*ORB_EARTH_R}}; // 反時計回り（物理座標）
+  const posVenus = (t)=>{const th=TAU*(t/T_VENUS); return {x:Math.cos(th)*ORB_VENUS_R,y:Math.sin(th)*ORB_VENUS_R}}; // 反時計回り（物理座標）
+
+  // state
+  let t=0, playing=false, lastTs=0, pxAU=BASE_PX_PER_AU, latDeg=35;
+  timeVal.textContent=`${Number(timeEl.value).toFixed(0)} d`; speedVal.textContent=`×${Number(speedEl.value).toFixed(1)}`;
+
+  // world→canvas(A)
+  function worldToA(p){ const cx=cA.width/2, cy=cA.height/2; const offX=0; return {x:cx+(p.x*pxAU+offX), y:cy - p.y*pxAU}; }
+
+  // draw helpers
+  function circle(ctx,x,y,r,fill,stroke){ ctx.beginPath(); ctx.arc(x,y,r,0,TAU); if(fill){ctx.fillStyle=fill;ctx.fill();} if(stroke){ctx.strokeStyle=stroke;ctx.lineWidth=Math.max(1,ctx.canvas.width/900);ctx.stroke();} }
+  function arrow(ctx,x1,y1,x2,y2,color,w){ ctx.save(); ctx.strokeStyle=color; ctx.lineWidth=w; ctx.lineCap='round'; ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke(); const a=Math.atan2(y2-y1,x2-x1), ah=10*(devicePixelRatio||1)+w*2; ctx.beginPath(); ctx.moveTo(x2,y2); ctx.lineTo(x2-ah*Math.cos(a-Math.PI/7), y2-ah*Math.sin(a-Math.PI/7)); ctx.lineTo(x2-ah*Math.cos(a+Math.PI/7), y2-ah*Math.sin(a+Math.PI/7)); ctx.closePath(); ctx.fillStyle=color; ctx.fill(); ctx.restore(); }
+
+  // phased disk（太陽が右 or 左）: alphaMulで濃淡
+  function drawPhasedDiskSunSide(ctx,x,y,r,k,sunOnRight,lightColor,darkColor,alphaMul=1.0){
+    ctx.save(); ctx.translate(x,y); ctx.setTransform(1,0,0,1,ctx.getTransform().e,ctx.getTransform().f);
+    ctx.globalAlpha = alphaMul;
+    ctx.beginPath(); ctx.arc(0,0,r,0,TAU); ctx.fillStyle=darkColor; ctx.fill();
+    const step=Math.max(1,Math.floor(r/36));
+    for(let yy=-r; yy<=r; yy+=step){
+      const yNorm=yy/r; const xEdge=Math.sqrt(Math.max(0,1-yNorm*yNorm))*r;
+      if(sunOnRight){
+        const xt = -k * xEdge; // 右から照らす
+        const x0 = Math.min(xEdge, Math.max(-xEdge, xt));
+        if(xEdge > x0){ ctx.fillStyle=lightColor; ctx.fillRect(x0, yy-step/2, xEdge - x0, step); }
+      }else{
+        const xt = +k * xEdge; // 左から照らす
+        const x0 = Math.min(xEdge, Math.max(-xEdge, xt));
+        if(x0 > -xEdge){ ctx.fillStyle=lightColor; ctx.fillRect(-xEdge, yy-step/2, x0 - (-xEdge), step); }
+      }
+    }
+    ctx.beginPath(); ctx.arc(0,0,r,0,TAU); ctx.strokeStyle='rgba(255,255,255,0.28)'; ctx.lineWidth=Math.max(1,r/24); ctx.stroke();
+    ctx.restore();
+  }
+
+  function radiiA(){ return (getScaleMode()==='real') ? {sun:7,earth:8,venus:8} : {sun:12,earth:13,venus:13}; }
+
+  // render A
+  function renderA(){ const ctx=cA.getContext('2d'); ctx.clearRect(0,0,cA.width,cA.height);
+    // grid
+    ctx.save(); ctx.strokeStyle='#1a2447'; ctx.lineWidth=1; const g=64*(devicePixelRatio||1); for(let x=0;x<=cA.width;x+=g){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,cA.height);ctx.stroke();} for(let y=0;y<=cA.height;y+=g){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(cA.width,y);ctx.stroke();} ctx.restore();
+    const S=posSun(), E=posEarth(t), V=posVenus(t); const Sp=worldToA(S), Ep=worldToA(E), Vp=worldToA(V);
+    if(showOrbits.checked){ ctx.save(); ctx.strokeStyle='#2a3760'; ctx.setLineDash([6,6]); ctx.lineWidth=1.2; const C=worldToA({x:0,y:0}); ctx.beginPath(); ctx.arc(C.x,C.y,ORB_EARTH_R*pxAU,0,TAU); ctx.stroke(); ctx.beginPath(); ctx.arc(C.x,C.y,ORB_VENUS_R*pxAU,0,TAU); ctx.stroke(); ctx.restore(); }
+    const R=radiiA();
+    if(!hideSun.checked){ const sunR=R.sun*(devicePixelRatio||1); const grad=ctx.createRadialGradient(Sp.x,Sp.y,2,Sp.x,Sp.y,sunR*6); grad.addColorStop(0,'rgba(255,217,94,1)'); grad.addColorStop(1,'rgba(255,217,94,0)'); ctx.fillStyle=grad; ctx.beginPath(); ctx.arc(Sp.x,Sp.y,sunR*6,0,TAU); ctx.fill(); circle(ctx,Sp.x,Sp.y,sunR,'rgba(255,217,94,0.95)','#6c5a1a'); }
+    circle(ctx,Ep.x,Ep.y,R.earth,'rgba(94,193,255,0.95)','#173b66'); circle(ctx,Vp.x,Vp.y,R.venus,'rgba(255,211,184,1)','#5b4037');
+    if(showSunRays.checked){ arrow(ctx, Ep.x,Ep.y, Sp.x,Sp.y, 'rgba(255,217,94,0.9)',3); arrow(ctx, Vp.x,Vp.y, Sp.x,Sp.y, 'rgba(255,217,94,0.9)',3); }
+    ctx.fillStyle='rgba(200,220,255,0.9)'; ctx.font=`${Math.max(12,cA.width/80)}px ui-sans-serif`; if(!hideSun.checked) ctx.fillText('Sun', Sp.x+10, Sp.y-10); ctx.fillText('Earth', Ep.x+10, Ep.y-10); ctx.fillText('Venus', Vp.x+10, Vp.y-10);
+  }
+
+  // ===== 角度・方角・明るさ（等級）関連 =====
+  function compassName(azDeg){ const names=['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','WNW','NW','NNW']; let a=(azDeg%360+360)%360; const idx=Math.round(a/22.5)%16; return names[idx]; }
+  function eclToEqu(lambda){ const sl=Math.sin(lambda), cl=Math.cos(lambda), cE=Math.cos(23.439*Math.PI/180), sE=Math.sin(23.439*Math.PI/180); const x=cl, y=sl*cE, z=sl*sE; const ra=Math.atan2(y,x); const dec=Math.asin(z); return {ra, dec}; }
+  function sunsetHourAngle(phi, dec){ const c = clamp(-Math.tan(phi)*Math.tan(dec), -1, 1); return Math.acos(c); }
+  function altAz(phi, dec, H){ const sphi=Math.sin(phi), cphi=Math.cos(phi), sdec=Math.sin(dec), cdec=Math.cos(dec); const sh = sphi*sdec + cphi*cdec*Math.cos(H); const h = Math.asin(clamp(sh,-1,1)); const ch = Math.cos(h); let sA = -cdec*Math.sin(H)/Math.max(1e-6, ch); let cA = (sdec - sphi*sh)/(cphi*Math.max(1e-6, ch)); let A = Math.atan2(sA, cA); if(A<0) A+=TAU; return {h, A}; }
+
+  // IAU/AA 推奨近似（簡略）
+  function venusMag(alphaDeg, rAU, dAU){ const H = -4.384; const a=alphaDeg; let phaseTerm; if(a<=163.7){ phaseTerm = -1.044e-3*a + 3.687e-4*a*a - 2.814e-6*a*a*a + 8.938e-9*a*a*a*a; } else { phaseTerm = 240.44228 - 2.81914*a + 8.39034e-3*a*a; } return H + 5*Math.log10(rAU*dAU) + phaseTerm; }
+
+  function classify(E,S,V,phi){
+    // 地球基準ベクトル
+    const ES = sub(S,E); // Earth→Sun
+    const EV = sub(V,E); // Earth→Venus
+
+    // 平面近似の離角（表示用）
+    const dirS = ang(ES);
+    const dirV = ang(EV);
+    const absDeg = Math.abs(normAng(dirV - dirS))*DEG;
+
+    // 黄道→赤道（β=0 近似）
+    const lamS = Math.atan2(ES.y, ES.x);
+    const lamV = Math.atan2(EV.y, EV.x);
+    const {ra:raS, dec:decS} = eclToEqu(lamS);
+    const {ra:raV, dec:decV} = eclToEqu(lamV);
+
+    // Δα（赤経差）で朝夕を決定：RA_V > RA_S → 宵の明星（東方最大離角側）
+    const dRA = normAng(raV - raS);
+    const eastEvening = dRA > 0;
+    const kind = eastEvening ? '宵の明星' : '明けの明星';
+    const dtH = Math.abs(dRA)*DEG/15; // 方案Aの表示
+
+    // 薄明基準：太陽高度 h0 = -6° の時刻で評価
+    const phiRad = phi * Math.PI/180;
+    const h0 = -6 * Math.PI/180;
+    const sphi=Math.sin(phiRad), cphi=Math.cos(phiRad);
+    const sdecS=Math.sin(decS),    cdecS=Math.cos(decS);
+    let cosH = (Math.sin(h0) - sphi*sdecS)/(cphi*cdecS);
+    cosH = clamp(cosH, -1, 1);
+    const Htwi = Math.acos(cosH);
+    const Hsun = eastEvening ? +Htwi : -Htwi; // 宵：+、明け：-
+    const LST_twi = raS + Hsun;
+
+    // その時刻での金星の高度・方位
+    const HV = normAng(LST_twi - raV);
+    const {h, A} = altAz(phiRad, decV, HV);
+    const altDeg = h*DEG; const azDeg = A*DEG;
+
+    // 可視性メモ（簡易）
+    let note='';
+    if(absDeg < 2){ const dEV = norm(EV); const conj = (dEV < 1.0) ? '内合' : '外合'; note = `${conj}付近：太陽に重なり観測不可`; }
+    else if(absDeg < 10){ note = '太陽に近く観測が難しい'; }
+    else { note = '観測可能（薄明内〜低空）'; }
+
+    const azName = compassName(azDeg);
+    return {absDeg, kind, eastEvening, note, dtH, azName, azDeg, altDeg};
+  }
+
+  function renderB(){ const ctx=cB.getContext('2d'); ctx.clearRect(0,0,cB.width,cB.height);
+    const S=posSun(), E=posEarth(t), V=posVenus(t);
+    const vVS=unit(sub(S,V)); const vVE=unit(sub(E,V)); const alpha=Math.acos(clamp(dot(vVS,vVE),-1,1)); const k=Math.cos(alpha);
+    const alphaDeg = alpha*DEG;
+    const {absDeg, kind, eastEvening, note, dtH, azName, azDeg, altDeg} = classify(E,S,V,latDeg);
+
+    // 明るさ（視等級）と離角から可視性を連続スコア化（0..1）
+    const dAU=norm(sub(E,V));
+    const mV = venusMag(alphaDeg, ORB_VENUS_R, dAU);
+    const sepTerm = smooth(3, 35, absDeg);      // 以前より手前から効かせる（5→3°）
+    const magTerm = smooth(-3.0, -4.6, -mV);   // やや緩め（-3.5→-3.0）
+    let visScore = sepTerm * magTerm;
+    let alphaVis = 0.55 + 0.45*visScore;        // 下限を0.55に上げ、全体を見えやすく
+    if(absDeg < 2) alphaVis = 0.20;             // 合直近は極薄のまま
+
+    phaseAngleEl.textContent=`${alphaDeg.toFixed(1)}°`; elongEl.textContent=`${absDeg.toFixed(1)}°`;
+    const illum=(1+k)/2; illumFracEl.textContent=`${(illum*100).toFixed(1)}%`;
+    kindDirEl.textContent = `${kind}`;
+    distAUEl.textContent=`${dAU.toFixed(4)} AU`; distKMEl.textContent=`${(dAU*AU_KM).toLocaleString('en-US')} km`;
+    const diamRad=2*Math.atan((R_VENUS/AU_KM)/dAU); const diamArcSec=diamRad*(180/Math.PI)*3600; apparentArcEl.textContent=`${diamArcSec.toFixed(1)}″`;
+    magVEl.textContent = mV.toFixed(2);
+    const whenLabel = eastEvening ? `日没後 約${dtH.toFixed(1)}h` : `日の出前 約${dtH.toFixed(1)}h`;
+    deltaTEl.textContent = whenLabel;
+    visibilityNoteEl.textContent = note;
+    azTxt.textContent = `${azName}（${azDeg.toFixed(0)}°）`;
+    altTxt.textContent = `${altDeg.toFixed(0)}°`;
+
+    // 太陽近接（グレア）優先ルール：ε < 5°は不可視として明示
+    const GLARE_DEG = 5;
+    let nearSun = (absDeg < GLARE_DEG);
+    if(nearSun){
+      visibilityNoteEl.textContent = `太陽近接（ε<${GLARE_DEG}°）：不可視（グレア）`;
+      alphaVis = Math.min(alphaVis, 0.18);
+    }
+
+    // 高度が負（地平線下）の場合は明確に不可視扱いに
+    let belowHorizon = (altDeg < 0);
+    if(belowHorizon && !nearSun){
+      visibilityNoteEl.textContent = '地平線下：観測不可';
+    }
+
+    let rpx = sizeByDist.checked ? (K_VENUS*(R_VENUS/AU_KM)/dAU) : 96; rpx=Math.max(60,Math.min(rpx,260));
+
+    // 地平線下の場合は見た目も強めに減光
+    if(typeof belowHorizon!=='undefined' && belowHorizon && !nearSun){
+      alphaVis = Math.min(alphaVis, 0.18);
+    }
+
+    // 背景星
+    ctx.save(); for(let i=0;i<70;i++){ const x=Math.random()*cB.width, y=Math.random()*cB.height; ctx.fillStyle=`rgba(255,255,255,${0.10+Math.random()*0.18})`; ctx.fillRect(x,y,1,1);} ctx.restore();
+
+    const cx=cB.width*0.50, cy=cB.height*0.52; // 金星をカード中央へ寄せる（重なり回避）
+    const sunOnRight = eastEvening; // 宵=右側に太陽、明け=左側
+    // 明るいときほど“濃い黄”へ寄せる
+    const tcol = Math.pow(Math.max(0, Math.min(1, visScore)), 0.6);
+    const gCol = Math.round(218 + (235-218)*tcol);
+    const bCol = Math.round(198 + (120-198)*tcol);
+    const lightCol = `rgba(255,${gCol},${bCol},0.98)`;
+    drawPhasedDiskSunSide(ctx,cx,cy,rpx,k,sunOnRight,lightCol,'rgba(26,18,16,0.96)',alphaVis);
+
+    // 太陽近接ラベル（優先表示）
+    if(nearSun){
+      ctx.save();
+      ctx.globalAlpha=0.95;
+      ctx.fillStyle='#ffd87a';
+      ctx.font=`${Math.max(12,cB.width/42)}px ui-sans-serif`;
+      ctx.textAlign='center';
+      ctx.fillText('太陽近接（見えない）', cx, cy - rpx - 16);
+      ctx.restore();
+    }
+
+    // 地平線下ラベル（簡潔に）
+    if(typeof belowHorizon!=='undefined' && belowHorizon && !nearSun){
+      ctx.save();
+      ctx.globalAlpha=0.95;
+      ctx.fillStyle='#ffb4b4';
+      ctx.font=`${Math.max(12,cB.width/42)}px ui-sans-serif`;
+      ctx.textAlign='center';
+      ctx.fillText('地平線下（見えない）', cx, cy - rpx - 16);
+      ctx.restore();
+    }
+
+    // 太陽位置ラベルと光線矢印：太陽が右なら ←、左なら →
+    const ax = sunOnRight ? cB.width*0.90 : cB.width*0.10;
+    const ay = cy;
+    if(sunOnRight){
+      arrow(ctx, ax+90, ay, ax-90, ay, '#f5d26a',4);
+    }else{
+      arrow(ctx, ax-90, ay, ax+90, ay, '#f5d26a',4);
+    }
+    ctx.fillStyle='#f5d26a'; ctx.font=`${Math.max(12,cB.width/38)}px ui-sans-serif`;
+    const sunLabel = sunOnRight ? '太陽→' : '←太陽';
+    ctx.fillText(sunLabel, ax-16, ay-10);
+  }
+
+  // animation
+  const clock = new PhysicsSimClock.FixedStepClock({
+    step: 1 / 60,
+    onStep(dt){ if(!playing) return; const sp=Number(speedEl.value); t=(t+dt*sp)%T_MAX; timeEl.value=t; timeVal.textContent=`${t.toFixed(0)} d`; },
+    onRender(){ renderA(); renderB(); }
+  });
+
+  // auto-fit Helio to show full orbits initially
+  function fitHelioScaleToView(){
+    const sz=Math.min(cA.width,cA.height); // show Earth(1AU) with margins
+    const margin=0.85; // 85% of half-size
+    pxAU = (sz*0.5*margin)/ORB_EARTH_R; // ORB_EARTH_R=1
+    // sync slider (0.6..2.5)
+    let z = clamp(pxAU/BASE_PX_PER_AU, 0.6, 2.5);
+    pxAU = BASE_PX_PER_AU * z; zoomEl.value = z; zoomVal.textContent = `×${z.toFixed(2)}`;
+  }
+
+  // events
+  speedEl.addEventListener('input',()=>{speedVal.textContent=`×${Number(speedEl.value).toFixed(1)}`});
+  timeEl.addEventListener('input',()=>{t=Number(timeEl.value); timeVal.textContent=`${t.toFixed(0)} d`; renderA(); renderB();});
+  playBtn.addEventListener('click',()=>{ playing=true; });
+  pauseBtn.addEventListener('click',()=>{ playing=false; });
+  resetBtn.addEventListener('click',()=>{ playing=false; t=0; timeEl.value=0; timeVal.textContent='0 d'; renderA(); renderB(); });
+  fullBtn.addEventListener('click',()=>{ resizeAll(); fitHelioScaleToView(); renderA(); renderB(); });
+  helpBtn.addEventListener('click',()=>{ helpPanel.classList.toggle('hidden'); });
+  document.querySelectorAll('input[name=scaleMode]').forEach(el=> el.addEventListener('change',()=>{ renderA(); }));
+  showOrbits.addEventListener('change',renderA); showSunRays.addEventListener('change',renderA); hideSun.addEventListener('change',renderA); sizeByDist.addEventListener('change',renderB);
+  zoomEl.addEventListener('input',()=>{ let z=Number(zoomEl.value); pxAU = 300*z; zoomVal.textContent=`×${z.toFixed(2)}`; renderA(); });
+  latEl.addEventListener('input',()=>{ let v=Number(latEl.value); latDeg=v; latVal.textContent=`φ=${latDeg.toFixed(0)}° (概算)`; renderB(); });
+
+  // wheel zoom on A
+  cA.addEventListener('wheel',(e)=>{ e.preventDefault(); const k = e.deltaY>0 ? 0.9 : 1.1; let cur = (pxAU/300); cur = Math.min(2.5, Math.max(0.6, cur*k)); zoomEl.value=cur; pxAU=300*cur; zoomVal.textContent=`×${cur.toFixed(2)}`; renderA(); }, {passive:false});
+
+  // init
+  fitHelioScaleToView();
+  renderA();
+  renderB();
+  clock.start();
+})();
+</script>
+</body>
+</html>

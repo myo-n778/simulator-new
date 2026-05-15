@@ -1,0 +1,592 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>壁と棒と糸のつり合いシミュレーター</title>
+<link rel="stylesheet" href="../../assets/common-sim.css">
+<script src="../../assets/sim-shell.js"></script>
+<style>
+  :root {
+    --bg: #f6f7f9;
+    --surface: #ffffff;
+    --ink: #17202a;
+    --muted: #637083;
+    --line: #d8dde5;
+    --wall: #a87448;
+    --rod: #f1bc73;
+    --accent: #2667cc;
+    --force: #d53f3f;
+    --ok: #177245;
+    --warn: #b15b00;
+    --bad: #a82424;
+    --radius: 8px;
+  }
+  html, body {
+    margin: 0;
+    width: 100%;
+    overflow-x: hidden;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: ui-sans-serif, system-ui, -apple-system, "Hiragino Kaku Gothic ProN", Meiryo, sans-serif;
+    font-size: 14px;
+    line-height: 1.5;
+  }
+  .wrap {
+    box-sizing: border-box;
+    width: 100%;
+    max-width: 1060px;
+    margin: 16px auto 28px;
+    padding: 0 12px;
+  }
+  h1 {
+    margin: 0 0 10px;
+    font-size: 19px;
+    line-height: 1.25;
+  }
+  .layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(310px, 360px);
+    gap: 12px;
+    align-items: start;
+  }
+  .layout > * { min-width: 0; }
+  .panel {
+    box-sizing: border-box;
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 12px;
+    box-shadow: 0 8px 20px rgba(31, 42, 55, .06);
+  }
+  .panel-title {
+    margin: 0 0 8px;
+    color: #273241;
+    font-size: 13px;
+    font-weight: 700;
+  }
+  canvas {
+    box-sizing: border-box;
+    max-width: 100%;
+    width: 100%;
+    height: min(58vh, 520px);
+    min-height: 390px;
+    display: block;
+    background: #fbfcfe;
+    border: 1px solid #dfe4ec;
+    border-radius: var(--radius);
+    touch-action: none;
+    cursor: grab;
+  }
+  canvas:active { cursor: grabbing; }
+  .controls {
+    display: grid;
+    gap: 9px;
+  }
+  .control {
+    display: grid;
+    grid-template-columns: 132px 1fr 64px;
+    gap: 8px;
+    align-items: center;
+  }
+  .control label {
+    color: #263241;
+    font-size: 12px;
+    font-weight: 700;
+  }
+  input[type="range"] { width: 100%; }
+  input, button { min-width: 0; }
+  output {
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+  }
+  .segmented {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 6px;
+  }
+  .segmented button, .plain-button {
+    appearance: none;
+    min-height: 34px;
+    border: 1px solid var(--line);
+    border-radius: 7px;
+    background: #f8fafc;
+    color: #263241;
+    font: inherit;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  .segmented button[aria-pressed="true"] {
+    border-color: var(--accent);
+    background: #e8f0ff;
+    color: #173f82;
+  }
+  .readouts {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 7px;
+    margin-top: 10px;
+  }
+  .readout {
+    min-height: 46px;
+    border: 1px solid #e0e5ed;
+    border-radius: 7px;
+    padding: 7px 8px;
+    background: #fbfcfe;
+  }
+  .readout .label {
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 700;
+  }
+  .readout .value {
+    margin-top: 2px;
+    color: #121a24;
+    font-size: 15px;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+  }
+  .readout .sub {
+    color: var(--muted);
+    font-size: 11px;
+  }
+  .status {
+    display: inline-flex;
+    align-items: center;
+    min-height: 28px;
+    padding: 0 10px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 800;
+  }
+  .status.ok { background: #e7f6ed; color: var(--ok); }
+  .status.warn { background: #fff1df; color: var(--warn); }
+  .status.bad { background: #fde8e8; color: var(--bad); }
+  .formula {
+    margin-top: 10px;
+    padding: 9px;
+    border-radius: 7px;
+    background: #f5f7fa;
+    color: #374253;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 12px;
+    overflow: auto;
+  }
+  .note {
+    margin-top: 8px;
+    color: var(--muted);
+    font-size: 12px;
+  }
+  @media (max-width: 860px) {
+    .layout { grid-template-columns: 1fr; }
+    canvas { height: 430px; min-height: 340px; }
+    .control { grid-template-columns: 118px 1fr 58px; }
+  }
+  @media (max-width: 520px) {
+    .wrap { padding: 0 8px; }
+    .panel { padding: 10px; }
+    .control { grid-template-columns: 1fr 62px; }
+    .control label { grid-column: 1 / -1; }
+    .readouts { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<script>
+  PhysicsSimShell.create({
+    title: '壁と棒と糸',
+    subtitle: '剛体のつり合い・張力・摩擦',
+    basePath: '../../'
+  });
+</script>
+<main class="wrap">
+  <h1>壁と棒と糸のつり合いシミュレーター</h1>
+  <div class="layout">
+    <section class="panel">
+      <p class="panel-title">シーン</p>
+      <canvas id="scene" width="980" height="520" aria-label="壁、棒、糸、おもり、力の図"></canvas>
+      <p class="note">おもりは棒の上をドラッグ、またはタップした位置へ移動できます。棒は軽いものとして扱います。</p>
+    </section>
+    <section class="panel">
+      <p class="panel-title">条件</p>
+      <div class="controls">
+        <div class="segmented" role="group" aria-label="壁と棒の接続条件">
+          <button id="hingeBtn" type="button" aria-pressed="true">蝶番固定</button>
+          <button id="frictionBtn" type="button" aria-pressed="false">壁との摩擦</button>
+        </div>
+        <div class="control">
+          <label for="mass">おもり質量 m</label>
+          <input id="mass" type="range" min="0.2" max="20" step="0.1" value="5">
+          <output id="massOut">5.0 kg</output>
+        </div>
+        <div class="control">
+          <label for="position">おもり位置 x/L</label>
+          <input id="position" type="range" min="0" max="1" step="0.01" value="0.72">
+          <output id="positionOut">0.72</output>
+        </div>
+        <div class="control">
+          <label for="angle">棒と糸の角度 θ</label>
+          <input id="angle" type="range" min="8" max="80" step="0.5" value="30">
+          <output id="angleOut">30.0°</output>
+        </div>
+        <div class="control">
+          <label for="mu">静止摩擦係数 μ</label>
+          <input id="mu" type="range" min="0" max="2" step="0.01" value="0.50">
+          <output id="muOut">0.50</output>
+        </div>
+        <button id="reset" class="plain-button" type="button">初期値に戻す</button>
+      </div>
+
+      <div id="status" class="status ok" style="margin-top:10px;">つり合い可能</div>
+      <div class="readouts" id="readouts"></div>
+      <div class="formula">
+        T<sub>y</sub>L = mgx, T = T<sub>y</sub>/sinθ<br>
+        T<sub>x</sub> = Tcosθ, T<sub>y</sub> = Tsinθ<br>
+        蝶番固定: R<sub>x</sub>=T<sub>x</sub>, R<sub>y</sub>=mg-T<sub>y</sub>, R=√(R<sub>x</sub><sup>2</sup>+R<sub>y</sub><sup>2</sup>)<br>
+        摩擦モード: N = T<sub>x</sub>, f = mg - T<sub>y</sub>, 条件 |f| ≤ μN
+      </div>
+    </section>
+  </div>
+</main>
+
+<script>
+const state = {
+  mode: 'hinge',
+  mass: 5,
+  pos: 0.72,
+  angleDeg: 30,
+  mu: 0.5,
+  g: 9.8
+};
+
+const canvas = document.getElementById('scene');
+const ctx = canvas.getContext('2d');
+const mass = document.getElementById('mass');
+const position = document.getElementById('position');
+const angle = document.getElementById('angle');
+const mu = document.getElementById('mu');
+const massOut = document.getElementById('massOut');
+const positionOut = document.getElementById('positionOut');
+const angleOut = document.getElementById('angleOut');
+const muOut = document.getElementById('muOut');
+const readouts = document.getElementById('readouts');
+const statusEl = document.getElementById('status');
+const hingeBtn = document.getElementById('hingeBtn');
+const frictionBtn = document.getElementById('frictionBtn');
+const resetBtn = document.getElementById('reset');
+
+let dragWeight = false;
+let geometry = null;
+
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function solve() {
+  const theta = state.angleDeg * Math.PI / 180;
+  const weight = state.mass * state.g;
+  const ty = weight * state.pos;
+  const tension = ty / Math.sin(theta);
+  const tx = tension * Math.cos(theta);
+  const hingeY = weight - ty;
+  const hingeR = Math.hypot(tx, hingeY);
+  const normal = tx;
+  const friction = weight - ty;
+  const muRequired = normal > 1e-9 ? Math.abs(friction) / normal : Infinity;
+  const canHold = state.mode === 'hinge' || state.mu + 1e-9 >= muRequired;
+  return { theta, weight, tension, tx, ty, hingeY, hingeR, normal, friction, muRequired, canHold };
+}
+
+function resizeCanvas() {
+  const dpr = window.devicePixelRatio || 1;
+  const rect = canvas.getBoundingClientRect();
+  canvas.width = Math.round(rect.width * dpr);
+  canvas.height = Math.round(rect.height * dpr);
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  draw();
+}
+
+function sceneGeometry() {
+  const rect = canvas.getBoundingClientRect();
+  const w = Math.max(280, Math.min(rect.width, window.innerWidth - 40));
+  const h = rect.height;
+  const compact = w < 520;
+  const wallX = compact ? 74 : Math.max(74, w * 0.12);
+  const rightPad = compact ? 92 : 78;
+  const ax = wallX;
+  const ay = Math.min(h - 118, Math.max(230, h * 0.68));
+  const theta = state.angleDeg * Math.PI / 180;
+  const topPad = compact ? 76 : 68;
+  const widthLimit = w - wallX - rightPad;
+  const heightLimit = (ay - topPad) / Math.tan(theta);
+  const rodLen = Math.max(150, Math.min(widthLimit, heightLimit));
+  const bx = ax + rodLen;
+  const by = ay;
+  const cx = ax;
+  const cy = ay - rodLen * Math.tan(theta);
+  return { w, h, ax, ay, bx, by, cx, cy, rodLen, compact };
+}
+
+function drawGrid(g) {
+  ctx.save();
+  ctx.strokeStyle = '#e8ebf0';
+  ctx.lineWidth = 1;
+  for (let x = 0; x <= g.w; x += 32) {
+    ctx.beginPath();
+    ctx.moveTo(x, 0);
+    ctx.lineTo(x, g.h);
+    ctx.stroke();
+  }
+  for (let y = 0; y <= g.h; y += 32) {
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.lineTo(g.w, y);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function drawWall(g) {
+  ctx.save();
+  ctx.fillStyle = '#b78658';
+  ctx.fillRect(g.ax - 56, 26, 56, g.h - 52);
+  ctx.strokeStyle = 'rgba(91, 62, 39, .35)';
+  ctx.lineWidth = 4;
+  for (let y = 18; y < g.h + 80; y += 26) {
+    ctx.beginPath();
+    ctx.moveTo(g.ax - 56, y + 32);
+    ctx.lineTo(g.ax, y - 16);
+    ctx.stroke();
+  }
+  ctx.fillStyle = '#273241';
+  ctx.font = '700 28px system-ui, sans-serif';
+  ctx.fillText('C', Math.min(g.cx + 8, g.w - 34), g.cy - 10);
+  ctx.fillText('A', g.ax - 2, g.ay + 42);
+  ctx.fillText('B', Math.min(g.bx + 8, g.w - 32), g.by + 36);
+  ctx.restore();
+}
+
+function drawRodAndString(g) {
+  ctx.save();
+  ctx.strokeStyle = '#202832';
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.moveTo(g.cx, g.cy);
+  ctx.lineTo(g.bx, g.by);
+  ctx.stroke();
+
+  ctx.strokeStyle = '#9e6a36';
+  ctx.lineWidth = 18;
+  ctx.lineCap = 'butt';
+  ctx.beginPath();
+  ctx.moveTo(g.ax, g.ay);
+  ctx.lineTo(g.bx, g.by);
+  ctx.stroke();
+  ctx.strokeStyle = '#f8d6a6';
+  ctx.lineWidth = 10;
+  ctx.beginPath();
+  ctx.moveTo(g.ax, g.ay - 1);
+  ctx.lineTo(g.bx, g.by - 1);
+  ctx.stroke();
+
+  ctx.fillStyle = '#1d2733';
+  ctx.beginPath();
+  ctx.arc(g.ax, g.ay, 8, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(g.bx, g.by, 7, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawWeight(g) {
+  const x = g.ax + g.rodLen * state.pos;
+  const y = g.ay;
+  ctx.save();
+  ctx.strokeStyle = '#2d3a4b';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(x, y + 8);
+  ctx.lineTo(x, y + 48);
+  ctx.stroke();
+  ctx.fillStyle = '#47566a';
+  ctx.beginPath();
+  ctx.roundRect(x - 25, y + 48, 50, 36, 7);
+  ctx.fill();
+  ctx.fillStyle = '#fff';
+  ctx.font = '700 12px system-ui, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText(`${state.mass.toFixed(1)} kg`, x, y + 71);
+  ctx.restore();
+}
+
+function drawAngle(g) {
+  const r = 70;
+  const start = Math.PI;
+  const end = Math.PI + state.angleDeg * Math.PI / 180;
+  ctx.save();
+  ctx.strokeStyle = '#8a6b35';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.arc(g.bx, g.by, r, start, end);
+  ctx.stroke();
+  ctx.fillStyle = '#7a5a22';
+  ctx.font = '700 18px system-ui, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText(`${state.angleDeg.toFixed(0)}°`, g.bx - 75, g.by - 14);
+  ctx.restore();
+}
+
+function arrow(x1, y1, x2, y2, color, label) {
+  const ang = Math.atan2(y2 - y1, x2 - x1);
+  ctx.save();
+  ctx.strokeStyle = color;
+  ctx.fillStyle = color;
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(x1, y1);
+  ctx.lineTo(x2, y2);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.moveTo(x2, y2);
+  ctx.lineTo(x2 - 10 * Math.cos(ang - .5), y2 - 10 * Math.sin(ang - .5));
+  ctx.lineTo(x2 - 10 * Math.cos(ang + .5), y2 - 10 * Math.sin(ang + .5));
+  ctx.closePath();
+  ctx.fill();
+  if (label) {
+    ctx.font = '700 12px system-ui, sans-serif';
+    const lx = clamp(x2 + 8, 10, canvas.getBoundingClientRect().width - 42);
+    const ly = clamp(y2 - 8, 14, canvas.getBoundingClientRect().height - 8);
+    ctx.fillText(label, lx, ly);
+  }
+  ctx.restore();
+}
+
+function arrowByLength(x, y, ux, uy, length, color, label) {
+  const cappedLength = clamp(length, 0, canvas.getBoundingClientRect().height * 0.30);
+  arrow(x, y, x + ux * cappedLength, y + uy * cappedLength, color, label);
+}
+
+function drawForces(g, result) {
+  const wx = g.ax + g.rodLen * state.pos;
+  const forceScale = g.compact ? 1.05 : 1.35;
+  const theta = state.angleDeg * Math.PI / 180;
+  arrowByLength(wx, g.ay, 0, 1, result.weight * forceScale, '#323b49', 'mg');
+  arrowByLength(g.bx, g.by, -Math.cos(theta), -Math.sin(theta), result.tension * forceScale, '#d53f3f', 'T');
+  arrowByLength(g.bx, g.by, -1, 0, result.tx * forceScale, '#2667cc', 'Tx');
+  arrowByLength(g.bx, g.by, 0, -1, result.ty * forceScale, '#177245', 'Ty');
+  if (state.mode === 'hinge') {
+    arrowByLength(g.ax, g.ay, 1, 0, result.tx * forceScale, '#2667cc', 'Rx');
+    arrowByLength(g.ax, g.ay, 0, -1, result.hingeY * forceScale, '#177245', 'Ry');
+    arrowByLength(g.ax, g.ay, result.tx / result.hingeR, -result.hingeY / result.hingeR, result.hingeR * forceScale, '#7b4ab8', 'R');
+  } else {
+    arrowByLength(g.ax, g.ay, 1, 0, result.normal * forceScale, '#6a4fb3', 'N');
+    arrowByLength(g.ax, g.ay, 0, result.friction >= 0 ? -1 : 1, Math.abs(result.friction) * forceScale, '#b15b00', 'f');
+  }
+}
+
+function draw() {
+  const g = sceneGeometry();
+  geometry = g;
+  const result = solve();
+  ctx.clearRect(0, 0, g.w, g.h);
+  drawGrid(g);
+  drawWall(g);
+  drawRodAndString(g);
+  drawWeight(g);
+  drawAngle(g);
+  drawForces(g, result);
+  renderReadouts(result);
+}
+
+function readout(label, value, sub) {
+  return `<div class="readout"><div class="label">${label}</div><div class="value">${value}</div><div class="sub">${sub}</div></div>`;
+}
+
+function renderReadouts(r) {
+  massOut.value = `${state.mass.toFixed(1)} kg`;
+  positionOut.value = state.pos.toFixed(2);
+  angleOut.value = `${state.angleDeg.toFixed(1)}°`;
+  muOut.value = state.mu.toFixed(2);
+  hingeBtn.setAttribute('aria-pressed', String(state.mode === 'hinge'));
+  frictionBtn.setAttribute('aria-pressed', String(state.mode === 'friction'));
+  mu.disabled = state.mode === 'hinge';
+
+  if (state.mode === 'hinge') {
+    statusEl.className = 'status ok';
+    statusEl.textContent = '蝶番の反力でつり合い';
+  } else if (r.canHold) {
+    statusEl.className = 'status ok';
+    statusEl.textContent = '摩擦で静止可能';
+  } else {
+    statusEl.className = 'status bad';
+    statusEl.textContent = '摩擦不足で静止不可';
+  }
+
+  const common = [
+    readout('張力 T', `${r.tension.toFixed(1)} N`, `糸方向、θ=${state.angleDeg.toFixed(1)}°`),
+    readout('張力 x成分 |Tx|', `${r.tx.toFixed(1)} N`, '左向きに作用'),
+    readout('張力 y成分 Ty', `${r.ty.toFixed(1)} N`, '上向きに作用'),
+    readout('重力 mg', `${r.weight.toFixed(1)} N`, `x/L=${state.pos.toFixed(2)}`)
+  ];
+  if (state.mode === 'hinge') {
+    common.push(readout('蝶番反力 Rx', `${r.tx.toFixed(1)} N`, '右向き'));
+    common.push(readout('蝶番反力 Ry', `${r.hingeY.toFixed(1)} N`, '上向き'));
+    common.push(readout('蝶番反力の合力 R', `${r.hingeR.toFixed(1)} N`, 'Rx と Ry の合成'));
+  } else {
+    common.push(readout('壁の摩擦力 f', `${r.friction.toFixed(1)} N`, r.friction >= 0 ? '上向き' : '下向き'));
+    common.push(readout('必要摩擦係数 μmin', `${r.muRequired.toFixed(2)}`, `現在 μ=${state.mu.toFixed(2)}`));
+  }
+  readouts.innerHTML = common.join('');
+}
+
+function setFromPointer(clientX) {
+  if (!geometry) return;
+  const rect = canvas.getBoundingClientRect();
+  const x = clientX - rect.left;
+  state.pos = clamp((x - geometry.ax) / geometry.rodLen, 0, 1);
+  position.value = state.pos;
+  draw();
+}
+
+function syncInputs() {
+  state.mass = Number(mass.value);
+  state.pos = Number(position.value);
+  state.angleDeg = Number(angle.value);
+  state.mu = Number(mu.value);
+  draw();
+}
+
+mass.addEventListener('input', syncInputs);
+position.addEventListener('input', syncInputs);
+angle.addEventListener('input', syncInputs);
+mu.addEventListener('input', syncInputs);
+hingeBtn.addEventListener('click', () => { state.mode = 'hinge'; draw(); });
+frictionBtn.addEventListener('click', () => { state.mode = 'friction'; draw(); });
+resetBtn.addEventListener('click', () => {
+  Object.assign(state, { mode: 'hinge', mass: 5, pos: 0.72, angleDeg: 30, mu: 0.5 });
+  mass.value = state.mass;
+  position.value = state.pos;
+  angle.value = state.angleDeg;
+  mu.value = state.mu;
+  draw();
+});
+
+canvas.addEventListener('pointerdown', (event) => {
+  dragWeight = true;
+  canvas.setPointerCapture(event.pointerId);
+  setFromPointer(event.clientX);
+});
+canvas.addEventListener('pointermove', (event) => {
+  if (dragWeight) setFromPointer(event.clientX);
+});
+canvas.addEventListener('pointerup', () => { dragWeight = false; });
+canvas.addEventListener('pointercancel', () => { dragWeight = false; });
+window.addEventListener('resize', resizeCanvas);
+
+resizeCanvas();
+</script>
+</body>
+</html>

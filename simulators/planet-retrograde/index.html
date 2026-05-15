@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>惑星の見かけの逆行シミュレーター（安定版・全体表示改良＋太陽方向）</title>
+<link rel="stylesheet" href="../../assets/common-sim.css">
+<script src="../../assets/sim-shell.js"></script>
+<script src="../../assets/sim-clock.js"></script>
+<style>
+  :root{ --bg:#0f1115; --fg:#e6e6e6; --muted:#9aa0a6; --accent:#7aa2f7; --panel:#151821; --card:#1a1f2b; --bad:#ff6b6b; --sun:#ffd166; }
+  *{box-sizing:border-box;font-family:system-ui,-apple-system,Segoe UI,Roboto,Inter,Helvetica,Arial,"Hiragino Kaku Gothic ProN","Yu Gothic",Meiryo,sans-serif}
+  body{margin:0;background:var(--bg);color:var(--fg)}
+  header{padding:12px 16px;border-bottom:1px solid #222;background:var(--panel);position:sticky;top:0;z-index:20}
+  header .title{font-size:18px;font-weight:700;letter-spacing:.3px}
+
+  .controls{position:sticky;top:48px;z-index:15;background:var(--panel);border-bottom:1px solid #23283a;padding:6px 8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .cg{background:var(--card);border:1px solid #2a3045;border-radius:8px;padding:4px 6px;display:flex;gap:8px;align-items:center}
+  .legend{display:flex;gap:6px;flex-wrap:wrap;font-size:12px;color:var(--muted)}
+  .pill{display:inline-flex;align-items:center;gap:6px;padding:2px 8px;border-radius:9999px;border:1px solid #2a3045;background:#121622}
+  .dot{width:10px;height:10px;border-radius:50%}
+  input[type="range"]{width:120px}
+                          button{background:#22283a;color:var(--fg);border:1px solid #2a3045;border-radius:8px;padding:6px 8px;font-size:12px;line-height:1.1;cursor:pointer}
+  button:hover{border-color:#3b4463}
+  label{font-size:12px;color:var(--fg)}
+
+  .boards{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:12px;min-width:980px}
+  @media (max-width:1100px){.boards{overflow-x:auto}}
+  .card{background:var(--panel);border:1px solid #23283a;border-radius:12px;padding:10px;display:flex;flex-direction:column}
+  .cardhead{display:flex;justify-content:space-between;align-items:center;padding:0 6px 6px 6px}
+  .cardhead .title{font-size:14px;color:#c7ffd6}
+  canvas{width:100%;display:block;background:#0a0d15;border:1px solid #1b2030;border-radius:10px}
+  .status{font-size:12px;color:var(--muted)}
+  .pinfo{font-size:12px;color:#b8c0ff;margin-right:6px;white-space:nowrap}
+</style>
+</head>
+<body>
+  <script>
+    PhysicsSimShell.create({
+      title: '惑星の見かけの逆行',
+      subtitle: '惑星の公転・地球視点・視線方向',
+      basePath: '../../'
+    });
+  </script>
+  <header>
+    <div class="title">惑星の見かけの逆行シミュレーター — ヘリオ＆ジオを常時2枚表示（安定版）</div>
+  </header>
+
+  <div class="controls">
+    <div class="cg">
+      <button id="playBtn">▶ 再生</button>
+      <button id="stepBtn">⏭ 1日進む</button>
+      <button id="todayBtn">⏮ 今日へ</button>
+      <span class="status">日付：<span id="simDate"></span></span>
+      <label>開始日 <input type="date" id="dateInput"></label>
+    </div>
+    <div class="cg">
+      <label>速度（日/秒） <input type="range" id="speed" min="0" max="200" step="1" value="20"></label>
+      <span id="speedLabel">20</span>
+      <label>ヘリオ図ズーム（AU） <input type="range" id="zoom" min="0.3" max="40" step="0.1" value="1.0"></label>
+      <span id="zoomLabel">1.0</span>
+      <button id="fitBtn" title="表示中の惑星が全て入る倍率に調整">全体表示</button>
+      <label>トレイル（日） <input type="range" id="trail" min="0" max="1200" step="5" value="365"></label>
+      <span id="trailLabel">365</span>
+    </div>
+    <div class="cg">
+      <label><input type="checkbox" id="showLabels" checked>ラベル</label>
+      <label><input type="checkbox" id="showGrid" checked>グリッド</label>
+      <label><input type="checkbox" id="showOrbits" checked>軌道</label>
+      <label><input type="checkbox" id="showSunDir" checked>太陽方向</label>
+    </div>
+    <details class="cg" style="cursor:pointer;">
+      <summary>惑星の表示と情報（クリックで展開）</summary>
+      <div id="planetToggles" style="display:grid;grid-template-columns:1fr 1fr;gap:6px;min-width:680px"></div>
+    </details>
+    <div class="cg" style="flex:1 1 100%">
+      <div class="legend" id="legend"></div>
+      <div class="status">※ ジオ図：順行=細線、<span style="color:var(--bad)">逆行=赤太線</span></div>
+    </div>
+  </div>
+
+  <div class="boards">
+    <div class="card">
+      <div class="cardhead"><div class="title">ヘリオセントリック（太陽中心）上面図</div><div class="status" id="heliostat"></div></div>
+      <canvas id="heliocanvas"></canvas>
+    </div>
+    <div class="card">
+      <div class="cardhead"><div class="title">ジオセントリック（地球視点）見かけの軌跡</div><div class="status" id="geostat"></div></div>
+      <canvas id="geocanvas"></canvas>
+    </div>
+  </div>
+
+<script>
+(() => {
+  // ===== 基本データ =====
+  const YSIGN = -1; // 反時計回り表示（北半球視点）
+  const planets = [
+    { key:'mercury', name:'水星', a:0.3871, period:87.969, color:'#a5a5a5' },
+    { key:'venus',   name:'金星', a:0.7233, period:224.701, color:'#ffcf7a' },
+    { key:'earth',   name:'地球', a:1.0000, period:365.256, color:'#7aa2f7' },
+    { key:'mars',    name:'火星', a:1.5237, period:686.980, color:'#ff7f50' },
+    { key:'jupiter', name:'木星', a:5.2044, period:4332.589, color:'#c2a67a' },
+    { key:'saturn',  name:'土星', a:9.5826, period:10759.22, color:'#d6c48a' },
+  ];
+  const phase0 = {mercury:0, venus:0, earth:0, mars:0, jupiter:0, saturn:0};
+
+  // 凡例
+  const legend = document.getElementById('legend');
+  for(const p of planets){
+    const pill = document.createElement('span'); pill.className='pill';
+    const dot = document.createElement('span'); dot.className='dot'; dot.style.background = p.color;
+    pill.appendChild(dot); pill.appendChild(document.createTextNode(p.name)); legend.appendChild(pill);
+  }
+
+  // 惑星トグル＆情報
+  const planetToggles = document.getElementById('planetToggles');
+  const planetOpts = {};
+  for (const p of planets){
+    const row = document.createElement('div'); row.style.display='flex'; row.style.alignItems='center'; row.style.gap='8px';
+    const info = document.createElement('span'); info.className='pinfo';
+    const years = (p.period/365.256).toFixed(3);
+    info.textContent = `${p.name}：${p.period.toFixed(1)}日（${years}年） / a=${p.a.toFixed(3)} AU`;
+    row.appendChild(info);
+    const chkBody = document.createElement('input'); chkBody.type='checkbox'; chkBody.checked = (p.key==='venus' || p.key==='mars' || p.key==='earth'); chkBody.id=`show_${p.key}`;
+    const chkOrbit= document.createElement('input'); chkOrbit.type='checkbox'; chkOrbit.checked = (p.key==='venus' || p.key==='mars' || p.key==='earth'); chkOrbit.id=`orbit_${p.key}`;
+    const labBody = document.createElement('label'); labBody.htmlFor=chkBody.id; labBody.append(` ${p.name}（位置）`); labBody.prepend(chkBody);
+    const labOrbit= document.createElement('label'); labOrbit.htmlFor=chkOrbit.id; labOrbit.append(' 軌道'); labOrbit.prepend(chkOrbit);
+    row.appendChild(labBody); row.appendChild(labOrbit);
+    planetToggles.appendChild(row);
+    planetOpts[p.key] = {body: chkBody, orbit: chkOrbit};
+  }
+
+  // UI
+  const playBtn = document.getElementById('playBtn');
+  const stepBtn = document.getElementById('stepBtn');
+  const todayBtn= document.getElementById('todayBtn');
+  const dateInput= document.getElementById('dateInput');
+  const speed = document.getElementById('speed'); const speedLabel = document.getElementById('speedLabel');
+  const zoom  = document.getElementById('zoom');  const zoomLabel  = document.getElementById('zoomLabel');
+  const trail = document.getElementById('trail'); const trailLabel = document.getElementById('trailLabel');
+  const showLabels = document.getElementById('showLabels');
+  const showGrid   = document.getElementById('showGrid');
+  const showOrbits = document.getElementById('showOrbits');
+  const showSunDir = document.getElementById('showSunDir');
+  const heliostat = document.getElementById('heliostat');
+  const geostat   = document.getElementById('geostat');
+
+  // キャンバス
+  const helioc = document.getElementById('heliocanvas');
+  const geoc   = document.getElementById('geocanvas');
+  const hctx = helioc.getContext('2d');
+  const gctx = geoc.getContext('2d');
+  // CSS変数の色は Canvas では直接使えないため解決して使う
+  const CSS = getComputedStyle(document.documentElement);
+  const SUN_COLOR = (CSS.getPropertyValue('--sun') || '#ffd166').trim();
+
+  // くっきり＆中央のためのリサイズ
+  function resizeCanvases(){
+    const ratio = Math.max(1, window.devicePixelRatio || 1);
+    const maxH = Math.floor(window.innerHeight * 0.95);
+
+    // Helio
+    const wH_css = Math.floor(helioc.clientWidth);
+    const sizeH_css = Math.min(wH_css, maxH);
+    helioc.style.width = sizeH_css + 'px';
+    helioc.style.height = sizeH_css + 'px';
+    hctx.setTransform(1,0,0,1,0,0); hctx.clearRect(0,0,helioc.width,helioc.height);
+    helioc.width  = Math.floor(sizeH_css * ratio);
+    helioc.height = Math.floor(sizeH_css * ratio);
+    hctx.setTransform(ratio,0,0,ratio,0,0);
+    hctx.imageSmoothingEnabled = false;
+
+    // Geo
+    const wG_css = Math.floor(geoc.clientWidth);
+    const sizeG_css = Math.min(wG_css, maxH);
+    geoc.style.width = sizeG_css + 'px';
+    geoc.style.height = sizeG_css + 'px';
+    gctx.setTransform(1,0,0,1,0,0); gctx.clearRect(0,0,geoc.width,geoc.height);
+    geoc.width  = Math.floor(sizeG_css * ratio);
+    geoc.height = Math.floor(sizeG_css * ratio);
+    gctx.setTransform(ratio,0,0,ratio,0,0);
+    gctx.imageSmoothingEnabled = false;
+
+    drawAll();
+  }
+  window.addEventListener('resize', resizeCanvases);
+
+  // 時刻
+  function toDaysSinceEpoch(date){ const epoch = Date.UTC(2000,0,1,12,0,0); const t = Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), 12,0,0); return (t-epoch)/86400000; }
+  function fromDaysSinceEpoch(days){ const epoch = Date.UTC(2000,0,1,12,0,0); return new Date(epoch + days*86400000); }
+  const now = new Date(); let simDays = toDaysSinceEpoch(now);
+  dateInput.valueAsDate = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  function updateSimDateLabel(){ const d=fromDaysSinceEpoch(simDays); const y=d.getUTCFullYear(); const m=(d.getUTCMonth()+1).toString().padStart(2,'0'); const da=d.getUTCDate().toString().padStart(2,'0'); document.getElementById('simDate').textContent = `${y}-${m}-${da}`; }
+
+  // 再生
+  let playing=false, lastTs=null, trailAccumulator=0;
+  function togglePlay(){ playing=!playing; playBtn.textContent = playing? '⏸ 一時停止' : '▶ 再生'; }
+  playBtn.onclick=togglePlay;
+  stepBtn.onclick=()=>{ simDays+=1; pushTrail(); drawAll(); };
+  todayBtn.onclick=()=>{ const n=new Date(); simDays=toDaysSinceEpoch(n); dateInput.valueAsDate = new Date(n.getFullYear(),n.getMonth(),n.getDate()); clearTrails(); pushTrail(); drawAll(); };
+  dateInput.onchange=()=>{ const d=dateInput.valueAsDate; if(d){ const u=new Date(Date.UTC(d.getFullYear(),d.getMonth(),d.getDate(),12,0,0)); simDays=toDaysSinceEpoch(u); clearTrails(); pushTrail(); drawAll(); }};
+  speed.oninput = ()=>{ speedLabel.textContent=speed.value; };
+  zoom.oninput  = ()=>{ zoomLabel.textContent=zoom.value; drawAll(); };
+  trail.oninput = ()=>{ trailLabel.textContent=trail.value; trimTrails(); drawAll(); };
+  showLabels.onchange = showGrid.onchange = showOrbits.onchange = showSunDir.onchange = ()=> drawAll();
+  for(const p of planets){ planetOpts[p.key].body.onchange = planetOpts[p.key].orbit.onchange = ()=> drawAll(); }
+
+  // 全体表示：余白を多めに見積もる（ラベル・矢印も考慮）
+  const fitBtn = document.getElementById('fitBtn');
+  function fitZoomToVisible(){
+    let maxA = 1;
+    for(const p of planets){
+      const show = (planetOpts[p.key]?.body.checked || planetOpts[p.key]?.orbit.checked);
+      if(show) maxA = Math.max(maxA, p.a);
+    }
+    // Canvas実サイズに基づく余白見積もり＋最低3.5AUを確保
+    const ratio = Math.max(1, window.devicePixelRatio || 1);
+    const S = Math.min(helioc.width, helioc.height)/ratio; // CSS px
+    const margin = 20; // AU2scaleFor と一致
+    const rpx = Math.max(50, S/2 - margin);
+    const edgePadPx = showLabels.checked ? 56 : 28; // ラベル・点のためのエッジ余白
+    const geomFudge = 1 / Math.max(0.6, (1 - edgePadPx / rpx));
+    let target = Math.max(3.5, maxA * Math.max(geomFudge, showLabels.checked ? 2.4 : 2.0));
+    const zmax = parseFloat(zoom.max || '40');
+    if(target > zmax){ zoom.max = String(Math.ceil(target*1.1)); }
+    zoom.value = target.toFixed(1);
+    zoomLabel.textContent = zoom.value;
+    drawAll();
+  }
+  fitBtn.onclick = fitZoomToVisible;
+
+  // 幾何
+  function wrapAngle(a){ while(a<=-Math.PI) a+=2*Math.PI; while(a>Math.PI) a-=2*Math.PI; return a; }
+  function getHelioPos(key, days){ const p=planets.find(x=>x.key===key); const n=2*Math.PI/p.period; const th=n*days+(phase0[key]||0); return {x:p.a*Math.cos(th), y:p.a*Math.sin(th)}; }
+  function AU2scaleFor(canvas){ const margin=20; const ratio=Math.max(1, window.devicePixelRatio||1); const S=Math.min(canvas.width,canvas.height)/ratio; return (S/2 - margin) / (parseFloat(zoom.value)||1.0); }
+  function AU2pxFor(canvas, au){ return AU2scaleFor(canvas) * au; }
+
+  // トレイル（地球視点）
+  const trails={}; for(const p of planets){ if(p.key!=='earth') trails[p.key]=[]; }
+  function clearTrails(){ for(const k in trails){ trails[k].length=0; } }
+  function trimTrails(){ const maxLen=Math.floor(parseInt(trail.value)||0); for(const k in trails){ const arr=trails[k]; while(arr.length>maxLen) arr.shift(); } }
+  function pushTrail(){ const E=getHelioPos('earth', simDays); for(const p of planets){ if(p.key==='earth') continue; if(!planetOpts[p.key].body.checked) continue; const P=getHelioPos(p.key, simDays); const rel={x:P.x-E.x, y:P.y-E.y}; const arr=trails[p.key]; const prev=arr[arr.length-1]; let retro=false; if(prev){ const lp=Math.atan2(prev.y,prev.x), ln=Math.atan2(rel.y,rel.x); const d=wrapAngle(ln-lp); retro=(d<0);} arr.push({x:rel.x,y:rel.y,retro}); const maxLen=Math.floor(parseInt(trail.value)||0); while(arr.length>maxLen) arr.shift(); } }
+
+  // 初期
+                                                    window.addEventListener('load', () => {
+                                                        resizeCanvases();
+                                                        for (let i=0;i<parseInt(trail.value);i++){ pushTrail(); simDays+=1; }
+                                                          simDays-=parseInt(trail.value);
+                                                          drawAll();
+                                                          // レイアウト確定後に「きょうへ」→「全体表示」を実行
+                                                          requestAnimationFrame(() => {
+                                                              todayBtn.click();
+                                                              fitBtn.click();
+                                                          });
+                                                      });
+
+  // 補助：矢印描画
+  function drawArrow(ctx, x1,y1,x2,y2){
+    ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
+    const ang = Math.atan2(y2-y1, x2-x1); const head=10;
+    ctx.beginPath();
+    ctx.moveTo(x2,y2);
+    ctx.lineTo(x2 + head*Math.cos(ang+2.5), y2 + head*Math.sin(ang+2.5));
+    ctx.moveTo(x2,y2);
+    ctx.lineTo(x2 + head*Math.cos(ang-2.5), y2 + head*Math.sin(ang-2.5));
+    ctx.stroke();
+  }
+
+  // 描画
+  function drawGrid(ctx,w,h){
+    ctx.save(); ctx.strokeStyle='#1b2130'; ctx.lineWidth=1;
+    // 中心十字
+    ctx.beginPath();
+    ctx.moveTo(0.5, h/2+0.5); ctx.lineTo(w+0.5, h/2+0.5);
+    ctx.moveTo(w/2+0.5, 0.5); ctx.lineTo(w/2+0.5, h+0.5);
+    ctx.stroke();
+    // 同心円
+    ctx.translate(w/2,h/2);
+    for(let r=1;r<=20;r++){ ctx.beginPath(); ctx.arc(0,0, AU2pxFor(ctx.canvas,r), 0, Math.PI*2); ctx.globalAlpha = r%5===0?0.35:0.18; ctx.stroke(); }
+    ctx.restore();
+  }
+
+  function drawHelio(){
+    const ratio=Math.max(1, window.devicePixelRatio||1);
+    const w=helioc.width/ratio, h=helioc.height/ratio;
+    hctx.save(); hctx.setTransform(1,0,0,1,0,0); hctx.clearRect(0,0,helioc.width,helioc.height); hctx.restore();
+    if(showGrid.checked) drawGrid(hctx,w,h);
+    hctx.save(); hctx.translate(w/2,h/2);
+    // 太陽
+    hctx.fillStyle=SUN_COLOR; hctx.beginPath(); hctx.arc(0,0,8,0,Math.PI*2); hctx.fill();
+    // 軌道
+    if(showOrbits.checked){ for(const p of planets){ if(!planetOpts[p.key].orbit.checked) continue; hctx.strokeStyle=p.color; hctx.globalAlpha=0.6; hctx.lineWidth=2.0; hctx.beginPath(); hctx.arc(0,0, AU2pxFor(helioc,p.a), 0, Math.PI*2); hctx.stroke(); } hctx.globalAlpha=1; }
+    // 現在位置
+    const t=simDays, labelOn=showLabels.checked, sH=AU2scaleFor(helioc);
+    for(const p of planets){ if(!planetOpts[p.key].body.checked) continue; const pos=getHelioPos(p.key,t); const x=sH*pos.x, y=sH*(pos.y*YSIGN); hctx.fillStyle=p.color; hctx.beginPath(); hctx.arc(x,y,4,0,Math.PI*2); hctx.fill(); if(labelOn){ hctx.fillStyle='#cdd6f4'; hctx.font='12px system-ui'; hctx.textAlign='left'; hctx.fillText(p.name, x+6, y-6); } }
+    hctx.restore();
+    heliostat.textContent = `ズーム±: ${zoom.value} AU / 表示惑星: ${planets.filter(p=>planetOpts[p.key].body.checked).length}`;
+  }
+
+  function drawGeo(){
+    const ratio=Math.max(1, window.devicePixelRatio||1);
+    const w=geoc.width/ratio, h=geoc.height/ratio;
+    gctx.save(); gctx.setTransform(1,0,0,1,0,0); gctx.clearRect(0,0,geoc.width,geoc.height); gctx.restore();
+    if(showGrid.checked){ drawGrid(gctx,w,h); }
+    gctx.save(); gctx.translate(w/2,h/2);
+    // 太陽方向（ベクトルのみ）
+    if(showSunDir.checked){
+      const E = getHelioPos('earth', simDays);
+      const sx = -E.x, sy = -E.y; // 地球→太陽
+      const len = Math.hypot(sx, sy) || 1; const ux = sx/len, uy = sy/len;
+      const sG = AU2scaleFor(geoc);
+      const L_AU = Math.max(0.6, (parseFloat(zoom.value)||1) * 0.95);
+      const x2 = sG * L_AU * ux; const y2 = sG * L_AU * (uy*YSIGN);
+      gctx.save(); gctx.strokeStyle = SUN_COLOR; gctx.lineWidth = 2; drawArrow(gctx, 0, 0, x2, y2); gctx.restore();
+      gctx.save(); gctx.font = '12px system-ui'; gctx.fillStyle=SUN_COLOR; gctx.textAlign='center'; gctx.fillText('太陽方向', x2*0.7, y2*0.7 - 6); gctx.restore();
+    }
+    // 地球
+    gctx.fillStyle='#7aa2f7'; gctx.beginPath(); gctx.arc(0,0,5,0,Math.PI*2); gctx.fill();
+    const labelOn=showLabels.checked, sG=AU2scaleFor(geoc);
+    // トレイル＋現在位置
+    for(const p of planets){ if(p.key==='earth') continue; if(!planetOpts[p.key].body.checked) continue; const arr=trails[p.key]; if(arr.length>1){ for(let i=1;i<arr.length;i++){ const a=arr[i-1], b=arr[i]; gctx.beginPath(); gctx.moveTo(sG*a.x, sG*(a.y*YSIGN)); gctx.lineTo(sG*b.x, sG*(b.y*YSIGN)); if(b.retro){ gctx.strokeStyle=getComputedStyle(document.documentElement).getPropertyValue('--bad').trim(); gctx.lineWidth=2.4; } else { gctx.strokeStyle=planets.find(pp=>pp.key===p.key).color; gctx.globalAlpha=0.9; gctx.lineWidth=1.2; } gctx.stroke(); gctx.globalAlpha=1; } }
+      const E=getHelioPos('earth',simDays); const P=getHelioPos(p.key,simDays); const rel={x:P.x-E.x, y:P.y-E.y}; gctx.fillStyle=planets.find(pp=>pp.key===p.key).color; gctx.beginPath(); gctx.arc(sG*rel.x, sG*(rel.y*YSIGN), 4, 0, Math.PI*2); gctx.fill(); if(labelOn){ gctx.fillStyle='#cdd6f4'; gctx.font='12px system-ui'; gctx.textAlign='left'; gctx.fillText(p.name, sG*rel.x+6, sG*(rel.y*YSIGN)-6); }
+    }
+    gctx.restore();
+    const retroNow=[]; for(const p of planets){ if(p.key==='earth') continue; const arr=trails[p.key]; const b=arr[arr.length-1]; if(b&&b.retro) retroNow.push(p.name); }
+    geostat.textContent = retroNow.length? `逆行中: ${retroNow.join('、')}`: '逆行中: なし（順行）';
+  }
+
+  function drawAll(){ updateSimDateLabel(); drawHelio(); drawGeo(); }
+
+  const clock = new PhysicsSimClock.FixedStepClock({
+    step: 1 / 60,
+    onStep(dt){ if(playing){ simDays += dt * (parseInt(speed.value)||0); trailAccumulator += dt * (parseInt(speed.value)||0); while(trailAccumulator>=1){ pushTrail(); trailAccumulator-=1; } } },
+    onRender(){ drawAll(); }
+  });
+  clock.start();
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,917 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Ω ループ・ジェットコースター シミュレーター (v1.13 / Left Slope, Right Flat, Joint at (-R,0))</title>
+<style>
+  :root{
+    --bg: #0b0f14;
+    --fg: #e8eef6;
+    --muted: #9fb3c8;
+    --accent: #4dd0e1;
+    --danger: #ff5370;
+    --ok: #8bdc65;
+    --panel: #121821;
+    --card: #0f141c;
+  }
+  *{ box-sizing: border-box; }
+  body{ margin:0; font-family: ui-sans-serif, system-ui, -apple-system, "Noto Sans JP", Segoe UI, Roboto, "Helvetica Neue", Arial, "Hiragino Kaku Gothic ProN", Meiryo, sans-serif; background: var(--bg); color: var(--fg); }
+  .wrap{ max-width: 1800px; margin: 12px auto; padding: 0 10px; }
+  h1{ font-size: 18px; letter-spacing: .02em; margin: 0 0 8px; font-weight: 700; }
+  .row{ display: grid; grid-template-columns: 1fr 460px; gap: 10px; }
+  canvas{ width: 100%; height: auto; background: #0a0d12; border-radius: 10px; box-shadow: 0 6px 22px rgba(0,0,0,.35) inset, 0 0 0 1px rgba(255,255,255,.05); }
+  .panel{ background: var(--panel); border-radius: 10px; padding: 10px; box-shadow: 0 0 0 1px rgba(255,255,255,.05); }
+  .grid{ display: grid; grid-template-columns: auto 2fr; gap: 4px 8px; align-items: center; font-size: 11.5px; }
+  .grid .ctrl{ display:flex; gap:6px; align-items:center; }
+    .grid .ctrl input[type=range]{ }
+    .grid input[type=range]{ width: 100%; }
+  .grid input[type=number]{ width: 50px; }
+  .rowbtn{ display: flex; gap: 6px; flex-wrap: wrap; margin: 6px 0 8px; }
+  button{ background: var(--card); color: var(--fg); border: 1px solid rgba(255,255,255,.08); border-radius: 9px; padding: 6px 8px; cursor: pointer; font-size: 12px; }
+  button:hover{ border-color: rgba(255,255,255,.2); }
+  .pill{ display:inline-block; padding: 1px 6px; border-radius: 999px; font-size: 11px; border: 1px solid rgba(255,255,255,.1); }
+  .ok{ color: var(--ok); } .ng{ color: var(--danger); }
+  .legend{ display:flex; gap:8px; font-size:11px; color: var(--muted); margin-top: 6px; }
+  .legend span:before{ content:""; display:inline-block; width:10px; height:10px; border-radius:3px; margin-right:6px; vertical-align: -1px; }
+  .lg-left:before{ background:#64b5f6; } .lg-loop:before{ background:#ffd54f; } .lg-right:before{ background:#81c784; } .lg-free:before{ background:#ff8a65; }
+  .small{ font-size: 11px; color: var(--muted); }
+  .metrics{ display:grid; grid-template-columns: auto 2fr; gap: 3px 8px; margin-top:6px; font-size:11.5px; }
+  .under-plot{ margin-top:6px; }
+
+  /* === UI grid: 7:3 with 説明→値→スライダー === */
+  .grid{ display:grid; grid-template-columns: minmax(280px, 7fr) 50px 160px;
+    column-gap: 10px;
+    row-gap: 6px;
+  }
+  .grid .ctrl{ display: contents; } /* flatten children (number, range) into grid */
+  .grid input[type=number]{ width: 50px; }
+  .grid input[type=range]{ grid-column: 3; width: 100%; }
+
+
+  /* === UI grid: label → value → slider (7:3) === */
+  .grid{ display:grid; grid-template-columns: minmax(280px, 7fr) 50px 160px;
+    column-gap: 10px;
+    row-gap: 6px;
+  }
+  .grid .ctrl{ display: contents; }
+  .grid input[type=number]{ grid-column: 2; width: 50px; }
+  .grid input[type=range]{ grid-column: 3; width: 100%; }
+
+
+  /* === UI grid override: label(auto) → value(60px) → slider(160px) === */
+  .grid{
+    display: grid;
+    grid-template-columns: auto 60px 160px;
+    column-gap: 10px;
+    row-gap: 6px;
+    align-items: center;
+  }
+  .grid .ctrl{ display: contents; }
+  .grid input[type=number]{ grid-column: 2; width: 60px; }
+  .grid input[type=range]{ grid-column: 3; width: 160px; }
+
+
+  /* === UI grid: label | controls (number + range) === */
+  .grid{ display:grid; grid-template-columns: max-content 240px; column-gap: 8px; row-gap: 6px; align-items:center; }
+  .grid .ctrl{ display:flex; gap:10px; align-items:center; justify-content:flex-start; }
+  .grid .ctrl input[type=number]{ width: 56px; }
+  .grid .ctrl input[type=range]{ flex:0 0 160px; }
+
+
+  /* === Compact label→(slider|value) with slider first === */
+  .grid{ grid-template-columns: 260px 160px; column-gap: 8px; }
+  .grid .ctrl{ display:flex; gap:8px; align-items:center; justify-content:flex-start; }
+  .grid .ctrl input[type=range]{ order:1; flex:0 0 80px; width:80px; }
+  .grid .ctrl input[type=number]{ order:2; width:56px; }
+
+
+  /* === ORDER: value → slider === */
+  .grid .ctrl{ display:flex; gap:8px; align-items:center; }
+  .grid .ctrl input[type=number]{ order:1; width:56px; }
+  .grid .ctrl input[type=range]{ order:2; flex:0 0 80px; width:80px; }
+
+
+/* === BUTTON GROUP RED FRAME (group only) === */
+.rowbtn{
+  border: 1px solid rgba(255, 0, 0, 0.55);
+  border-radius: 10px;
+  padding: 8px 10px;
+  display: inline-flex;
+  gap: 8px;
+}
+
+
+/* === BUTTONS: individual red frames (override) === */
+.rowbtn{ border: none !important; padding: 0 !important; gap: 8px; display: inline-flex; }
+.rowbtn button{ border: 1px solid rgba(255,0,0,0.55); border-radius: 10px; padding: 6px 12px; }
+
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Ω ループ・ジェットコースター シミュレーター <span class="pill" id="statusPill">停止中</span></h1>
+  <div class="row">
+    <div>
+      <canvas id="cv" width="960" height="540"></canvas>
+      <canvas id="cvSpeed" class="under-plot" width="960" height="110"></canvas>
+    </div>
+    <div class="panel">
+      <div class="grid" id="uiGrid">
+        <label>ループ半径 R [m] <span id="heightHint" class="small"></span></label>
+        <div class="ctrl">
+          <input id="radius" type="range" min="1" max="10" step="0.1" value="3">
+          <input id="radiusNum" type="number" min="1" max="10" step="0.1" value="3">
+        </div>
+        <label>左レール長 L<sub>L</sub> [m]</label>
+        <div class="ctrl">
+          <input id="lenL" type="range" min="1" max="60" step="1" value="15">
+          <input id="lenLNum" type="number" min="1" max="60" step="1" value="15">
+        </div>
+        <label>右レール長 L<sub>R</sub> [m]（水平）</label>
+        <div class="ctrl">
+          <input id="lenR" type="range" min="1" max="60" step="1" value="20">
+          <input id="lenRNum" type="number" min="1" max="60" step="1" value="20">
+        </div>
+        <label>左レール角 α<sub>L</sub> [deg]（0で水平、+で左上がり）</label>
+        <div class="ctrl">
+          <input id="angL" type="range" min="0" max="90" step="1" value="30">
+          <input id="angLNum" type="number" min="0" max="90" step="1" value="15">
+        </div>
+        <!-- 🔄 h0 を別行に分離 -->
+        <label>初期高さ h<sub>0</sub> [m]（角度と連動）</label>
+        <div class="ctrl">
+          <input id="h0" type="range" min="0" max="30" step="0.1" value="7.5">
+          <input id="h0Num" type="number" min="0" max="30" step="0.1" value="7.5">
+        </div>
+
+        <label>重力 g [m/s²]</label>
+        <div class="ctrl">
+          <input id="grav" type="range" min="0" max="20" step="0.1" value="9.8">
+          <input id="gravNum" type="number" min="0" max="20" step="0.1" value="9.8">
+        </div>
+        <label>初速 v<sub>0</sub> [m/s]（再生で適用）</label>
+        <div class="ctrl">
+          <input id="v0" type="range" min="0" max="80" step="1" value="0"> <!-- 🔄 初期値0 -->
+          <input id="v0Num" type="number" min="0" max="80" step="1" value="0"> <!-- 🔄 初期値0 -->
+        </div>
+        <label>損失 μ<sub>t</sub>（0=理想保存）</label>
+        <div class="ctrl">
+          <input id="mu" type="range" min="0" max="0.2" step="0.005" value="0.000">
+          <input id="muNum" type="number" min="0" max="0.2" step="0.005" value="0.000">
+        </div>
+        <!-- 反発係数（床・斜面） -->
+        <label>反発係数 e<sub>床</sub>（0〜1）</label>
+        <div class="ctrl">
+          <input id="eFloor" type="range" min="0" max="1" step="0.05" value="0.00">
+          <input id="eFloorNum" type="number" min="0" max="1" step="0.05" value="0.00">
+        </div>
+        <label>反発係数 e<sub>斜面</sub>（0〜1）</label>
+        <div class="ctrl">
+          <input id="eSlope" type="range" min="0" max="1" step="0.05" value="0.00">
+          <input id="eSlopeNum" type="number" min="0" max="1" step="0.05" value="0.00">
+        </div>
+        
+        <label>Δt 物理 [s]（固定刻み）</label>
+        <div class="ctrl">
+          <input id="dt" type="range" min="0.002" max="0.02" step="0.001" value="0.005">
+          <input id="dtNum" type="number" min="0.002" max="0.02" step="0.001" value="0.008">
+        </div>
+        <label>時間倍率</label>
+        <div class="ctrl">
+          <input id="timeScale" type="range" min="0.25" max="2.0" step="0.05" value="1.0">
+          <input id="timeScaleNum" type="number" min="0.25" max="2.0" step="0.05" value="1.0">
+        </div>
+      </div>
+
+      <div class="rowbtn">
+        <button id="btnPlay">再生</button>
+        <button id="btnPause">一時停止</button>
+        <button id="btnReset">リセット</button>
+        <button id="btnFit">全体表示</button>
+        <label style="display:flex;align-items:center;gap:6px;margin-left:auto;font-size:11px;color:var(--muted)">
+          <input id="showForces" type="checkbox"> 垂直抗力ベクトルを表示
+        </label>
+      </div>
+
+      <div class="legend">
+        <span class="lg-left">左レール（α<sub>L</sub>）→ 継ぎ目(-R,0)</span>
+        <span class="lg-loop">円（中心(0,R)、底(0,0)）</span>
+        <span class="lg-right">右レール（水平、x∈[-R, +L<sub>R</sub>]）</span>
+        <span class="lg-free">投射</span>
+      </div>
+
+      <div class="metrics">
+        <div>接触状態:</div><div><span id="contactLabel" class="pill">停止中</span></div>
+        <div>垂直抗力 |N|/m [m/s²]:</div><div id="normalLabel">-</div>
+        <div>位置:</div><div id="posLabel">-</div>
+        <div>速さ v [m/s]:</div><div id="velLabel">0.00</div>
+        <div>全エネルギー E [J/kg]:</div><div id="energyLabel">-</div>
+        <div>ループ高さ:</div><div id="loopHeightLabel">-</div>
+        <div>理論下端最小速度 v<sub>min</sub> = √(5gR):</div><div id="vminLabel">-</div>
+        <!-- 🔄 hmin を追加 -->
+        <div>理論最小高さ h<sub>min</sub> (v<sub>0</sub>=0, μ=0):</div><div id="hminLabel">-</div>
+        <div>初期高さ（左端） h<sub>0</sub> [m]:</div><div id="h0Label">-</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const cv = document.getElementById('cv');
+const ctx = cv.getContext('2d');
+const cvSp = document.getElementById('cvSpeed');
+const sp = cvSp.getContext('2d');
+let W = cv.width, H = cv.height;
+
+
+const IMPACT_STICK_VN = 0.05; // [m/s]以下の法線衝突は貼り付き扱い
+const N_EPS = 1e-2; const THETA_EPS = 0.02; // [rad] 臨界頂点周りのデッドバンド（約1.15°）
+// 臨界(N=0)達成は接触継続にするための誤差バッファ
+
+
+let cam = { x: 0, y: 0, s: 1 };
+function worldToScreen(x, y){
+  return { x: (x - cam.x) * cam.s + W/2, y: (cam.y - y) * cam.s + H/2 };
+}
+function fitView(bounds){
+  const pad = 36;
+  const dx = (bounds.maxx - bounds.minx) || 1;
+  const dy = (bounds.maxy - bounds.miny) || 1;
+  const sx = (W - 2*pad) / dx;
+  const sy = (H - 2*pad) / dy;
+  cam.s = Math.min(sx, sy);
+  cam.x = (bounds.minx + bounds.maxx)/2;
+  cam.y = (bounds.miny + bounds.maxy)/2;
+}
+
+// /* MOUSE INTERACTION START */
+let isDragging = false;
+let dragStart = {x:0, y:0};
+let camStart = {x:0, y:0};
+
+function screenToWorld(px, py){
+  return { x: (px - W/2)/cam.s + cam.x, y: cam.y - (py - H/2)/cam.s };
+}
+
+cv.addEventListener('mousedown', (e)=>{
+  isDragging = true;
+  dragStart = {x: e.offsetX, y: e.offsetY};
+  camStart = {x: cam.x, y: cam.y};
+});
+window.addEventListener('mouseup', ()=>{ isDragging = false; });
+cv.addEventListener('mousemove', (e)=>{
+  if(!isDragging) return;
+  const dx = e.offsetX - dragStart.x;
+  const dy = e.offsetY - dragStart.y;
+  cam.x = camStart.x - dx / cam.s;
+  cam.y = camStart.y + dy / cam.s;
+});
+
+cv.addEventListener('dblclick', ()=>{
+  document.getElementById('btnFit').click();
+});
+
+cv.addEventListener('wheel', (e)=>{
+  e.preventDefault();
+  const rect = cv.getBoundingClientRect();
+  const px = e.clientX - rect.left;
+  const py = e.clientY - rect.top;
+  const before = screenToWorld(px, py);
+  const scale = Math.exp(-e.deltaY * 0.0015);
+  const sNew = Math.min(10*cam.s, Math.max(0.1, cam.s * scale));
+  cam.s = sNew;
+  const after = screenToWorld(px, py);
+  cam.x += (before.x - after.x);
+  cam.y += (before.y - after.y);
+}, { passive: false });
+// /* MOUSE INTERACTION END */
+function clampFinite(v, fb){ return Number.isFinite(v) ? v : fb; }
+function sgn(x){ return x<0 ? -1 : (x>0 ? 1 : 0); }
+
+function bindPair(idRange, idNum, onChange){
+  const r = document.getElementById(idRange);
+  const n = document.getElementById(idNum);
+  function syncFromR(){ n.value = r.value; onChange(parseFloat(r.value)); }
+  function syncFromN(){ r.value = n.value; onChange(parseFloat(n.value)); }
+  r.addEventListener('input', syncFromR);
+  n.addEventListener('change', syncFromN);
+  onChange(parseFloat(r.value)); n.value = r.value;
+}
+const statusPill = document.getElementById('statusPill');
+const contactLabel = document.getElementById('contactLabel');
+const normalLabel = document.getElementById('normalLabel');
+const posLabel = document.getElementById('posLabel');
+const velLabel = document.getElementById('velLabel');
+const energyLabel = document.getElementById('energyLabel');
+const loopHeightLabel = document.getElementById('loopHeightLabel');
+const heightHint = document.getElementById('heightHint');
+const vminLabel = document.getElementById('vminLabel');
+const h0Label = document.getElementById('h0Label');
+const hminLabel = document.getElementById('hminLabel'); // 🔄 追加
+const showForces = document.getElementById('showForces');
+
+const state = {
+  R: 3,
+  lenL: 12,
+  lenR: 20,
+  angL: 30 * Math.PI/180,
+  g: 9.8,
+  mu: 0.0,
+  dt: 0.008,
+  timeScale: 1.0,
+  mode: "left",
+  sL: 0, sR: -0,
+  theta: -Math.PI/2,
+  vs_sign: +1,
+  vmag: 0,
+  vg: 0,
+  px: 0, py: 0, vx: 0, vy: 0,
+  v0: 0, // 🔄 初期値0
+  E_loop: null,
+  speedHist: Array(400).fill(0),
+  running: false,
+  acc: 0,
+  lastTS: null,
+  cooldown: 0,
+  rbRatio: 0.08
+};
+function ballRadius(){ return state.R * state.rbRatio; }
+
+function leftPointAt(s){
+  const a = state.angL;
+  const x = -state.R - (state.lenL - s) * Math.cos(a);
+  const y = + (state.lenL - s) * Math.sin(a);
+  const tx = Math.cos(a), ty = -Math.sin(a);
+  const nx = Math.sin(a), ny = Math.cos(a);
+  return {x,y,tx,ty,nx,ny};
+}
+function rightPointAt(s){
+  const x = s;
+  const y = 0;
+  const tx = 1, ty = 0;
+  const nx = 0, ny = 1;
+  return {x,y,tx,ty,nx,ny};
+}
+function loopPointAt(theta){
+  const x = state.R * Math.cos(theta);
+  const y = state.R + state.R * Math.sin(theta);
+  const tx = -Math.sin(theta);
+  const ty =  Math.cos(theta);
+  return {x,y,tx,ty};
+}
+
+function draw(){
+  ctx.clearRect(0,0,W,H);
+
+  ctx.save();
+  ctx.strokeStyle = "rgba(255,255,255,0.06)";
+  ctx.lineWidth = 1;
+  for(let x=-400; x<=400; x+=1){
+    const a = worldToScreen(x,-200), b = worldToScreen(x,200);
+    ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke();
+  }
+  for(let y=-200; y<=200; y+=1){
+    const a = worldToScreen(-400,y), b = worldToScreen(400,y);
+    ctx.beginPath(); ctx.moveTo(a.x,a.y); ctx.lineTo(b.x,b.y); ctx.stroke();
+  }
+  ctx.restore();
+
+  ctx.save();
+  ctx.strokeStyle = "#64b5f6"; ctx.lineWidth = 3;
+  const LP0 = leftPointAt(0), LP1 = leftPointAt(state.lenL);
+  let l0 = worldToScreen(LP0.x, LP0.y), l1 = worldToScreen(LP1.x, LP1.y);
+  ctx.beginPath(); ctx.moveTo(l0.x,l0.y); ctx.lineTo(l1.x,l1.y); ctx.stroke();
+  ctx.restore();
+
+  ctx.save();
+  ctx.strokeStyle = "#ffd54f"; ctx.lineWidth = 3;
+  ctx.beginPath();
+  for(let t=0;t<=360;t+=2){
+    const th = t*Math.PI/180;
+    const q = worldToScreen(state.R*Math.cos(th), state.R + state.R*Math.sin(th));
+    if(t===0) ctx.moveTo(q.x,q.y); else ctx.lineTo(q.x,q.y);
+  }
+  ctx.closePath(); ctx.stroke();
+  ctx.restore();
+
+  ctx.save();
+  ctx.strokeStyle = "#81c784"; ctx.lineWidth = 3;
+  const RP0 = rightPointAt(-state.R), RP1 = rightPointAt(state.lenR);
+  let r0 = worldToScreen(RP0.x, RP0.y), r1 = worldToScreen(RP1.x, RP1.y);
+  ctx.beginPath(); ctx.moveTo(r0.x,r0.y); ctx.lineTo(r1.x,r1.y); ctx.stroke();
+  ctx.restore();
+
+  let bx=0, by=0;
+  if(state.mode==="left"){
+    const P = leftPointAt(state.sL); bx=P.x + ballRadius()*P.nx; by=P.y + ballRadius()*P.ny;
+  }else if(state.mode==="loop"){
+    const P = loopPointAt(state.theta);
+    const nx = -Math.cos(state.theta), ny = -Math.sin(state.theta);
+    bx = P.x + nx * ballRadius(); by = P.y + ny * ballRadius();
+  }else if(state.mode==="right"){
+    const P = rightPointAt(state.sR); bx=P.x + ballRadius()*P.nx; by=P.y + ballRadius()*P.ny;
+  }else{
+    bx = state.px; by = state.py;
+  }
+  const bpos = worldToScreen(bx,by);
+  ctx.save();
+  ctx.fillStyle = (state.mode==="free") ? "#ff8a65" : "#4dd0e1";
+  ctx.beginPath(); ctx.arc(bpos.x,bpos.y, 6, 0, Math.PI*2); ctx.fill();
+  ctx.restore();
+
+  if(showForces.checked && state.mode==="loop"){
+    const v = state.vmag, th = state.theta;
+    const NperM = (state.R>1e-6) ? ((v*v)/state.R - state.g * Math.sin(th)) : 0;
+    const scale = 0.08;
+    const len = Math.max(0, NperM) * scale;
+    const nnx = -Math.cos(th), nny = -Math.sin(th);
+    const tip = worldToScreen(bx + nnx*len, by + nny*len);
+    ctx.save();
+    ctx.strokeStyle = "#e57373"; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.moveTo(bpos.x,bpos.y); ctx.lineTo(tip.x, tip.y); ctx.stroke();
+    ctx.restore();
+  }
+
+  sp.clearRect(0,0,cvSp.width,cvSp.height);
+  sp.strokeStyle = "rgba(255,255,255,.2)";
+  for(let x=0; x<cvSp.width; x+=80){ sp.beginPath(); sp.moveTo(x,0); sp.lineTo(x,cvSp.height); sp.stroke(); }
+  const data = state.speedHist;
+  const maxV = Math.max(5, ...data);
+  sp.strokeStyle = "#4dd0e1"; sp.lineWidth = 2;
+  sp.beginPath();
+  for(let i=0;i<data.length;i++){
+    const vx = (i/(data.length-1))*cvSp.width;
+    const vy = cvSp.height - (data[i]/maxV)*cvSp.height;
+    if(i===0) sp.moveTo(vx,vy); else sp.lineTo(vx,vy);
+  }
+  sp.stroke();
+  sp.fillStyle = "rgba(255,255,255,.7)";
+  sp.font = "11px sans-serif";
+  sp.fillText(`速さ v [m/s]（現在 max≈${maxV.toFixed(1)}）`, 10, 14);
+
+  ctx.save();
+  ctx.strokeStyle = "rgba(255,255,255,.85)";
+  ctx.fillStyle = "rgba(255,255,255,.9)";
+  ctx.lineWidth = 2;
+  (function(){
+    const xh = 1.2*state.R;
+    const a0 = worldToScreen(xh, 0);
+    const a1 = worldToScreen(xh, 2*state.R);
+    ctx.beginPath(); ctx.moveTo(a0.x,a0.y); ctx.lineTo(a1.x,a1.y); ctx.stroke();
+    const ah=6;
+    ctx.beginPath(); ctx.moveTo(a1.x-ah, a1.y+ah); ctx.lineTo(a1.x,a1.y); ctx.lineTo(a1.x+ah,a1.y+ah); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(a0.x-ah, a0.y-ah); ctx.lineTo(a0.x,a0.y); ctx.lineTo(a0.x+ah,a0.y-ah); ctx.stroke();
+    ctx.font = "11px sans-serif";
+    ctx.fillText(`2R = ${(2*state.R).toFixed(2)} m`, a1.x + 8, (a0.y+a1.y)/2);
+  })();
+  (function(){
+    const Ps = leftPointAt(0);
+    const b0 = worldToScreen(Ps.x, 0);
+    const b1 = worldToScreen(Ps.x, Ps.y);
+    ctx.beginPath(); ctx.moveTo(b0.x,b0.y); ctx.lineTo(b1.x,b1.y); ctx.stroke();
+    const ah=6;
+    ctx.beginPath(); ctx.moveTo(b1.x-ah, b1.y+ah); ctx.lineTo(b1.x,b1.y); ctx.lineTo(b1.x+ah,b1.y+ah); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(b0.x-ah, b0.y-ah); ctx.lineTo(b0.x,b0.y); ctx.lineTo(b0.x+ah,b0.y-ah); ctx.stroke();
+    ctx.font = "11px sans-serif";
+    ctx.fillText(`h0 = ${leftPointAt(0).y.toFixed(2)} m`, b1.x + 8, (b0.y+b1.y)/2);
+    const bx = Ps.x + Math.sin(state.angL)*ballRadius();
+    const by = Ps.y + Math.cos(state.angL)*ballRadius();
+    const bp = worldToScreen(bx,by);
+    ctx.fillText(`v0 = ${state.v0.toFixed(2)} m/s`, bp.x + 10, bp.y - 6);
+  })();
+  ctx.restore();
+
+  const hud = `mode=${state.mode} | θ=${(state.theta*180/Math.PI).toFixed(1)}° | v=${currentV().toFixed(2)} | N/m=${currentN().toFixed(3)} | y=${currentY().toFixed(2)} | h0=${leftPointAt(0).y.toFixed(2)}`;
+  ctx.save();
+  ctx.fillStyle = "rgba(255,255,255,.85)";
+  ctx.font = "12px monospace";
+  const m = ctx.measureText(hud);
+  ctx.fillText(hud, W - m.width - 10, H - 10);
+  ctx.restore();
+}
+
+function currentY(){
+  if(state.mode==="loop"){ return state.R + state.R*Math.sin(state.theta); }
+  if(state.mode==="left"){ return leftPointAt(state.sL).y; }
+  if(state.mode==="right"){ return rightPointAt(state.sR).y; }
+  return state.py;
+}
+function currentV(){
+  if(state.mode==="loop") return state.vmag;
+  if(state.mode==="left" || state.mode==="right") return Math.abs(state.vg);
+  return Math.hypot(state.vx, state.vy);
+}
+function currentN(){
+  if(state.mode!=="loop" || state.R<=1e-6) return 0;
+  return (state.vmag*state.vmag)/state.R - state.g * Math.sin(state.theta);
+}
+
+function step(dt){
+  const g = state.g, mu = state.mu;
+  const eps = 1e-9;
+  if(state.cooldown>0) state.cooldown = Math.max(0, state.cooldown - dt);
+
+  if(state.mode==="left"){
+    const P = leftPointAt(state.sL);
+    const a_t = g * Math.sin(state.angL) - mu * state.vg;
+    state.vg += a_t * dt;
+    const ds = state.vg * dt;
+    const prevS = state.sL;
+    state.sL = Math.min(Math.max(0, state.sL + ds), state.lenL);
+    const P2 = leftPointAt(state.sL);
+    state.px = P2.x; state.py = P2.y;
+    if(prevS < state.lenL - eps && state.sL >= state.lenL - eps && state.vg > 0){
+      state.mode = "right";
+      state.sR = -state.R;
+      state.vg = Math.abs(state.vg);
+      state.px = -state.R; state.py = 0;
+      return;
+    }
+    return;
+  }
+
+  if(state.mode==="loop"){
+    const y0 = state.R + state.R*Math.sin(state.theta);
+    const v2_0 = Math.max(0, 2*(state.E_loop - g*y0));
+    state.vmag = Math.sqrt(v2_0);
+    const a_t = -g * Math.cos(state.theta) - mu * state.vs_sign * state.vmag;
+    const vs_before = state.vs_sign * state.vmag;
+    const vs_after  = vs_before + a_t * dt;
+    const vs_avg    = 0.5*(vs_before + vs_after);
+    state.vs_sign = (vs_after>=0)? +1 : -1;
+
+    const N1 = (state.R>1e-6) ? (state.vmag*state.vmag)/state.R - g*Math.sin(state.theta) : 0;
+    if (state.theta > 0 && state.theta < Math.PI && Math.abs(state.theta - Math.PI/2) > THETA_EPS && Math.abs(state.E_loop - 2.5*state.g*state.R) > 1e-3*(state.g*state.R) && N1 < -N_EPS) {
+      const Pn = loopPointAt(state.theta);
+      const tx = Pn.tx, ty = Pn.ty;
+      state.mode = "free";
+      state.px = Pn.x; state.py = Pn.y;
+      state.vx = state.vmag * state.vs_sign * tx;
+      state.vy = state.vmag * state.vs_sign * ty;
+      const nx = -Math.cos(state.theta), ny = -Math.sin(state.theta);
+      const rb = ballRadius();
+      state.px += nx * (rb + 1e-4);
+      state.py += ny * (rb + 1e-4);
+      const t_eps = 0.3 * dt;
+      state.px += state.vx * t_eps;
+      state.py += state.vy * t_eps;
+      state.cooldown = 2*dt;
+      return;
+    }
+
+    const omega = (state.R>1e-6) ? (vs_avg/state.R) : 0;
+    state.theta += omega * dt;
+
+    const y1 = state.R + state.R*Math.sin(state.theta);
+    const v2_1 = Math.max(0, 2*(state.E_loop - g*y1));
+    state.vmag = Math.sqrt(v2_1);
+
+    if(state.theta <= -Math.PI/2 && state.vs_sign < 0){
+      state.mode = "right";
+      state.sR = 0;
+      state.vg = -Math.abs(state.vmag);
+      state.theta = -Math.PI/2;
+      state.px = 0; state.py = 0;
+      state.E_loop = null;
+      return;
+    }
+    if(state.theta >= -Math.PI/2 + 2*Math.PI && state.vs_sign > 0){
+      state.mode = "right";
+      state.sR = 0;
+      state.theta = -Math.PI/2;
+      state.px = 0; state.py = 0;
+      state.vg = Math.abs(state.vmag);
+      return;
+    }
+
+    const lower = (state.theta >= Math.PI && state.theta <= 1.5*Math.PI);
+    const N2 = (state.R>1e-6) ? (state.vmag*state.vmag)/state.R - g*Math.sin(state.theta) : 0;
+    if(lower && N2 <= 0){ }
+    const P = loopPointAt(state.theta); state.px = P.x; state.py = P.y;
+    return;
+  }
+
+  if(state.mode==="right"){
+    const a_t = - mu * state.vg;
+    state.vg += a_t * dt;
+    const ds = state.vg * dt;
+    const prev = state.sR;
+    state.sR = Math.min(Math.max(-state.R, state.sR + ds), state.lenR);
+    const P = rightPointAt(state.sR);
+    state.px = P.x; state.py = P.y;
+    if(state.sR >= state.lenR - 1e-9){ state.vg = 0; state.running = false; }
+
+    if(prev < 0 && state.sR >= 0 && state.vg > 0){
+      state.mode = "loop";
+      state.theta = -Math.PI/2;
+      state.vmag = Math.abs(state.vg);
+      state.vs_sign = +1;
+      state.E_loop = 0.5*state.vmag*state.vmag + g*0;
+      return;
+    }
+    if(prev > -state.R + eps && state.sR <= -state.R + eps && state.vg < 0){
+      state.mode = "left";
+      state.sL = state.lenL;
+      state.vg = -Math.abs(state.vg);
+      const P2 = leftPointAt(state.sL); state.px = P2.x; state.py = P2.y;
+      return;
+    }
+    return;
+  }
+
+  if(state.mode==="free"){
+    state.vy -= g * dt;
+    const x0 = state.px, y0 = state.py;
+    state.px += state.vx * dt;
+    state.py += state.vy * dt;
+
+    
+    // --- FREE → LEFT SLOPE recontact (minimal add) ---
+    (function(){
+      const a = state.angL;
+      const sa = Math.sin(a);
+      if (sa > 1e-6) {
+        // Left slope line: y = -tan(a) * (x + R)
+        const mline = -Math.tan(a);
+        // Velocity at the beginning of this step (before gravity update)
+        const vy_prev = state.vy + g * dt;
+        // Solve: y0 + vy_prev*t - 1/2*g*t^2 = -tan(a)*(x0 + vx*t + R)
+        const A = -0.5 * g;
+        const B = vy_prev - mline * state.vx;
+        const C = y0 - mline * (x0 + state.R);
+        const roots = solveQuadratic(A, B, C).filter(t => t > 1e-9 && t <= dt + 1e-9);
+        if (roots.length) {
+          const tHit = Math.min(...roots);
+          // Must cross from above the slope
+          const phi0 = y0 - mline * (x0 + state.R);
+          if (phi0 > 0) {
+            const xHit = x0 + state.vx * tHit;
+            const yHit = y0 + vy_prev * tHit - 0.5 * g * tHit * tHit;
+            // Map to slope segment parameter u in [0, lenL]: P(u)=(-R - u cos a, u sin a)
+            const u = yHit / sa;
+            if (u >= -1e-6 && u <= state.lenL + 1e-6) {
+              const sHit = Math.min(state.lenL, Math.max(0, state.lenL - u));
+              const P = leftPointAt(sHit);
+              const rb = ballRadius();
+              // Set mode to left and place the ball just above the rail
+              // 斜面バウンス判定
+              const vxHit = state.vx;
+              const vyHit = vy_prev - g * tHit;
+              const nx = Math.sin(a), ny = Math.cos(a);   // 斜面の外向き法線
+              const tx = Math.cos(a), ty = -Math.sin(a);  // 接線（+s方向）
+              const vn0 = vxHit*nx + vyHit*ny;
+              if (state.eSlope > 0 && -vn0 > IMPACT_STICK_VN) {
+                const vt0 = vxHit*tx + vyHit*ty;
+                const vn1 = - state.eSlope * vn0;
+                const vxNew = vt0*tx + vn1*nx;
+                const vyNew = vt0*ty + vn1*ny;
+                state.mode = "free";
+                state.px = P.x + P.nx * rb;
+                state.py = P.y + P.ny * rb;
+                state.vx = vxNew;
+                state.vy = vyNew;
+                state.cooldown = 0;
+              } else {
+                // 貼り付き（LEFT）
+                state.mode = "left";
+                state.sL = sHit;
+                state.vg = vxHit * tx + vyHit * ty;
+                state.px = P.x + P.nx * rb;
+                state.py = P.y + P.ny * rb;
+                state.vx = 0; state.vy = 0;
+                state.cooldown = 0;
+              }
+            }
+          }
+        }
+      }
+    })();
+    if (state.mode !== "free") { return; }
+    // --- end FREE → LEFT SLOPE recontact ---
+if(state.py <= 0 && state.vy < 0){
+      const y_prev = y0;
+      const vy_prev = state.vy + g*dt;
+      const A = -0.5*g, B = vy_prev, C = y_prev;
+      const roots = solveQuadratic(A,B,C).filter(t=>t>1e-9 && t<=dt+1e-9);
+      let tHit = roots.length? Math.min(...roots) : dt;
+      const xHit = x0 + state.vx * tHit;
+      const xClamp = Math.max(-state.R, Math.min(state.lenR, xHit));
+      // 反発係数に基づくバウンス処理（床）
+      if (xHit >= -state.R - 1e-9 && xHit <= state.lenR + 1e-9) {
+        const vxHit = state.vx;
+        const vyHit = vy_prev - g*tHit;
+        const vn = vyHit; // 法線（+y）
+        if (state.eFloor > 0 && -vn > IMPACT_STICK_VN) {
+          const vyNew = - state.eFloor * vn;
+          state.mode = "free";
+          state.px = xHit;
+          state.py = 0 + ballRadius() + 1e-4;
+          state.vx = vxHit;
+          state.vy = vyNew;
+          state.cooldown = 2*dt;
+          return;
+        }
+      }
+      // 既定：地面に接触（RIGHT）
+      state.mode = "right";
+      state.sR = xClamp;
+      state.px = xClamp; state.py = 0;
+      state.vg = state.vx;
+      state.vx = 0; state.vy = 0;
+      state.cooldown = 2*dt;
+      return;
+    }
+
+    if(state.cooldown<=0){
+      const cx=0, cy=state.R, R=state.R;
+      const d0 = Math.hypot(x0-cx, y0-cy);
+      const d1 = Math.hypot(state.px-cx, state.py-cy);
+      if(d0 > R && d1 <= R && state.py>0){
+        state.mode = "loop";
+        state.theta = Math.atan2(state.py - cy, state.px - cx);
+        const tx = -Math.sin(state.theta), ty = Math.cos(state.theta);
+        const vAlong = state.vx*tx + state.vy*ty;
+        state.vs_sign = (vAlong>=0)? +1 : -1;
+        const y = state.R + state.R * Math.sin(state.theta);
+        const vm = Math.abs(vAlong);
+        state.vmag = vm;
+        state.E_loop = 0.5*vm*vm + state.g*y;
+        return;
+      }
+    }
+    return;
+  }
+}
+
+function solveQuadratic(A,B,C){
+  if(Math.abs(A) < 1e-12){
+    if(Math.abs(B) < 1e-12) return [];
+    return [-C/B];
+  }
+  const D = B*B - 4*A*C;
+  if(D < 0) return [];
+  if(Math.abs(D) < 1e-12) return [-B/(2*A)];
+  const s = Math.sqrt(D);
+  const q = -0.5 * (B + Math.sign(B||1) * s);
+  const r1 = q / A;
+  const r2 = C / q;
+  return (r1 < r2) ? [r1,r2] : [r2,r1];
+}
+
+function updateLabels(){
+  heightHint.textContent = `(高さ 2R = ${(2*state.R).toFixed(2)} m)`;
+  loopHeightLabel.textContent = `${(2*state.R).toFixed(2)} m`;
+  vminLabel.textContent = `${Math.sqrt(5*state.g*state.R).toFixed(3)} m/s`;
+  const hmin = 2.5 * state.R;            // 🔄 追加：理論最小高さ（v0=0, μ=0）
+  hminLabel.textContent = `${hmin.toFixed(2)} m`; // 🔄 表示
+  const h0 = leftPointAt(0).y; h0Label.textContent = `${h0.toFixed(2)} m`;
+
+  let vDisplay = 0;
+  if(state.running){
+    vDisplay = currentV();
+  } else { vDisplay = 0; }
+  velLabel.textContent = vDisplay.toFixed(2);
+
+  let contact = "-", Nshow = "-", Eshow = "-";
+  if(state.mode==="loop"){
+    const NperM = currentN();
+    contact = (NperM>0) ? "接触中" : "脱線候補";
+    Nshow = Math.max(0,NperM).toFixed(3);
+    const y = currentY();
+    Eshow = (state.E_loop!=null)? (0.5*state.vmag*state.vmag + state.g*y).toFixed(3) : "-";
+  }else if(state.mode==="left" || state.mode==="right"){
+    contact = "接触中"; Nshow = "直線";
+  }else if(state.mode==="free"){
+    contact = "投射";
+  }else{
+    contact = "終了";
+  }
+  contactLabel.textContent = contact;
+  contactLabel.className = "pill " + (contact==="接触中" ? "ok" : (contact==="投射"?"ng":""));
+  normalLabel.textContent = Nshow;
+  energyLabel.textContent = Eshow;
+  posLabel.textContent = `(${state.px.toFixed(2)}, ${state.py.toFixed(2)}) m`;
+
+  const last = parseFloat(velLabel.textContent);
+  state.speedHist.push(last);
+  if(state.speedHist.length > 400) state.speedHist.shift();
+}
+
+function frame(ts){
+  if(state.lastTS==null) state.lastTS = ts;
+  const dtReal = (ts - state.lastTS)/1000;
+  state.lastTS = ts;
+  if(state.running){
+    state.acc += dtReal * state.timeScale;
+    let guard = 0;
+    while(state.acc >= state.dt && guard < 1000){
+      step(state.dt);
+      state.acc -= state.dt;
+      guard++;
+    }
+  }
+  draw(); updateLabels();
+  requestAnimationFrame(frame);
+}
+
+function deg2rad(d){ return d*Math.PI/180; }
+function bindPair(idRange, idNum, onChange){
+  const r = document.getElementById(idRange);
+  const n = document.getElementById(idNum);
+  function syncFromR(){ n.value = r.value; onChange(parseFloat(r.value)); }
+  function syncFromN(){ r.value = n.value; onChange(parseFloat(n.value)); }
+  r.addEventListener('input', syncFromR);
+  n.addEventListener('change', syncFromN);
+  onChange(parseFloat(r.value)); n.value = r.value;
+}
+bindPair('radius','radiusNum', (v)=>{ state.R=Math.max(0.5, clampFinite(v,state.R)); });
+// --- height hint updater for 2R ---
+function updateHeightHint(){
+  try{
+    const hh = document.getElementById('heightHint');
+    if(!hh) return;
+    const h = (2 * state.R).toFixed(2);
+    hh.textContent = `(高さ 2R = ${h} m)`;
+  }catch(e){}
+}
+document.getElementById('radius').addEventListener('input', updateHeightHint);
+document.getElementById('radiusNum').addEventListener('input', updateHeightHint);
+updateHeightHint();
+// --- end height hint updater ---
+bindPair('lenL','lenLNum', (v)=>{ state.lenL=Math.max(0.5, clampFinite(v,state.lenL)); });
+bindPair('lenR','lenRNum', (v)=>{ state.lenR=Math.max(0.5, clampFinite(v,state.lenR)); });
+bindPair('angL','angLNum', (v)=>{ state.angL=deg2rad(clampFinite(v,15)); });
+bindPair('h0','h0Num', (v)=>{
+  v = clampFinite(v, 0);
+  const s = Math.sin(state.angL);
+  if(s <= 1e-6){
+    if(v > 0){ state.angL = Math.max(state.angL, deg2rad(0.5)); }
+  }
+  const s2 = Math.max(1e-6, Math.sin(state.angL));
+  state.lenL = Math.min(60, Math.max(0.5, v / s2));
+});
+
+bindPair('grav','gravNum', (v)=>{ state.g=Math.max(0, clampFinite(v,state.g)); });
+bindPair('v0','v0Num',   (v)=>{ state.v0=Math.max(0, clampFinite(v,state.v0)); });
+bindPair('mu','muNum',   (v)=>{ state.mu=Math.max(0, clampFinite(v,state.mu)); bindPair('eFloor','eFloorNum', (v)=>{ state.eFloor = Math.max(0, Math.min(1, v||0)); });
+bindPair('eSlope','eSlopeNum', (v)=>{ state.eSlope = Math.max(0, Math.min(1, v||0)); });
+});
+bindPair('dt','dtNum',   (v)=>{ state.dt=Math.max(0.0005, clampFinite(v,state.dt)); });
+bindPair('timeScale','timeScaleNum', (v)=>{ state.timeScale=Math.min(2.0,Math.max(0.25, clampFinite(v,state.timeScale))); });
+
+document.getElementById('btnPlay').addEventListener('click', ()=>{
+  if(state.mode==="left" && state.sL===0){
+    state.vg = state.v0;
+  }
+  state.running = true; statusPill.textContent = "再生中"; contactLabel.textContent="接触中";
+});
+document.getElementById('btnPause').addEventListener('click', ()=>{
+  state.running = false; statusPill.textContent = "停止中";
+});
+document.getElementById('btnReset').addEventListener('click', ()=>{
+  state.running = false; statusPill.textContent = "停止中";
+  state.mode = "left";
+  state.sL = 0; state.sR = -state.R; state.theta = -Math.PI/2;
+  state.vs_sign = +1; state.vmag = 0; state.vg = 0;
+  const P0 = leftPointAt(0); state.px = P0.x; state.py = P0.y;
+  state.vx = 0; state.vy = 0;
+  state.E_loop = null;
+  state.acc = 0; state.lastTS = null;
+  state.cooldown = 0;
+  state.speedHist = Array(400).fill(0);
+  document.getElementById('btnFit').click();
+});
+document.getElementById('btnFit').addEventListener('click', ()=>{
+  const LP0 = leftPointAt(0); const LP1 = leftPointAt(state.lenL);
+  const RP0 = rightPointAt(-state.R); const viewR = Math.min(15, state.lenR);
+  const RP1 = rightPointAt(viewR);
+  const minx = Math.min(LP0.x, LP1.x, RP0.x, RP1.x, -state.R) - 2;
+  const maxx = Math.max(LP0.x, LP1.x, RP0.x, RP1.x,  state.R) + 2;
+  const miny = Math.min(LP0.y, 0) - 2;
+  const maxy = Math.max(LP0.y, 2*state.R) + 2;
+  fitView({minx,maxx,miny,maxy});
+});
+
+(function init(){
+  // Hide restitution UI rows (e=0 fixed)
+  (function hideRestitutionUI(){
+    function hidePair(id){
+      const el = document.getElementById(id);
+      if(!el) return;
+      const ctrl = el.closest('.ctrl');
+      if(ctrl){
+        const label = ctrl.previousElementSibling;
+        if(label && label.tagName === 'LABEL'){ label.style.display = 'none'; }
+        ctrl.style.display = 'none';
+      }
+    }
+    hidePair('eFloor');
+    hidePair('eSlope');
+  })();
+  document.getElementById('btnReset').click();
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

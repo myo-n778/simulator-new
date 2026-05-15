@@ -1,0 +1,961 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>斜面上の物体シミュレーター</title>
+<link rel="stylesheet" href="../../assets/common-sim.css">
+<script src="../../assets/sim-shell.js"></script>
+<script src="../../assets/sim-clock.js"></script>
+<style>
+  :root {
+    --bg: #f5f7fb;
+    --ink: #17202a;
+    --muted: #667085;
+    --line: #d9e0ea;
+    --panel: #ffffff;
+    --accent: #2364aa;
+    --warn: #b45309;
+    --danger: #b42318;
+    --ok: #027a48;
+    --slope: #9a755d;
+    --block: #ffe2a6;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Hiragino Kaku Gothic ProN", Meiryo, sans-serif;
+    line-height: 1.45;
+  }
+  main {
+    width: min(1220px, calc(100% - 28px));
+    margin: 18px auto 28px;
+  }
+  h1 {
+    margin: 0 0 12px;
+    font-size: 20px;
+    line-height: 1.3;
+    letter-spacing: 0;
+  }
+  .workspace {
+    display: grid;
+    grid-template-columns: minmax(0, 1.45fr) minmax(340px, .75fr);
+    gap: 14px;
+    align-items: start;
+  }
+  .panel {
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--panel);
+    box-shadow: 0 12px 28px rgba(23, 32, 42, .08);
+  }
+  .scene-panel { padding: 12px; }
+  canvas {
+    display: block;
+    width: 100%;
+    height: min(58vw, 560px);
+    min-height: 410px;
+    border: 1px solid #d7deea;
+    border-radius: 8px;
+    background: linear-gradient(#fbfdff, #edf3fa);
+  }
+  .side-panel {
+    position: sticky;
+    top: 74px;
+    overflow: hidden;
+  }
+  .readout {
+    display: grid;
+    gap: 10px;
+    padding: 14px;
+  }
+  .status {
+    display: grid;
+    gap: 2px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    background: #eef6ff;
+    color: #184e77;
+    font-weight: 700;
+  }
+  .status small {
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 600;
+  }
+  .status.is-ok { background: #ecfdf3; color: var(--ok); }
+  .status.is-slide { background: #fff7ed; color: var(--warn); }
+  .status.is-tip { background: #fef3f2; color: var(--danger); }
+  .metrics {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+  .metric {
+    min-width: 0;
+    padding: 8px 9px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: #fbfcfe;
+  }
+  .metric span {
+    display: block;
+    color: var(--muted);
+    font-size: 11px;
+    line-height: 1.25;
+  }
+  .metric b {
+    display: block;
+    margin-top: 2px;
+    font-size: 14px;
+    line-height: 1.25;
+    white-space: nowrap;
+  }
+  .formula {
+    padding: 10px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: #f8fafc;
+    color: #334155;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 11px;
+    line-height: 1.55;
+  }
+  .controls {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(280px, 1fr));
+    gap: 10px 14px;
+    margin-top: 14px;
+    padding: 14px;
+  }
+  .control {
+    display: grid;
+    grid-template-columns: 128px minmax(0, 1fr) 72px;
+    gap: 8px;
+    align-items: center;
+  }
+  .control label {
+    color: #344054;
+    font-size: 13px;
+    font-weight: 700;
+  }
+  input[type="range"] { width: 100%; }
+  input[type="number"] {
+    width: 100%;
+    min-height: 30px;
+    border: 1px solid var(--line);
+    border-radius: 7px;
+    padding: 4px 6px;
+    color: var(--ink);
+    font: inherit;
+    font-size: 13px;
+  }
+  .actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+    grid-column: 1 / -1;
+    padding-top: 4px;
+  }
+  button {
+    min-height: 34px;
+    border: 1px solid #bfd0e4;
+    border-radius: 8px;
+    background: #fff;
+    color: #184e77;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  button.primary {
+    border-color: var(--accent);
+    background: var(--accent);
+    color: #fff;
+  }
+  .toggle {
+    display: inline-flex;
+    gap: 6px;
+    align-items: center;
+    color: #344054;
+    font-size: 13px;
+    font-weight: 700;
+  }
+  .note {
+    margin-top: 10px;
+    color: var(--muted);
+    font-size: 12px;
+  }
+  @media (max-width: 920px) {
+    .workspace { grid-template-columns: 1fr; }
+    .side-panel { position: static; }
+    canvas { height: 440px; min-height: 360px; }
+  }
+  @media (max-width: 680px) {
+    main { width: min(100% - 18px, 1220px); }
+    .controls { grid-template-columns: 1fr; padding: 12px; }
+    .control { grid-template-columns: 1fr; gap: 4px; }
+    .metrics { grid-template-columns: 1fr; }
+    canvas { height: 390px; min-height: 330px; }
+  }
+</style>
+</head>
+<body>
+<script>
+  PhysicsSimShell.create({
+    title: "斜面上の物体",
+    subtitle: "滑り出し・転倒・垂直抗力の作用点",
+    basePath: "../../"
+  });
+</script>
+
+<main>
+  <h1>斜面上の物体シミュレーター</h1>
+  <div class="workspace">
+    <section class="panel scene-panel" aria-label="シミュレーション画像">
+      <canvas id="scene" width="960" height="620"></canvas>
+      <div class="note">物体の底辺を斜面方向の横幅 L、高さを斜面に垂直な h として扱います。立体表示ONではCanvasをドラッグすると、斜面と直方体を見る角度を変えられます。</div>
+    </section>
+
+    <aside class="panel side-panel" aria-label="判定と数値表示">
+      <div class="readout">
+        <div id="status" class="status is-ok">
+          <div>そのまま静止</div>
+          <small>静止摩擦・転倒条件を満たしています。</small>
+        </div>
+        <div class="metrics" id="metrics"></div>
+        <div class="formula">
+          f必要 = mg sinθ<br>
+          N = mg cosθ<br>
+          P = L/2 − h tanθ/2<br>
+          滑り条件: tanθ &gt; μs<br>
+          転倒条件: tanθ &gt; L/h
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <section class="panel controls" aria-label="操作">
+    <div class="control">
+      <label for="muS">静止摩擦係数 μs</label>
+      <input id="muS" type="range" min="0" max="2" step="0.01" value="0.45">
+      <input id="muSNum" type="number" min="0" max="2" step="0.01" value="0.45">
+    </div>
+    <div class="control">
+      <label for="muK">動摩擦係数 μk</label>
+      <input id="muK" type="range" min="0" max="2" step="0.01" value="0.30">
+      <input id="muKNum" type="number" min="0" max="2" step="0.01" value="0.30">
+    </div>
+    <div class="control">
+      <label for="height">高さ h [m]</label>
+      <input id="height" type="range" min="0.2" max="5" step="0.01" value="2.2">
+      <input id="heightNum" type="number" min="0.2" max="5" step="0.01" value="2.2">
+    </div>
+    <div class="control">
+      <label for="width">横幅 L [m]</label>
+      <input id="width" type="range" min="0.2" max="5" step="0.01" value="1.2">
+      <input id="widthNum" type="number" min="0.2" max="5" step="0.01" value="1.2">
+    </div>
+    <div class="control">
+      <label for="theta">斜面の角度 θ [deg]</label>
+      <input id="theta" type="range" min="0" max="80" step="0.1" value="24">
+      <input id="thetaNum" type="number" min="0" max="80" step="0.1" value="24">
+    </div>
+    <div class="control">
+      <label for="mass">物体の質量 m [kg]</label>
+      <input id="mass" type="range" min="0.1" max="20" step="0.1" value="2.0">
+      <input id="massNum" type="number" min="0.1" max="20" step="0.1" value="2.0">
+    </div>
+    <div class="actions">
+      <button id="play" class="primary" type="button">アニメーション開始</button>
+      <button id="reset" type="button">リセット</button>
+      <label class="toggle"><input id="autoPlay" type="checkbox"> 常時アニメーション</label>
+      <label class="toggle"><input id="forces" type="checkbox" checked> 力の矢印</label>
+      <label class="toggle"><input id="components" type="checkbox" checked> 重力成分</label>
+      <label class="toggle"><input id="threeD" type="checkbox"> 立体表示</label>
+    </div>
+  </section>
+</main>
+
+<script>
+(() => {
+  const g = 9.8;
+  const canvas = document.getElementById("scene");
+  const ctx = canvas.getContext("2d");
+  const metrics = document.getElementById("metrics");
+  const statusBox = document.getElementById("status");
+  const ids = ["muS", "muK", "height", "width", "theta", "mass"];
+  const controls = Object.fromEntries(ids.map((id) => [id, document.getElementById(id)]));
+  const nums = Object.fromEntries(ids.map((id) => [id, document.getElementById(id + "Num")]));
+  const ui = {
+    play: document.getElementById("play"),
+    reset: document.getElementById("reset"),
+    autoPlay: document.getElementById("autoPlay"),
+    forces: document.getElementById("forces"),
+    components: document.getElementById("components"),
+    threeD: document.getElementById("threeD")
+  };
+  const state = {
+    running: false,
+    mode: "static",
+    slideS: 0,
+    slideV: 0,
+    rot: 0,
+    omega: 0,
+    restartDelay: 0,
+    viewYaw: 0.35,
+    viewPitch: 0.2,
+    draggingView: false,
+    dragX: 0,
+    dragY: 0
+  };
+
+  function clamp(value, min, max) {
+    return Math.min(max, Math.max(min, value));
+  }
+
+  function params() {
+    return {
+      muS: Number(controls.muS.value),
+      muK: Number(controls.muK.value),
+      h: Number(controls.height.value),
+      L: Number(controls.width.value),
+      theta: Number(controls.theta.value) * Math.PI / 180,
+      thetaDeg: Number(controls.theta.value),
+      m: Number(controls.mass.value)
+    };
+  }
+
+  function analyze(p) {
+    const tan = Math.tan(p.theta);
+    const W = p.m * g;
+    const N = W * Math.cos(p.theta);
+    const frictionNeed = W * Math.sin(p.theta);
+    const staticLimit = p.muS * N;
+    const kineticFriction = p.muK * N;
+    const normalX = p.L / 2 - p.h * tan / 2;
+    const slideCritical = Math.atan(p.muS) * 180 / Math.PI;
+    const tipCritical = Math.atan(p.L / p.h) * 180 / Math.PI;
+    const slides = frictionNeed > staticLimit + 1e-7;
+    const tips = normalX < -1e-7;
+    let mode = "static";
+    if (slides || tips) {
+      const first = Math.min(slideCritical, tipCritical);
+      if (Math.abs(slideCritical - tipCritical) < 0.05 && p.thetaDeg >= first) mode = "both";
+      else mode = slideCritical < tipCritical ? "slide" : "tip";
+    }
+    return {
+      ...p,
+      W,
+      N,
+      frictionNeed,
+      staticLimit,
+      kineticFriction,
+      normalX,
+      normalRatio: normalX / p.L,
+      slideCritical,
+      tipCritical,
+      slides,
+      tips,
+      mode,
+      slideA: g * (Math.sin(p.theta) - p.muK * Math.cos(p.theta))
+    };
+  }
+
+  function resetMotion(keepRunning = false) {
+    state.slideS = 0;
+    state.slideV = 0;
+    state.rot = 0;
+    state.omega = 0;
+    state.restartDelay = 0;
+    state.mode = analyze(params()).mode;
+    if (!keepRunning) state.running = false;
+    if (state.running) clock.start();
+    else clock.pause();
+    updatePlayLabel();
+  }
+
+  function updatePlayLabel() {
+    ui.play.textContent = state.running ? "一時停止" : "アニメーション開始";
+  }
+
+  function syncAnimationAfterParameterChange() {
+    const shouldRun = ui.autoPlay.checked;
+    resetMotion(shouldRun);
+    if (shouldRun && analyze(params()).mode !== "static") {
+      state.running = true;
+      clock.start();
+    }
+    updatePlayLabel();
+  }
+
+  function syncPair(range, num) {
+    range.addEventListener("input", () => {
+      num.value = range.value;
+      syncAnimationAfterParameterChange();
+      render();
+    });
+    num.addEventListener("input", () => {
+      const min = Number(range.min);
+      const max = Number(range.max);
+      const value = clamp(Number(num.value), min, max);
+      if (Number.isFinite(value)) range.value = String(value);
+      syncAnimationAfterParameterChange();
+      render();
+    });
+  }
+
+  ids.forEach((id) => syncPair(controls[id], nums[id]));
+  [ui.forces, ui.components, ui.threeD].forEach((el) => el.addEventListener("change", render));
+  ui.autoPlay.addEventListener("change", () => {
+    if (ui.autoPlay.checked) {
+      resetMotion(true);
+      if (analyze(params()).mode !== "static") state.running = true;
+      clock.start();
+    } else if (!state.running) {
+      clock.pause();
+    }
+    updatePlayLabel();
+    render();
+  });
+  canvas.addEventListener("pointerdown", (event) => {
+    if (!ui.threeD.checked) return;
+    state.draggingView = true;
+    state.dragX = event.clientX;
+    state.dragY = event.clientY;
+    canvas.setPointerCapture(event.pointerId);
+  });
+  canvas.addEventListener("pointermove", (event) => {
+    if (!state.draggingView) return;
+    const dx = event.clientX - state.dragX;
+    const dy = event.clientY - state.dragY;
+    state.dragX = event.clientX;
+    state.dragY = event.clientY;
+    state.viewYaw = clamp(state.viewYaw + dx * 0.012, -1.25, 1.25);
+    state.viewPitch = clamp(state.viewPitch - dy * 0.01, -0.6, 0.85);
+    render();
+  });
+  canvas.addEventListener("pointerup", (event) => {
+    state.draggingView = false;
+    if (canvas.hasPointerCapture(event.pointerId)) canvas.releasePointerCapture(event.pointerId);
+  });
+  canvas.addEventListener("pointercancel", () => {
+    state.draggingView = false;
+  });
+  ui.reset.addEventListener("click", () => {
+    resetMotion(ui.autoPlay.checked);
+    if (ui.autoPlay.checked && analyze(params()).mode !== "static") {
+      state.running = true;
+      clock.start();
+    }
+    render();
+  });
+  ui.play.addEventListener("click", () => {
+    const analysis = analyze(params());
+    state.mode = analysis.mode;
+    if (analysis.mode === "static") {
+      state.running = false;
+      if (!ui.autoPlay.checked) clock.pause();
+    } else {
+      state.running = !state.running;
+      clock[state.running ? "start" : "pause"]();
+    }
+    updatePlayLabel();
+    render();
+  });
+
+  function resize() {
+    const dpr = window.devicePixelRatio || 1;
+    const rect = canvas.getBoundingClientRect();
+    canvas.width = Math.round(rect.width * dpr);
+    canvas.height = Math.round(rect.height * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    render();
+  }
+
+  function basis(theta) {
+    return {
+      t: { x: Math.cos(theta), y: -Math.sin(theta) },
+      n: { x: -Math.sin(theta), y: -Math.cos(theta) }
+    };
+  }
+
+  function point(origin, b, x, y) {
+    return {
+      x: origin.x + b.t.x * x + b.n.x * y,
+      y: origin.y + b.t.y * x + b.n.y * y
+    };
+  }
+
+  let labelBoxes = [];
+  let arrowSegments = [];
+  let arrowLabelTasks = [];
+
+  function overlapsBox(a, b) {
+    return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+  }
+
+  function segmentBox(segment) {
+    const pad = 7;
+    return {
+      x: Math.min(segment.from.x, segment.to.x) - pad,
+      y: Math.min(segment.from.y, segment.to.y) - pad,
+      w: Math.abs(segment.to.x - segment.from.x) + pad * 2,
+      h: Math.abs(segment.to.y - segment.from.y) + pad * 2
+    };
+  }
+
+  function chooseLabelBox(to, ux, uy, textWidth, labelOffset) {
+    const candidates = [
+      labelOffset,
+      labelOffset + 34,
+      labelOffset - 34,
+      labelOffset + 64,
+      labelOffset - 64,
+      88,
+      -88
+    ];
+    for (const offset of candidates) {
+      const x = to.x + ux * 12 - uy * offset + 6;
+      const y = to.y + uy * 12 + ux * offset - 6;
+      const box = { x: x - 4, y: y - 14, w: textWidth + 8, h: 18, textX: x, textY: y };
+      const hitsLabel = labelBoxes.some((known) => overlapsBox(box, known));
+      const hitsArrow = arrowSegments.some((segment) => overlapsBox(box, segmentBox(segment)));
+      if (!hitsLabel && !hitsArrow) return box;
+    }
+    const x = to.x + ux * 14 - uy * labelOffset + 6;
+    const y = to.y + uy * 14 + ux * labelOffset - 6;
+    return { x: x - 4, y: y - 14, w: textWidth + 8, h: 18, textX: x, textY: y };
+  }
+
+  function arrow(from, vector, color) {
+    const len = Math.hypot(vector.x, vector.y);
+    if (len < 1) return;
+    const ux = vector.x / len;
+    const uy = vector.y / len;
+    const to = { x: from.x + vector.x, y: from.y + vector.y };
+    ctx.save();
+    ctx.strokeStyle = color;
+    ctx.fillStyle = color;
+    ctx.lineWidth = 3;
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.moveTo(from.x, from.y);
+    ctx.lineTo(to.x, to.y);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(to.x, to.y);
+    ctx.lineTo(to.x - ux * 12 - uy * 5, to.y - uy * 12 + ux * 5);
+    ctx.lineTo(to.x - ux * 12 + uy * 5, to.y - uy * 12 - ux * 5);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+    arrowSegments.push({ from, to });
+  }
+
+  function drawForceLegend(a, x, y) {
+    if (!ui.forces.checked) return;
+    const rows = [
+      ["mg", `${a.W.toFixed(1)} N`, "#1d4ed8"],
+      ["N", `${a.N.toFixed(1)} N`, "#027a48"],
+      ["f", `${a.frictionNeed.toFixed(1)} N`, "#b45309"]
+    ];
+    if (ui.components.checked) {
+      rows.push(["mg sinθ", `${a.frictionNeed.toFixed(1)} N`, "#7c3aed"]);
+      rows.push(["mg cosθ", `${a.N.toFixed(1)} N`, "#0f766e"]);
+    }
+    const width = 150;
+    const rowH = 20;
+    const height = 14 + rows.length * rowH;
+    ctx.save();
+    ctx.fillStyle = "rgba(255, 255, 255, .9)";
+    ctx.strokeStyle = "rgba(51, 65, 85, .16)";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.roundRect(x, y, width, height, 8);
+    ctx.fill();
+    ctx.stroke();
+    ctx.font = "700 12px system-ui, sans-serif";
+    rows.forEach((row, index) => {
+      const yy = y + 18 + index * rowH;
+      ctx.fillStyle = row[2];
+      ctx.fillRect(x + 10, yy - 9, 18, 4);
+      ctx.fillStyle = "#334155";
+      ctx.fillText(row[0], x + 36, yy - 4);
+      ctx.fillStyle = row[2];
+      ctx.fillText(row[1], x + 88, yy - 4);
+    });
+    ctx.restore();
+  }
+
+  function drawGrid(w, h) {
+    ctx.save();
+    ctx.strokeStyle = "rgba(35, 100, 170, .09)";
+    ctx.lineWidth = 1;
+    for (let x = 0; x < w; x += 42) {
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, h);
+      ctx.stroke();
+    }
+    for (let y = 0; y < h; y += 42) {
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(w, y);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  function makeProjector(w, h, scale) {
+    const yaw = state.viewYaw;
+    const pitch = state.viewPitch;
+    return function project(v) {
+      const x1 = v.x * Math.cos(yaw) + v.z * Math.sin(yaw);
+      const z1 = -v.x * Math.sin(yaw) + v.z * Math.cos(yaw);
+      const y1 = v.y * Math.cos(pitch) - z1 * Math.sin(pitch);
+      const z2 = v.y * Math.sin(pitch) + z1 * Math.cos(pitch);
+      return {
+        x: w * 0.48 + x1 * scale,
+        y: h * 0.58 - y1 * scale,
+        depth: z2
+      };
+    };
+  }
+
+  function worldBasis(theta) {
+    return {
+      s: { x: Math.cos(theta), y: Math.sin(theta), z: 0 },
+      n: { x: -Math.sin(theta), y: Math.cos(theta), z: 0 },
+      d: { x: 0, y: 0, z: 1 }
+    };
+  }
+
+  function worldPoint(origin, wb, x, y, z, rot = 0) {
+    const xr = x * Math.cos(rot) - y * Math.sin(rot);
+    const yr = x * Math.sin(rot) + y * Math.cos(rot);
+    return {
+      x: origin.x + wb.s.x * xr + wb.n.x * yr + wb.d.x * z,
+      y: origin.y + wb.s.y * xr + wb.n.y * yr + wb.d.y * z,
+      z: origin.z + wb.s.z * xr + wb.n.z * yr + wb.d.z * z
+    };
+  }
+
+  function drawPoly(points, fill, stroke = "rgba(51, 65, 85, .35)") {
+    ctx.save();
+    ctx.fillStyle = fill;
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = 1.4;
+    ctx.beginPath();
+    points.forEach((p, i) => {
+      if (i === 0) ctx.moveTo(p.x, p.y);
+      else ctx.lineTo(p.x, p.y);
+    });
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function arrow3D(project, from, to, color) {
+    const a = project(from);
+    const b = project(to);
+    arrow(a, { x: b.x - a.x, y: b.y - a.y }, color);
+  }
+
+  function render3D(p, a, w, h) {
+    const scale = Math.min((w - 150) / (p.L + p.h + 7.4), (h - 100) / (p.h + p.L + 2.8)) * 0.92;
+    const project = makeProjector(w, h, scale);
+    const wb = worldBasis(p.theta);
+    const slide = state.mode === "slide" || state.mode === "both" ? -state.slideS : 0;
+    const origin = { x: slide - p.L / 2, y: 0, z: 0 };
+    const extraRot = state.mode === "tip" || state.mode === "both" ? state.rot : 0;
+    const depth = Math.max(0.7, Math.min(1.8, p.L * 0.85));
+    const z0 = -depth / 2;
+    const z1 = depth / 2;
+    const slopeBack = 6.2;
+    const slopeForward = Math.max(p.L + 6.2, 7.2);
+    const slopeDrop = -0.12;
+
+    const faces = [];
+    function addFace(worldPts, fill, stroke) {
+      const pts = worldPts.map(project);
+      const depthAvg = pts.reduce((sum, pt) => sum + pt.depth, 0) / pts.length;
+      faces.push({ pts, depthAvg, fill, stroke });
+    }
+
+    addFace([
+      worldPoint(origin, wb, -slopeBack, 0, z0),
+      worldPoint(origin, wb, slopeForward, 0, z0),
+      worldPoint(origin, wb, slopeForward, 0, z1),
+      worldPoint(origin, wb, -slopeBack, 0, z1)
+    ], "rgba(154, 117, 93, .28)", "#8e6d58");
+    addFace([
+      worldPoint(origin, wb, -slopeBack, slopeDrop, z0),
+      worldPoint(origin, wb, slopeForward, slopeDrop, z0),
+      worldPoint(origin, wb, slopeForward, 0, z0),
+      worldPoint(origin, wb, -slopeBack, 0, z0)
+    ], "rgba(80, 55, 42, .22)", "rgba(80, 55, 42, .25)");
+
+    const v = {
+      a0: worldPoint(origin, wb, 0, 0, z0, extraRot),
+      b0: worldPoint(origin, wb, p.L, 0, z0, extraRot),
+      c0: worldPoint(origin, wb, p.L, p.h, z0, extraRot),
+      d0: worldPoint(origin, wb, 0, p.h, z0, extraRot),
+      a1: worldPoint(origin, wb, 0, 0, z1, extraRot),
+      b1: worldPoint(origin, wb, p.L, 0, z1, extraRot),
+      c1: worldPoint(origin, wb, p.L, p.h, z1, extraRot),
+      d1: worldPoint(origin, wb, 0, p.h, z1, extraRot)
+    };
+    addFace([v.a0, v.b0, v.c0, v.d0], "#ffe2a6", "#8a6a2e");
+    addFace([v.b0, v.b1, v.c1, v.c0], "#f2c875", "#8a6a2e");
+    addFace([v.d0, v.c0, v.c1, v.d1], "#ffd995", "#8a6a2e");
+    addFace([v.a1, v.b1, v.c1, v.d1], "#f8d08a", "#8a6a2e");
+    faces.sort((left, right) => left.depthAvg - right.depthAvg).forEach((face) => drawPoly(face.pts, face.fill, face.stroke));
+
+    const pRatio = clamp(a.normalRatio, 0, 1);
+    const pWorld = worldPoint(origin, wb, pRatio * p.L, 0, 0, extraRot);
+    const pScreen = project(pWorld);
+    ctx.save();
+    ctx.fillStyle = "#111827";
+    ctx.beginPath();
+    ctx.arc(pScreen.x, pScreen.y, 4.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.font = "700 13px system-ui, sans-serif";
+    ctx.fillText("P", pScreen.x + 8, pScreen.y + 14);
+    ctx.restore();
+
+    const center = worldPoint(origin, wb, p.L / 2, p.h / 2, 0, extraRot);
+    const forceScale = Math.min(0.9 / Math.max(a.W, 1), 0.07);
+    if (ui.forces.checked) {
+      arrow3D(project, center, { x: center.x, y: center.y - a.W * forceScale, z: center.z }, "#1d4ed8");
+      arrow3D(project, pWorld, {
+        x: pWorld.x + wb.n.x * a.N * forceScale,
+        y: pWorld.y + wb.n.y * a.N * forceScale,
+        z: pWorld.z
+      }, "#027a48");
+      arrow3D(project, pWorld, {
+        x: pWorld.x + wb.s.x * a.frictionNeed * forceScale,
+        y: pWorld.y + wb.s.y * a.frictionNeed * forceScale,
+        z: pWorld.z
+      }, "#b45309");
+    }
+
+    ctx.save();
+    ctx.fillStyle = "rgba(51, 65, 85, .72)";
+    ctx.font = "700 12px system-ui, sans-serif";
+    ctx.fillText("立体表示: ドラッグで視点変更", 18, 24);
+    ctx.restore();
+    drawForceLegend(a, w - 170, 18);
+    updateReadout(a);
+  }
+
+  function render() {
+    const p = params();
+    const a = analyze(p);
+    const rect = canvas.getBoundingClientRect();
+    const w = rect.width;
+    const h = rect.height;
+    ctx.clearRect(0, 0, w, h);
+    drawGrid(w, h);
+    labelBoxes = [];
+    arrowSegments = [];
+    arrowLabelTasks = [];
+
+    if (ui.threeD.checked) {
+      render3D(p, a, w, h);
+      return;
+    }
+
+    const margin = 56;
+    const scale = Math.min((w - margin * 2) / (p.L + p.h * 1.2 + 3.4), (h - margin * 2) / (p.h + p.L * .72 + 1.2)) * 0.66;
+    const b = basis(p.theta);
+    const targetCenter = { x: w * 0.46, y: h * 0.50 };
+    const initialCenterOffset = {
+      x: b.t.x * (p.L / 2) * scale + b.n.x * (p.h / 2) * scale,
+      y: b.t.y * (p.L / 2) * scale + b.n.y * (p.h / 2) * scale
+    };
+    const base = { x: targetCenter.x - initialCenterOffset.x, y: targetCenter.y - initialCenterOffset.y };
+    const slideOffset = (state.mode === "slide" || state.mode === "both") ? -state.slideS : 0;
+    const origin = { x: base.x + b.t.x * slideOffset * scale, y: base.y + b.t.y * slideOffset * scale };
+    const extraRot = state.mode === "tip" || state.mode === "both" ? state.rot : 0;
+    const blockTheta = p.theta + extraRot;
+    const bb = basis(blockTheta);
+    const downhill = point(origin, b, 0, 0);
+    const slopeBack = 5.8;
+    const slopeForward = Math.max(p.L + 4.8, 7.0);
+    const slopeStart = { x: base.x - b.t.x * scale * slopeBack, y: base.y - b.t.y * scale * slopeBack };
+    const slopeEnd = { x: base.x + b.t.x * scale * slopeForward, y: base.y + b.t.y * scale * slopeForward };
+    const slopeThickness = 12;
+    const intoSlope = { x: -b.n.x * slopeThickness, y: -b.n.y * slopeThickness };
+
+    ctx.save();
+    ctx.fillStyle = "rgba(80, 55, 42, .22)";
+    ctx.beginPath();
+    ctx.moveTo(slopeStart.x, slopeStart.y);
+    ctx.lineTo(slopeEnd.x, slopeEnd.y);
+    ctx.lineTo(slopeEnd.x + intoSlope.x, slopeEnd.y + intoSlope.y);
+    ctx.lineTo(slopeStart.x + intoSlope.x, slopeStart.y + intoSlope.y);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = "#8e6d58";
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.moveTo(slopeStart.x, slopeStart.y);
+    ctx.lineTo(slopeEnd.x, slopeEnd.y);
+    ctx.stroke();
+    ctx.restore();
+
+    const A = downhill;
+    const B = point(A, bb, p.L * scale, 0);
+    const C = point(A, bb, p.L * scale, p.h * scale);
+    const D = point(A, bb, 0, p.h * scale);
+    const depth = { x: 0, y: 0 };
+    ctx.save();
+    ctx.fillStyle = "#ffe2a6";
+    ctx.strokeStyle = "#8a6a2e";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(A.x, A.y);
+    ctx.lineTo(B.x, B.y);
+    ctx.lineTo(C.x, C.y);
+    ctx.lineTo(D.x, D.y);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+
+    const center = point(A, bb, p.L * scale / 2, p.h * scale / 2);
+    const normalRatio = clamp(a.normalRatio, 0, 1);
+    const P = point(A, bb, normalRatio * p.L * scale, 0);
+    ctx.save();
+    ctx.fillStyle = "#111827";
+    ctx.beginPath();
+    ctx.arc(P.x, P.y, 5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.font = "700 14px system-ui, sans-serif";
+    ctx.fillText("P", P.x + 8, P.y + 16);
+    ctx.restore();
+
+    const forceScale = Math.min(92 / Math.max(a.W, 1), 6.8);
+    if (ui.forces.checked) {
+      arrow(center, { x: 0, y: a.W * forceScale }, "#1d4ed8");
+      arrow(P, { x: bb.n.x * a.N * forceScale, y: bb.n.y * a.N * forceScale }, "#027a48");
+      arrow(P, { x: bb.t.x * a.frictionNeed * forceScale, y: bb.t.y * a.frictionNeed * forceScale }, "#b45309");
+      if (ui.components.checked) {
+        arrow(center, { x: -bb.t.x * a.frictionNeed * forceScale * .62, y: -bb.t.y * a.frictionNeed * forceScale * .62 }, "#7c3aed");
+        arrow(center, { x: -bb.n.x * a.N * forceScale * .62, y: -bb.n.y * a.N * forceScale * .62 }, "#0f766e");
+      }
+    }
+    drawForceLegend(a, w - 170, 18);
+
+    ctx.save();
+    ctx.strokeStyle = "#6b7280";
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([5, 4]);
+    ctx.beginPath();
+    ctx.moveTo(base.x - 45, base.y);
+    ctx.lineTo(base.x + 64, base.y);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.font = "700 14px system-ui, sans-serif";
+    ctx.fillStyle = "#334155";
+    ctx.fillText(`θ=${p.thetaDeg.toFixed(1)}°`, base.x + 62, base.y - 6);
+    ctx.fillText(`L=${p.L.toFixed(2)} m`, (D.x + C.x) / 2 - 28, (D.y + C.y) / 2 - 16);
+    ctx.fillText(`h=${p.h.toFixed(2)} m`, (B.x + C.x) / 2 + 10, (B.y + C.y) / 2 - 6);
+    ctx.restore();
+
+    updateReadout(a);
+  }
+
+  function updateReadout(a) {
+    const statusMap = {
+      static: ["そのまま静止", "静止摩擦・転倒条件を満たしています。", "is-ok"],
+      slide: ["滑り出す", "先に静止摩擦の限界を超えます。", "is-slide"],
+      tip: ["回転して倒れる", "先に垂直抗力の作用点が下側端を越えます。", "is-tip"],
+      both: ["滑り出し・転倒がほぼ同時", "臨界角がほぼ一致しています。", "is-tip"]
+    };
+    const [title, note, cls] = statusMap[a.mode];
+    statusBox.className = `status ${cls}`;
+    statusBox.innerHTML = `<div>${title}</div><small>${note}</small>`;
+    const pText = a.normalX < 0 ? "下側端の外" : `${a.normalX.toFixed(3)} m`;
+    const rows = [
+      ["必要摩擦係数 tanθ", Math.tan(a.theta).toFixed(3)],
+      ["静止摩擦 μs", a.muS.toFixed(2)],
+      ["動摩擦 μk", a.muK.toFixed(2)],
+      ["垂直抗力 N", `${a.N.toFixed(2)} N`],
+      ["必要摩擦力 f", `${a.frictionNeed.toFixed(2)} N`],
+      ["静止摩擦限界", `${a.staticLimit.toFixed(2)} N`],
+      ["作用点 P", pText],
+      ["P / L", a.normalRatio.toFixed(3)],
+      ["滑り臨界角", `${a.slideCritical.toFixed(2)}°`],
+      ["転倒臨界角", `${a.tipCritical.toFixed(2)}°`],
+      ["滑走加速度", `${Math.max(0, a.slideA).toFixed(2)} m/s²`],
+      ["質量 m", `${a.m.toFixed(1)} kg`]
+    ];
+    metrics.innerHTML = rows.map(([label, value]) => `<div class="metric"><span>${label}</span><b>${value}</b></div>`).join("");
+  }
+
+  function step(dt) {
+    if (!state.running) {
+      if (ui.autoPlay.checked) {
+        state.restartDelay -= dt;
+        if (state.restartDelay <= 0) {
+          resetMotion(true);
+          if (analyze(params()).mode !== "static") state.running = true;
+        }
+      }
+      return;
+    }
+    const a = analyze(params());
+    state.mode = a.mode;
+    if (a.mode === "static") {
+      state.running = false;
+      if (!ui.autoPlay.checked) clock.pause();
+      updatePlayLabel();
+      return;
+    }
+    if (a.mode === "slide") {
+      const acc = Math.max(.08, a.slideA);
+      state.slideV += acc * dt;
+      state.slideS += state.slideV * dt;
+      if (state.slideS > a.L + 2.8) {
+        state.running = false;
+        state.restartDelay = ui.autoPlay.checked ? 0.7 : 0;
+        if (!ui.autoPlay.checked) clock.pause();
+        updatePlayLabel();
+      }
+      return;
+    }
+    const I = a.m * (a.L * a.L + a.h * a.h) / 3;
+    const torque = Math.max(0, a.W * (a.h * Math.sin(a.theta + state.rot) - a.L * Math.cos(a.theta + state.rot)) / 2);
+    const alpha = I > 0 ? torque / I : 0;
+    state.omega += Math.max(.35, alpha) * dt;
+    state.rot += state.omega * dt;
+    const contactAngle = Math.PI / 2;
+    if (state.rot >= contactAngle) {
+      state.rot = contactAngle;
+      state.omega = 0;
+      state.running = false;
+      state.restartDelay = ui.autoPlay.checked ? 0.9 : 0;
+      if (!ui.autoPlay.checked) clock.pause();
+      updatePlayLabel();
+    }
+  }
+
+  const clock = new PhysicsSimClock.FixedStepClock({
+    step: 1 / 120,
+    onStep: step,
+    onRender: render
+  });
+
+  window.addEventListener("resize", resize);
+  resize();
+  resetMotion(false);
+  render();
+})();
+</script>
+</body>
+</html>
