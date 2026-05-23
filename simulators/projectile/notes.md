@@ -45,6 +45,11 @@ Added `Re-projectile.html` while leaving the existing `index.html` unchanged.
 - Basic mode keeps only initial speed, launch angle, gravity, trajectory display, playback, one-step, reset, and fit.
 - Detail mode contains initial position/height, wall display and wall dimensions, wall/ground restitution, time step, time scale, theory/grid display, stop-on-ground, zoom, and pan.
 - The entry page links both the original route and the Re route, so the original remains available for comparison.
+- Tablet and touch operation were improved:
+  - one-finger drag pans the view;
+  - two-finger pinch zooms around the pinch center;
+  - mouse wheel or trackpad scroll zooms around the cursor;
+  - controls have larger touch targets.
 
 ### Physics Model
 

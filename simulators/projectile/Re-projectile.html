@@ -36,6 +36,8 @@
       color: var(--ink);
       font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
       line-height: 1.55;
+      overscroll-behavior: none;
+      -webkit-tap-highlight-color: transparent;
     }
 
     button,
@@ -82,7 +84,7 @@
     .mode-tabs button,
     .action-row button,
     .view-tools button {
-      min-height: 38px;
+      min-height: 44px;
       border: 1px solid transparent;
       border-radius: 7px;
       background: transparent;
@@ -132,9 +134,10 @@
     canvas {
       display: block;
       width: 100%;
-      height: 440px;
+      height: clamp(360px, 52vh, 500px);
       cursor: grab;
       touch-action: none;
+      user-select: none;
     }
 
     canvas.dragging {
@@ -146,6 +149,21 @@
       grid-template-columns: repeat(4, minmax(0, 1fr));
       gap: 8px;
       margin-top: 10px;
+    }
+
+    .canvas-help {
+      position: absolute;
+      right: 10px;
+      bottom: 10px;
+      max-width: min(320px, calc(100% - 20px));
+      padding: 6px 9px;
+      border: 1px solid rgba(215, 224, 232, 0.9);
+      border-radius: 8px;
+      background: rgba(255, 255, 255, 0.86);
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+      pointer-events: none;
     }
 
     .readout {
@@ -236,7 +254,7 @@
 
     .control input[type="number"] {
       width: 92px;
-      min-height: 32px;
+      min-height: 38px;
       padding: 4px 7px;
       border: 1px solid var(--line);
       border-radius: 7px;
@@ -247,7 +265,13 @@
 
     .control input[type="range"] {
       width: 100%;
+      min-height: 38px;
       accent-color: var(--accent);
+    }
+
+    .control input[type="range"]::-webkit-slider-thumb {
+      min-width: 22px;
+      min-height: 22px;
     }
 
     .check-row {
@@ -299,7 +323,7 @@
       }
 
       canvas {
-        height: 390px;
+        height: clamp(340px, 48vh, 460px);
       }
 
       .readouts {
@@ -324,6 +348,28 @@
       .action-row button,
       .view-tools button {
         flex: 1 1 128px;
+      }
+    }
+
+    @media (pointer: coarse) {
+      .mode-tabs button,
+      .action-row button,
+      .view-tools button {
+        min-height: 46px;
+      }
+
+      .control,
+      .check-row {
+        padding: 12px;
+      }
+
+      .control input[type="number"] {
+        min-height: 44px;
+        width: 104px;
+      }
+
+      .control input[type="range"] {
+        min-height: 42px;
       }
     }
   </style>
@@ -353,6 +399,7 @@
     <section class="stage" aria-label="斜方投射の表示">
       <div class="canvas-shell">
         <canvas id="view" width="1200" height="720"></canvas>
+        <div class="canvas-help">1本指ドラッグで移動 / 2本指ピンチで拡大縮小</div>
       </div>
       <div class="readouts" aria-live="polite">
         <div class="readout"><span>時刻</span><strong id="read-time">0.00 s</strong></div>
@@ -705,6 +752,16 @@
     ];
   }
 
+  function screenToWorld(screenX, screenY) {
+    const width = canvas.width / dpr;
+    const height = canvas.height / dpr;
+    const v = state.view;
+    return [
+      v.xmin + screenX * (v.xmax - v.xmin) / width,
+      v.ymin + (height - screenY) * (v.ymax - v.ymin) / height
+    ];
+  }
+
   function niceStep(span) {
     const raw = span / 8;
     const pow = 10 ** Math.floor(Math.log10(raw));
@@ -942,39 +999,102 @@
       fitView();
       draw();
     });
-    $('zin').addEventListener('click', () => zoom(1.25));
-    $('zout').addEventListener('click', () => zoom(1 / 1.25));
+    $('zin').addEventListener('click', () => zoomAtCenter(1.25));
+    $('zout').addEventListener('click', () => zoomAtCenter(1 / 1.25));
     $('panL').addEventListener('click', () => pan(-0.12, 0));
     $('panR').addEventListener('click', () => pan(0.12, 0));
     $('panU').addEventListener('click', () => pan(0, 0.12));
     $('panD').addEventListener('click', () => pan(0, -0.12));
 
-    let dragging = false;
-    let last = null;
+    const pointers = new Map();
+    let lastSingle = null;
+    let pinch = null;
+
+    function canvasPoint(event) {
+      const rect = canvas.getBoundingClientRect();
+      return { x: event.clientX - rect.left, y: event.clientY - rect.top };
+    }
+
+    function firstTwoPointers() {
+      return [...pointers.values()].slice(0, 2);
+    }
+
+    function midpoint(points) {
+      return {
+        x: (points[0].x + points[1].x) / 2,
+        y: (points[0].y + points[1].y) / 2
+      };
+    }
+
+    function distance(points) {
+      return Math.hypot(points[0].x - points[1].x, points[0].y - points[1].y);
+    }
+
+    function refreshPointerMode() {
+      if (pointers.size === 1) {
+        lastSingle = [...pointers.values()][0];
+        pinch = null;
+      } else if (pointers.size >= 2) {
+        const points = firstTwoPointers();
+        pinch = { distance: distance(points), midpoint: midpoint(points) };
+        lastSingle = null;
+      } else {
+        lastSingle = null;
+        pinch = null;
+        canvas.classList.remove('dragging');
+      }
+    }
+
     canvas.addEventListener('pointerdown', (event) => {
-      dragging = true;
-      last = { x: event.clientX, y: event.clientY };
+      event.preventDefault();
+      pointers.set(event.pointerId, canvasPoint(event));
       canvas.setPointerCapture(event.pointerId);
       canvas.classList.add('dragging');
+      refreshPointerMode();
     });
     canvas.addEventListener('pointermove', (event) => {
-      if (!dragging || !last) return;
-      const width = canvas.width / dpr;
-      const height = canvas.height / dpr;
-      const dx = event.clientX - last.x;
-      const dy = event.clientY - last.y;
-      const v = state.view;
-      const wx = dx * (v.xmax - v.xmin) / width;
-      const wy = dy * (v.ymax - v.ymin) / height;
-      state.view = { xmin: v.xmin - wx, xmax: v.xmax - wx, ymin: v.ymin + wy, ymax: v.ymax + wy };
-      last = { x: event.clientX, y: event.clientY };
-      draw();
+      if (!pointers.has(event.pointerId)) return;
+      event.preventDefault();
+      const point = canvasPoint(event);
+      pointers.set(event.pointerId, point);
+      if (pointers.size === 1 && lastSingle) {
+        panPixels(point.x - lastSingle.x, point.y - lastSingle.y);
+        lastSingle = point;
+      } else if (pointers.size >= 2 && pinch) {
+        const points = firstTwoPointers();
+        const nextMidpoint = midpoint(points);
+        const nextDistance = Math.max(1, distance(points));
+        const rawScale = nextDistance / Math.max(1, pinch.distance);
+        const scale = Math.max(0.82, Math.min(1.22, rawScale));
+        zoomAt(nextMidpoint.x, nextMidpoint.y, scale);
+        panPixels(nextMidpoint.x - pinch.midpoint.x, nextMidpoint.y - pinch.midpoint.y);
+        pinch = { distance: nextDistance, midpoint: nextMidpoint };
+      }
     });
-    canvas.addEventListener('pointerup', (event) => {
-      dragging = false;
-      last = null;
-      canvas.releasePointerCapture(event.pointerId);
-      canvas.classList.remove('dragging');
+
+    function endPointer(event) {
+      pointers.delete(event.pointerId);
+      if (canvas.hasPointerCapture(event.pointerId)) {
+        canvas.releasePointerCapture(event.pointerId);
+      }
+      refreshPointerMode();
+    }
+
+    canvas.addEventListener('pointerup', endPointer);
+    canvas.addEventListener('pointercancel', endPointer);
+    canvas.addEventListener('lostpointercapture', (event) => {
+      pointers.delete(event.pointerId);
+      refreshPointerMode();
+    });
+    canvas.addEventListener('wheel', (event) => {
+      event.preventDefault();
+      const point = canvasPoint(event);
+      const scale = event.deltaY < 0 ? 1.12 : 1 / 1.12;
+      zoomAt(point.x, point.y, scale);
+    }, { passive: false });
+    canvas.addEventListener('dblclick', (event) => {
+      const point = canvasPoint(event);
+      zoomAt(point.x, point.y, 1.25);
     });
   }
 
@@ -986,13 +1106,35 @@
     document.querySelector('[data-panel="detail"]').hidden = mode !== 'detail';
   }
 
-  function zoom(scale) {
+  function zoomAt(screenX, screenY, scale) {
+    const [worldX, worldY] = screenToWorld(screenX, screenY);
     const v = state.view;
-    const cx = (v.xmin + v.xmax) / 2;
-    const cy = (v.ymin + v.ymax) / 2;
-    const w = (v.xmax - v.xmin) / scale;
-    const h = (v.ymax - v.ymin) / scale;
-    state.view = { xmin: cx - w / 2, xmax: cx + w / 2, ymin: cy - h / 2, ymax: cy + h / 2 };
+    const nextW = (v.xmax - v.xmin) / scale;
+    const nextH = (v.ymax - v.ymin) / scale;
+    const width = canvas.width / dpr;
+    const height = canvas.height / dpr;
+    const rx = screenX / width;
+    const ry = 1 - screenY / height;
+    state.view = {
+      xmin: worldX - nextW * rx,
+      xmax: worldX + nextW * (1 - rx),
+      ymin: worldY - nextH * ry,
+      ymax: worldY + nextH * (1 - ry)
+    };
+    draw();
+  }
+
+  function zoomAtCenter(scale) {
+    zoomAt((canvas.width / dpr) / 2, (canvas.height / dpr) / 2, scale);
+  }
+
+  function panPixels(dx, dy) {
+    const width = canvas.width / dpr;
+    const height = canvas.height / dpr;
+    const v = state.view;
+    const wx = dx * (v.xmax - v.xmin) / width;
+    const wy = dy * (v.ymax - v.ymin) / height;
+    state.view = { xmin: v.xmin - wx, xmax: v.xmax - wx, ymin: v.ymin + wy, ymax: v.ymax + wy };
     draw();
   }
 
