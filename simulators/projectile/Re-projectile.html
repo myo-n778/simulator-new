@@ -96,14 +96,15 @@
     }
 
     button,
-    input {
+    input,
+    select {
       font: inherit;
     }
 
     .wrap {
       width: min(1180px, calc(100% - 28px));
       margin: 0 auto;
-      padding: 18px 0 34px;
+      padding: 14px 0 18px;
     }
 
     .topbar {
@@ -111,7 +112,7 @@
       align-items: flex-end;
       justify-content: space-between;
       gap: 16px;
-      margin-bottom: 14px;
+      margin-bottom: 10px;
     }
 
     .top-actions {
@@ -123,7 +124,7 @@
 
     h1 {
       margin: 0;
-      font-size: clamp(24px, 4vw, 40px);
+      font-size: clamp(22px, 3.2vw, 34px);
       line-height: 1.12;
       letter-spacing: 0;
     }
@@ -147,7 +148,8 @@
     .mode-tabs button,
     .theme-tabs button,
     .action-row button,
-    .view-tools button {
+    .view-tools button,
+    .zoom-select {
       min-height: 44px;
       border: 1px solid transparent;
       border-radius: 7px;
@@ -176,9 +178,9 @@
 
     .layout {
       display: grid;
-      grid-template-columns: minmax(0, 1.35fr) minmax(310px, 0.65fr);
-      gap: 14px;
-      align-items: start;
+      grid-template-columns: minmax(0, 1.3fr) minmax(300px, 0.7fr);
+      gap: 12px;
+      align-items: stretch;
     }
 
     .stage,
@@ -190,11 +192,15 @@
     }
 
     .stage {
+      display: flex;
+      min-height: 0;
+      flex-direction: column;
       padding: 12px;
     }
 
     .canvas-shell {
       position: relative;
+      min-height: 0;
       overflow: hidden;
       border: 1px solid var(--line);
       border-radius: 8px;
@@ -204,7 +210,7 @@
     canvas {
       display: block;
       width: 100%;
-      height: clamp(360px, 52vh, 500px);
+      height: clamp(340px, 48vh, 500px);
       cursor: grab;
       touch-action: none;
       user-select: none;
@@ -218,7 +224,7 @@
       display: grid;
       grid-template-columns: repeat(4, minmax(0, 1fr));
       gap: 8px;
-      margin-top: 10px;
+      margin-top: 8px;
     }
 
     .canvas-help {
@@ -238,7 +244,7 @@
 
     .readout {
       min-height: 64px;
-      padding: 8px 10px;
+      padding: 7px 9px;
       border: 1px solid var(--line);
       border-radius: 8px;
       background: var(--surface-2);
@@ -254,7 +260,7 @@
     .readout strong {
       display: block;
       margin-top: 3px;
-      font-size: 18px;
+      font-size: 17px;
       line-height: 1.2;
       letter-spacing: 0;
     }
@@ -264,15 +270,25 @@
       display: flex;
       flex-wrap: wrap;
       gap: 8px;
-      margin-top: 10px;
+      margin-top: 8px;
     }
 
     .action-row button,
-    .view-tools button {
+    .view-tools button,
+    .zoom-select {
       padding: 0 13px;
       border-color: var(--line);
       background: var(--surface-2);
       color: var(--ink);
+    }
+
+    .zoom-select {
+      min-height: 44px;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
     }
 
     .action-row button.primary {
@@ -283,13 +299,16 @@
 
     .action-row button:hover,
     .view-tools button:hover,
+    .zoom-select:hover,
     .mode-tabs button:hover,
     .theme-tabs button:hover {
       border-color: var(--accent);
     }
 
     .panel {
+      min-height: 0;
       padding: 14px;
+      overflow: hidden;
     }
 
     .panel h2 {
@@ -300,13 +319,13 @@
 
     .control-list {
       display: grid;
-      gap: 10px;
+      gap: 9px;
     }
 
     .control {
       display: grid;
       gap: 6px;
-      padding: 10px;
+      padding: 9px;
       border: 1px solid var(--line);
       border-radius: 8px;
       background: var(--surface-2);
@@ -367,7 +386,7 @@
 
     .status-line {
       margin-top: 10px;
-      padding: 10px;
+      padding: 9px;
       border: 1px solid var(--line);
       border-radius: 8px;
       background: var(--surface-2);
@@ -383,7 +402,51 @@
       display: none !important;
     }
 
-    @media (max-width: 900px) {
+    @media (min-width: 760px) {
+      body {
+        overflow: hidden;
+      }
+
+      .wrap {
+        display: flex;
+        height: calc(100dvh - 58px);
+        min-height: 0;
+        flex-direction: column;
+      }
+
+      .layout {
+        flex: 1 1 auto;
+        min-height: 0;
+      }
+
+      .stage,
+      .panel {
+        max-height: 100%;
+      }
+
+      .canvas-shell {
+        flex: 1 1 auto;
+      }
+
+      canvas {
+        height: 100%;
+        min-height: 280px;
+      }
+
+      .control-list {
+        gap: 8px;
+      }
+
+      .control {
+        gap: 4px;
+      }
+
+      .panel[data-mode-current="detail"] .control-list {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    @media (max-width: 759px) {
       .topbar {
         align-items: flex-start;
         flex-direction: column;
@@ -421,7 +484,8 @@
       }
 
       .action-row button,
-      .view-tools button {
+      .view-tools button,
+      .zoom-select {
         flex: 1 1 128px;
       }
     }
@@ -430,7 +494,8 @@
       .mode-tabs button,
       .theme-tabs button,
       .action-row button,
-      .view-tools button {
+      .view-tools button,
+      .zoom-select {
         min-height: 46px;
       }
 
@@ -494,6 +559,14 @@
         <button id="step" type="button">1ステップ</button>
         <button id="reset" type="button">リセット</button>
         <button id="fit" type="button">全体表示</button>
+        <select id="zoomPreset" class="zoom-select" aria-label="表示倍率">
+          <option value="fit">全体</option>
+          <option value="0.75">75%</option>
+          <option value="1">100%</option>
+          <option value="1.25">125%</option>
+          <option value="1.5">150%</option>
+          <option value="2">200%</option>
+        </select>
       </div>
       <div class="status-line" id="event-status">衝突: <strong>未発生</strong></div>
     </section>
@@ -1086,10 +1159,18 @@
     $('reset').addEventListener('click', () => resetSimulation(false));
     $('fit').addEventListener('click', () => {
       fitView();
+      $('zoomPreset').value = 'fit';
       draw();
     });
-    $('zin').addEventListener('click', () => zoomAtCenter(1.25));
-    $('zout').addEventListener('click', () => zoomAtCenter(1 / 1.25));
+    $('zoomPreset').addEventListener('change', (event) => applyZoomPreset(event.target.value));
+    $('zin').addEventListener('click', () => {
+      $('zoomPreset').value = 'fit';
+      zoomAtCenter(1.12);
+    });
+    $('zout').addEventListener('click', () => {
+      $('zoomPreset').value = 'fit';
+      zoomAtCenter(1 / 1.12);
+    });
     $('panL').addEventListener('click', () => pan(-0.12, 0));
     $('panR').addEventListener('click', () => pan(0.12, 0));
     $('panU').addEventListener('click', () => pan(0, 0.12));
@@ -1154,7 +1235,8 @@
         const nextMidpoint = midpoint(points);
         const nextDistance = Math.max(1, distance(points));
         const rawScale = nextDistance / Math.max(1, pinch.distance);
-        const scale = Math.max(0.82, Math.min(1.22, rawScale));
+        const dampedScale = 1 + (rawScale - 1) * 0.32;
+        const scale = Math.max(0.94, Math.min(1.06, dampedScale));
         zoomAt(nextMidpoint.x, nextMidpoint.y, scale);
         panPixels(nextMidpoint.x - pinch.midpoint.x, nextMidpoint.y - pinch.midpoint.y);
         pinch = { distance: nextDistance, midpoint: nextMidpoint };
@@ -1178,12 +1260,14 @@
     canvas.addEventListener('wheel', (event) => {
       event.preventDefault();
       const point = canvasPoint(event);
-      const scale = event.deltaY < 0 ? 1.12 : 1 / 1.12;
+      const scale = event.deltaY < 0 ? 1.035 : 1 / 1.035;
+      $('zoomPreset').value = 'fit';
       zoomAt(point.x, point.y, scale);
     }, { passive: false });
     canvas.addEventListener('dblclick', (event) => {
       const point = canvasPoint(event);
-      zoomAt(point.x, point.y, 1.25);
+      $('zoomPreset').value = 'fit';
+      zoomAt(point.x, point.y, 1.12);
     });
   }
 
@@ -1193,6 +1277,8 @@
     });
     document.querySelector('[data-panel="basic"]').hidden = mode !== 'basic';
     document.querySelector('[data-panel="detail"]').hidden = mode !== 'detail';
+    document.querySelector('.panel').dataset.modeCurrent = mode;
+    requestAnimationFrame(resizeCanvas);
   }
 
   function setTheme(theme) {
@@ -1201,6 +1287,15 @@
       button.classList.toggle('is-active', button.dataset.theme === theme);
     });
     draw();
+  }
+
+  function applyZoomPreset(value) {
+    fitView();
+    if (value !== 'fit') {
+      zoomAtCenter(Number(value));
+    } else {
+      draw();
+    }
   }
 
   function zoomAt(screenX, screenY, scale) {
@@ -1268,6 +1363,7 @@
 
   syncInputs();
   hookInputs();
+  setMode('basic');
   resetSimulation(false);
   resizeCanvas();
   window.addEventListener('resize', resizeCanvas);

@@ -50,6 +50,9 @@ Added `Re-projectile.html` while leaving the existing `index.html` unchanged.
   - two-finger pinch zooms around the pinch center;
   - mouse wheel or trackpad scroll zooms around the cursor;
   - controls have larger touch targets.
+- Zoom sensitivity was reduced for wheel, trackpad, double-click, and pinch operation.
+- A zoom preset selector was added for `全体`, `75%`, `100%`, `125%`, `150%`, and `200%`.
+- PC and iPad-sized viewports keep the scene and settings side by side without page scrolling in basic mode.
 - Dark theme is the default to preserve the original simulator atmosphere.
 - Light theme is available only through the explicit `Dark` / `Light` switch.
 
