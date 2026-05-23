@@ -198,6 +198,10 @@
       align-items: stretch;
     }
 
+    .layout.is-detail {
+      grid-template-columns: minmax(0, 0.98fr) minmax(360px, 1.02fr);
+    }
+
     .stage,
     .panel {
       border: 1px solid var(--line);
@@ -356,6 +360,15 @@
       color: var(--muted);
       font-size: 12px;
       font-weight: 700;
+      min-width: 0;
+    }
+
+    .control label span,
+    .check-row span {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
     }
 
     .control input[type="number"] {
@@ -488,6 +501,29 @@
 
       .layout {
         grid-template-columns: minmax(0, 1fr) minmax(210px, 0.62fr);
+      }
+
+      .layout.is-detail {
+        grid-template-columns: 1fr;
+        overflow: auto;
+      }
+
+      .layout.is-detail .stage,
+      .layout.is-detail .panel {
+        max-height: none;
+      }
+
+      .layout.is-detail .canvas-shell {
+        flex: 0 0 auto;
+      }
+
+      .layout.is-detail canvas {
+        height: 320px;
+        min-height: 0;
+      }
+
+      .layout.is-detail .panel {
+        overflow: visible;
       }
 
       .readouts {
@@ -1368,6 +1404,7 @@
     document.querySelector('[data-panel="basic"]').hidden = mode !== 'basic';
     document.querySelector('[data-panel="detail"]').hidden = mode !== 'detail';
     document.querySelector('.panel').dataset.modeCurrent = mode;
+    document.querySelector('.layout').classList.toggle('is-detail', mode === 'detail');
     requestAnimationFrame(resizeCanvas);
   }
 
