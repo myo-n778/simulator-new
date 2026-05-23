@@ -161,6 +161,7 @@
 
     .mode-tabs button,
     .theme-tabs button,
+    .stage-toolbar button,
     .action-row button,
     .view-tools button,
     .zoom-select,
@@ -214,7 +215,15 @@
       display: flex;
       min-height: 0;
       flex-direction: column;
-      padding: 12px;
+      padding: 10px;
+    }
+
+    .stage-toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      align-items: center;
+      margin-bottom: 7px;
     }
 
     .canvas-shell {
@@ -292,10 +301,11 @@
       margin-top: 7px;
     }
 
+    .stage-toolbar button,
     .action-row button,
     .view-tools button,
     .zoom-select {
-      padding: 0 13px;
+      padding: 0 10px;
       border-color: var(--line);
       background: var(--surface-2);
       color: var(--ink);
@@ -303,7 +313,7 @@
 
     .zoom-select,
     .speed-select {
-      min-height: 38px;
+      min-height: 34px;
       border: 1px solid var(--line);
       border-radius: 7px;
       font-size: 13px;
@@ -311,12 +321,14 @@
       cursor: pointer;
     }
 
+    .stage-toolbar button.primary,
     .action-row button.primary {
       border-color: var(--accent);
       background: var(--accent);
       color: var(--bg);
     }
 
+    .stage-toolbar button:hover,
     .action-row button:hover,
     .view-tools button:hover,
     .zoom-select:hover,
@@ -384,13 +396,28 @@
 
     .control input[type="range"] {
       width: 100%;
-      min-height: 28px;
+      min-height: 18px;
+      padding: 0;
       accent-color: var(--accent);
     }
 
+    .control input[type="range"]::-webkit-slider-runnable-track {
+      height: 4px;
+    }
+
     .control input[type="range"]::-webkit-slider-thumb {
-      min-width: 22px;
-      min-height: 22px;
+      width: 14px;
+      height: 14px;
+      margin-top: -5px;
+    }
+
+    .control input[type="range"]::-moz-range-track {
+      height: 4px;
+    }
+
+    .control input[type="range"]::-moz-range-thumb {
+      width: 14px;
+      height: 14px;
     }
 
     .check-row {
@@ -582,24 +609,25 @@
     @media (pointer: coarse) {
       .mode-tabs button,
       .theme-tabs button,
+      .stage-toolbar button,
       .action-row button,
       .view-tools button,
       .zoom-select {
-        min-height: 46px;
+        min-height: 38px;
       }
 
       .control,
       .check-row {
-        padding: 8px 10px;
+        padding: 6px 8px;
       }
 
       .control input[type="number"] {
-        min-height: 36px;
-        width: 96px;
+        min-height: 32px;
+        width: 92px;
       }
 
       .control input[type="range"] {
-        min-height: 36px;
+        min-height: 22px;
       }
     }
   </style>
@@ -633,17 +661,7 @@
 
   <div class="layout">
     <section class="stage" aria-label="斜方投射の表示">
-      <div class="canvas-shell">
-        <canvas id="view" width="1200" height="720"></canvas>
-        <div class="canvas-help">1本指ドラッグで移動 / 2本指ピンチで拡大縮小</div>
-      </div>
-      <div class="readouts" aria-live="polite">
-        <div class="readout"><span>時刻</span><strong id="read-time">0.00 s</strong></div>
-        <div class="readout"><span>位置</span><strong id="read-pos">(0.00, 0.00) m</strong></div>
-        <div class="readout"><span>速度</span><strong id="read-vel">0.00 m/s</strong></div>
-        <div class="readout"><span>理論値</span><strong id="read-theory">-</strong></div>
-      </div>
-      <div class="action-row">
+      <div class="stage-toolbar">
         <button id="play" type="button" class="primary">再生</button>
         <button id="step" type="button">1ステップ</button>
         <button id="reset" type="button">リセット</button>
@@ -662,6 +680,16 @@
           <option value="1.5">150%</option>
           <option value="2">200%</option>
         </select>
+      </div>
+      <div class="canvas-shell">
+        <canvas id="view" width="1200" height="720"></canvas>
+        <div class="canvas-help">1本指ドラッグで移動 / 2本指ピンチで拡大縮小</div>
+      </div>
+      <div class="readouts" aria-live="polite">
+        <div class="readout"><span>時刻</span><strong id="read-time">0.00 s</strong></div>
+        <div class="readout"><span>位置</span><strong id="read-pos">(0.00, 0.00) m</strong></div>
+        <div class="readout"><span>速度</span><strong id="read-vel">0.00 m/s</strong></div>
+        <div class="readout"><span>理論値</span><strong id="read-theory">-</strong></div>
       </div>
       <div class="status-line collision-history" id="event-status">衝突履歴: <strong>未発生</strong></div>
     </section>

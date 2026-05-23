@@ -55,6 +55,8 @@ Added `Re-projectile.html` while leaving the existing `index.html` unchanged.
 - PC and iPad-sized viewports keep the scene and settings side by side without page scrolling in basic mode.
 - Narrow in-app browser widths down to about 600px also keep the scene and settings side by side without page scrolling.
 - Detail mode switches layout at narrow widths so labels remain horizontal and readable instead of collapsing into vertical text.
+- Main playback, speed, and zoom controls were moved above the canvas so they remain visible.
+- Range sliders were visually reduced so the bars no longer dominate the settings panel.
 - Collision markers now show all collision history with numbered markers, and the status line lists all collision events.
 - Playback speed is visible in the time readout and can be selected from the main action row.
 - Dark theme is the default to preserve the original simulator atmosphere.
