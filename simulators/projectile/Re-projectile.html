@@ -9,10 +9,34 @@
   <script src="../../assets/sim-clock.js"></script>
   <style>
     :root {
+      color-scheme: dark;
+      --bg: #0b0f14;
+      --surface: #101720;
+      --surface-2: #0b131c;
+      --surface-3: #0e1721;
+      --ink: #e7edf5;
+      --muted: #a7b0bd;
+      --line: #182434;
+      --accent: #68b7ff;
+      --accent-strong: #9ad9ff;
+      --green: #76d275;
+      --orange: #ffcf5c;
+      --red: #ff7a7a;
+      --blue: #68b7ff;
+      --canvas-bg-1: #0d141d;
+      --canvas-bg-2: #0a1119;
+      --grid-line: #1c2430;
+      --ground-line: #34465d;
+      --soft-panel: rgba(12, 21, 32, 0.9);
+      --shadow: 0 18px 42px rgba(0, 0, 0, 0.28);
+    }
+
+    body.theme-light {
       color-scheme: light;
       --bg: #f4f6f8;
       --surface: #ffffff;
       --surface-2: #eef3f7;
+      --surface-3: #fbfcfd;
       --ink: #1b2430;
       --muted: #667382;
       --line: #d7e0e8;
@@ -22,6 +46,11 @@
       --orange: #c56d22;
       --red: #c7433c;
       --blue: #2e78c8;
+      --canvas-bg-1: #f9fbfd;
+      --canvas-bg-2: #eef4f9;
+      --grid-line: #dbe5ee;
+      --ground-line: #8ca0b2;
+      --soft-panel: rgba(255, 255, 255, 0.92);
       --shadow: 0 16px 36px rgba(27, 36, 48, 0.08);
     }
 
@@ -38,6 +67,32 @@
       line-height: 1.55;
       overscroll-behavior: none;
       -webkit-tap-highlight-color: transparent;
+    }
+
+    .sim-shell-header {
+      border-bottom-color: var(--line);
+      background: rgba(11, 15, 20, 0.92);
+      color: var(--ink);
+    }
+
+    .sim-shell-back {
+      border-color: var(--line);
+      background: var(--surface);
+      color: var(--accent-strong);
+    }
+
+    .sim-shell-subtitle {
+      color: var(--muted);
+    }
+
+    body.theme-light .sim-shell-header {
+      background: rgba(248, 250, 252, 0.9);
+      color: #17202a;
+    }
+
+    body.theme-light .sim-shell-back {
+      background: #ffffff;
+      color: #2364aa;
     }
 
     button,
@@ -59,6 +114,13 @@
       margin-bottom: 14px;
     }
 
+    .top-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      justify-content: flex-end;
+    }
+
     h1 {
       margin: 0;
       font-size: clamp(24px, 4vw, 40px);
@@ -72,7 +134,8 @@
       font-size: 14px;
     }
 
-    .mode-tabs {
+    .mode-tabs,
+    .theme-tabs {
       display: inline-flex;
       gap: 6px;
       padding: 4px;
@@ -82,6 +145,7 @@
     }
 
     .mode-tabs button,
+    .theme-tabs button,
     .action-row button,
     .view-tools button {
       min-height: 44px;
@@ -99,9 +163,15 @@
       padding: 0 14px;
     }
 
-    .mode-tabs button.is-active {
+    .theme-tabs button {
+      min-width: 66px;
+      padding: 0 12px;
+    }
+
+    .mode-tabs button.is-active,
+    .theme-tabs button.is-active {
       background: var(--accent);
-      color: #ffffff;
+      color: var(--bg);
     }
 
     .layout {
@@ -128,7 +198,7 @@
       overflow: hidden;
       border: 1px solid var(--line);
       border-radius: 8px;
-      background: linear-gradient(180deg, #f9fbfd 0%, #eef4f9 100%);
+      background: linear-gradient(180deg, var(--canvas-bg-1) 0%, var(--canvas-bg-2) 100%);
     }
 
     canvas {
@@ -157,9 +227,9 @@
       bottom: 10px;
       max-width: min(320px, calc(100% - 20px));
       padding: 6px 9px;
-      border: 1px solid rgba(215, 224, 232, 0.9);
+      border: 1px solid var(--line);
       border-radius: 8px;
-      background: rgba(255, 255, 255, 0.86);
+      background: var(--soft-panel);
       color: var(--muted);
       font-size: 12px;
       font-weight: 700;
@@ -171,7 +241,7 @@
       padding: 8px 10px;
       border: 1px solid var(--line);
       border-radius: 8px;
-      background: #fbfcfd;
+      background: var(--surface-2);
     }
 
     .readout span {
@@ -201,19 +271,20 @@
     .view-tools button {
       padding: 0 13px;
       border-color: var(--line);
-      background: #fbfcfd;
+      background: var(--surface-2);
       color: var(--ink);
     }
 
     .action-row button.primary {
       border-color: var(--accent);
       background: var(--accent);
-      color: #ffffff;
+      color: var(--bg);
     }
 
     .action-row button:hover,
     .view-tools button:hover,
-    .mode-tabs button:hover {
+    .mode-tabs button:hover,
+    .theme-tabs button:hover {
       border-color: var(--accent);
     }
 
@@ -238,7 +309,7 @@
       padding: 10px;
       border: 1px solid var(--line);
       border-radius: 8px;
-      background: #fbfcfd;
+      background: var(--surface-2);
     }
 
     .control label,
@@ -258,7 +329,7 @@
       padding: 4px 7px;
       border: 1px solid var(--line);
       border-radius: 7px;
-      background: #ffffff;
+      background: var(--surface-3);
       color: var(--ink);
       text-align: right;
     }
@@ -279,7 +350,7 @@
       padding: 8px 10px;
       border: 1px solid var(--line);
       border-radius: 8px;
-      background: #fbfcfd;
+      background: var(--surface-2);
     }
 
     .check-row input {
@@ -318,6 +389,10 @@
         flex-direction: column;
       }
 
+      .top-actions {
+        justify-content: flex-start;
+      }
+
       .layout {
         grid-template-columns: 1fr;
       }
@@ -353,6 +428,7 @@
 
     @media (pointer: coarse) {
       .mode-tabs button,
+      .theme-tabs button,
       .action-row button,
       .view-tools button {
         min-height: 46px;
@@ -389,9 +465,15 @@
       <h1>斜方投射 Re</h1>
       <p class="lead">基本操作を絞り、壁と地面の衝突は各ステップ内で最初に起きるイベントとして扱います。</p>
     </div>
-    <div class="mode-tabs" role="group" aria-label="設定モード">
-      <button type="button" class="is-active" data-mode="basic">基本</button>
-      <button type="button" data-mode="detail">詳細</button>
+    <div class="top-actions">
+      <div class="theme-tabs" role="group" aria-label="テーマ">
+        <button type="button" class="is-active" data-theme="dark">Dark</button>
+        <button type="button" data-theme="light">Light</button>
+      </div>
+      <div class="mode-tabs" role="group" aria-label="設定モード">
+        <button type="button" class="is-active" data-mode="basic">基本</button>
+        <button type="button" data-mode="detail">詳細</button>
+      </div>
     </div>
   </div>
 
@@ -778,7 +860,7 @@
     const sx = niceStep(v.xmax - v.xmin);
     const sy = niceStep(v.ymax - v.ymin);
     ctx.save();
-    ctx.strokeStyle = '#dbe5ee';
+    ctx.strokeStyle = getCss('--grid-line');
     ctx.lineWidth = 1;
     for (let x = Math.ceil(v.xmin / sx) * sx; x <= v.xmax; x += sx) {
       const [px] = worldToScreen(x, 0);
@@ -795,7 +877,7 @@
       ctx.stroke();
     }
     const [, gy] = worldToScreen(0, 0);
-    ctx.strokeStyle = '#8ca0b2';
+    ctx.strokeStyle = getCss('--ground-line');
     ctx.lineWidth = 1.5;
     ctx.beginPath();
     ctx.moveTo(0, gy);
@@ -804,12 +886,16 @@
     ctx.restore();
   }
 
+  function getCss(name) {
+    return getComputedStyle(document.body).getPropertyValue(name).trim();
+  }
+
   function drawTheoryPath() {
     if (!params.showTheory) return;
     const th = theory();
     const count = 180;
     ctx.save();
-    ctx.strokeStyle = 'rgba(46, 120, 200, 0.72)';
+    ctx.strokeStyle = getCss('--blue');
     ctx.lineWidth = 2;
     ctx.setLineDash([6, 5]);
     ctx.beginPath();
@@ -845,13 +931,13 @@
     const [x0, y0] = worldToScreen(params.wallX, 0);
     const [x1, y1] = worldToScreen(params.wallX, params.wallH);
     ctx.save();
-    ctx.strokeStyle = '#c56d22';
+    ctx.strokeStyle = getCss('--orange');
     ctx.lineWidth = 4;
     ctx.beginPath();
     ctx.moveTo(x0, y0);
     ctx.lineTo(x1, y1);
     ctx.stroke();
-    ctx.fillStyle = '#c56d22';
+    ctx.fillStyle = getCss('--orange');
     ctx.fillRect(x1 - 8, y1 - 3, 16, 6);
     ctx.restore();
   }
@@ -860,7 +946,7 @@
     const [px, py] = worldToScreen(x, y);
     ctx.save();
     ctx.fillStyle = color;
-    ctx.strokeStyle = '#ffffff';
+    ctx.strokeStyle = getCss('--surface');
     ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.arc(px, py, radius, 0, Math.PI * 2);
@@ -884,8 +970,8 @@
     if (bx + w > width - 6) bx = px - w - 10;
     if (by < 6) by = py + 10;
     if (by + h > height - 6) by = height - h - 6;
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.92)';
-    ctx.strokeStyle = '#d7e0e8';
+    ctx.fillStyle = getCss('--soft-panel');
+    ctx.strokeStyle = getCss('--line');
     ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.roundRect(bx, by, w, h, 6);
@@ -906,13 +992,13 @@
     drawPath();
 
     const th = theory();
-    drawMarker(params.x0, params.y0, '#1f6fb2', 4);
-    drawMarker(th.apexX, th.apexY, '#2e78c8', 4);
-    drawMarker(state.x, Math.max(0, state.y), '#c7433c', 6);
-    drawLabel(['最高点', `(${th.apexX.toFixed(2)}, ${th.apexY.toFixed(2)}) m`], th.apexX, th.apexY, '#174d7d');
+    drawMarker(params.x0, params.y0, getCss('--blue'), 4);
+    drawMarker(th.apexX, th.apexY, getCss('--blue'), 4);
+    drawMarker(state.x, Math.max(0, state.y), getCss('--red'), 6);
+    drawLabel(['最高点', `(${th.apexX.toFixed(2)}, ${th.apexY.toFixed(2)}) m`], th.apexX, th.apexY, getCss('--accent-strong'));
 
     state.hits.slice(-6).forEach((hit) => {
-      drawMarker(hit.x, hit.y, hit.type === 'wall' ? '#c56d22' : '#c7433c', 4);
+      drawMarker(hit.x, hit.y, hit.type === 'wall' ? getCss('--orange') : getCss('--red'), 4);
     });
 
     updateReadouts();
@@ -987,6 +1073,9 @@
 
     document.querySelectorAll('[data-mode]').forEach((button) => {
       button.addEventListener('click', () => setMode(button.dataset.mode));
+    });
+    document.querySelectorAll('[data-theme]').forEach((button) => {
+      button.addEventListener('click', () => setTheme(button.dataset.theme));
     });
 
     $('play').addEventListener('click', () => {
@@ -1104,6 +1193,14 @@
     });
     document.querySelector('[data-panel="basic"]').hidden = mode !== 'basic';
     document.querySelector('[data-panel="detail"]').hidden = mode !== 'detail';
+  }
+
+  function setTheme(theme) {
+    document.body.classList.toggle('theme-light', theme === 'light');
+    document.querySelectorAll('[data-theme]').forEach((button) => {
+      button.classList.toggle('is-active', button.dataset.theme === theme);
+    });
+    draw();
   }
 
   function zoomAt(screenX, screenY, scale) {

@@ -50,6 +50,8 @@ Added `Re-projectile.html` while leaving the existing `index.html` unchanged.
   - two-finger pinch zooms around the pinch center;
   - mouse wheel or trackpad scroll zooms around the cursor;
   - controls have larger touch targets.
+- Dark theme is the default to preserve the original simulator atmosphere.
+- Light theme is available only through the explicit `Dark` / `Light` switch.
 
 ### Physics Model
 
