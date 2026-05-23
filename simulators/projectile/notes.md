@@ -35,3 +35,36 @@ Checked second, after the momentum simulator.
   - reset executed,
   - stats and annotations rendered,
   - animation frame scheduling remained active.
+
+## Re-projectile 2026-05-23
+
+Added `Re-projectile.html` while leaving the existing `index.html` unchanged.
+
+### UI Design
+
+- Basic mode keeps only initial speed, launch angle, gravity, trajectory display, playback, one-step, reset, and fit.
+- Detail mode contains initial position/height, wall display and wall dimensions, wall/ground restitution, time step, time scale, theory/grid display, stop-on-ground, zoom, and pan.
+- The entry page links both the original route and the Re route, so the original remains available for comparison.
+
+### Physics Model
+
+- Coordinates use `x` horizontal and `y` vertical upward, with ground at `y = 0`.
+- Motion between events is analytic:
+  - `x(t) = x + vx t`
+  - `y(t) = y + vy t - 1/2 g t^2`
+  - `vy(t) = vy - g t`
+- Each simulation step repeatedly searches the next event within the remaining step time.
+- Event candidates are:
+  - ground arrival, selected from the positive root of `y + vy t - 1/2 g t^2 = 0` only when crossing downward;
+  - wall arrival, selected from `t = (wallX - x) / vx` only when `0 <= y(t) <= wallHeight`.
+- The earliest positive event is applied first, then the remaining time in the same step continues from the reflected velocity.
+- Reflection rules:
+  - wall collision: `vx = -ew * vx`
+  - ground collision: `vy = -eg * vy`
+- If `eg = 0` or stop-on-ground is enabled, the projectile stops at the ground without bouncing.
+- Air resistance is intentionally not included.
+
+### Reason For Rework
+
+- The original route had wall and ground collision handling split across branches, including a same-step post-ground wall check whose condition was effectively unreachable.
+- The Re route uses one event-selection path for readability and to reduce missed-collision fallback behavior.

@@ -79,6 +79,41 @@ a {
   font-size: 16px;
 }
 
+.variant-switch {
+  display: inline-flex;
+  gap: 6px;
+  margin-top: 22px;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+}
+
+.variant-switch button {
+  min-height: 38px;
+  min-width: 126px;
+  padding: 0 14px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--muted);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.variant-switch button:hover,
+.variant-switch button:focus-visible {
+  border-color: var(--accent);
+  outline: none;
+}
+
+.variant-switch button.is-active {
+  background: var(--accent);
+  color: #ffffff;
+}
+
 .section {
   padding: 22px 0 42px;
 }
@@ -107,11 +142,10 @@ a {
   border-radius: 8px;
   background: var(--surface);
   box-shadow: var(--shadow);
-  text-decoration: none;
 }
 
 .sim-card:hover,
-.sim-card:focus-visible {
+.sim-card:focus-within {
   border-color: var(--accent);
   outline: none;
 }
@@ -149,6 +183,66 @@ a {
   color: var(--accent-strong);
   font-size: 12px;
   font-weight: 700;
+}
+
+.re-status {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+  padding: 2px 8px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: #f6f7f4;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.re-status.is-ready {
+  border-color: rgba(47, 125, 115, 0.34);
+  background: rgba(47, 125, 115, 0.08);
+  color: var(--sky);
+}
+
+.card-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.variant-link,
+.variant-note {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 38px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #f9faf8;
+  color: var(--accent-strong);
+  font-size: 14px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.variant-link.is-primary {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #ffffff;
+}
+
+.variant-link:hover,
+.variant-link:focus-visible {
+  border-color: var(--accent);
+  outline: none;
+}
+
+.variant-note {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 600;
 }
 
 .loading,
@@ -196,5 +290,14 @@ a {
 
   .hero {
     padding-top: 32px;
+  }
+
+  .variant-switch {
+    width: 100%;
+  }
+
+  .variant-switch button {
+    flex: 1 1 0;
+    min-width: 0;
   }
 }

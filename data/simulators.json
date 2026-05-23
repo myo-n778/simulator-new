@@ -17,13 +17,15 @@
     "title": "斜方投射",
     "category": "力学",
     "route": "./simulators/projectile/",
+    "reRoute": "./simulators/projectile/Re-projectile.html",
+    "reStatus": "Re版試作",
     "originalSource": "projectile_with_wall1.10.html",
     "alternateSources": [],
     "status": "点検済み",
     "dependencies": [],
     "physicsModel": "重力下の2次元投射、壁・地面との反発",
     "purpose": "初速度、射角、壁との衝突を含む軌道を可視化する。",
-    "lastReviewed": "2026-05-05"
+    "lastReviewed": "2026-05-23"
   },
   {
     "id": "pendulum",

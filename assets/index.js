@@ -11,12 +11,26 @@ const categoryLabels = new Map([
 const listRoot = document.querySelector("[data-simulator-list]");
 const countNode = document.querySelector("[data-simulator-count]");
 const reviewedNode = document.querySelector("[data-last-reviewed]");
+const versionButtons = [...document.querySelectorAll("[data-version-mode]")];
+
+let preferredVersion = localStorage.getItem("simulatorPreferredVersion") || "re";
+
+function setPreferredVersion(version, simulators = []) {
+  preferredVersion = version;
+  localStorage.setItem("simulatorPreferredVersion", version);
+  versionButtons.forEach((button) => {
+    button.classList.toggle("is-active", button.dataset.versionMode === version);
+  });
+  if (simulators.length) {
+    renderSimulators(simulators);
+  }
+}
 
 function createCard(simulator) {
-  const card = document.createElement("a");
+  const card = document.createElement("article");
   card.className = "sim-card";
-  card.href = simulator.route;
   card.dataset.simulatorId = simulator.id;
+  card.dataset.hasRe = simulator.reRoute ? "true" : "false";
 
   const body = document.createElement("div");
   const title = document.createElement("h3");
@@ -33,6 +47,11 @@ function createCard(simulator) {
   status.textContent = simulator.status;
   meta.append(status);
 
+  const reStatus = document.createElement("span");
+  reStatus.className = simulator.reRoute ? "re-status is-ready" : "re-status";
+  reStatus.textContent = simulator.reRoute ? (simulator.reStatus ?? "Re版あり") : "Re版準備中";
+  meta.append(reStatus);
+
   const sourceCount = document.createElement("span");
   const alternateCount = simulator.alternateSources?.length ?? 0;
   sourceCount.textContent = `${alternateCount + 1} file${alternateCount ? "s" : ""}`;
@@ -44,7 +63,33 @@ function createCard(simulator) {
     meta.append(deps);
   }
 
-  card.append(body, meta);
+  const actions = document.createElement("div");
+  actions.className = "card-actions";
+
+  const originalLink = document.createElement("a");
+  originalLink.className = "variant-link";
+  originalLink.href = simulator.route;
+  originalLink.textContent = "元版";
+
+  if (simulator.reRoute) {
+    const reLink = document.createElement("a");
+    reLink.className = "variant-link";
+    reLink.href = simulator.reRoute;
+    reLink.textContent = "Re版";
+
+    const primary = preferredVersion === "re" ? reLink : originalLink;
+    primary.classList.add("is-primary");
+    actions.append(preferredVersion === "re" ? reLink : originalLink);
+    actions.append(preferredVersion === "re" ? originalLink : reLink);
+  } else {
+    originalLink.classList.add("is-primary");
+    const pending = document.createElement("span");
+    pending.className = "variant-note";
+    pending.textContent = "Re版準備中";
+    actions.append(originalLink, pending);
+  }
+
+  card.append(body, meta, actions);
   return card;
 }
 
@@ -104,6 +149,10 @@ async function loadSimulators() {
       throw new Error(`Failed to load simulator metadata: ${response.status}`);
     }
     const simulators = await response.json();
+    versionButtons.forEach((button) => {
+      button.addEventListener("click", () => setPreferredVersion(button.dataset.versionMode, simulators));
+    });
+    setPreferredVersion(preferredVersion, []);
     renderSimulators(simulators);
   } catch (error) {
     console.error(error);

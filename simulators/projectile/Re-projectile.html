@@ -1,0 +1,1039 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>斜方投射 Re</title>
+  <link rel="stylesheet" href="../../assets/common-sim.css">
+  <script src="../../assets/sim-shell.js"></script>
+  <script src="../../assets/sim-clock.js"></script>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f4f6f8;
+      --surface: #ffffff;
+      --surface-2: #eef3f7;
+      --ink: #1b2430;
+      --muted: #667382;
+      --line: #d7e0e8;
+      --accent: #1f6fb2;
+      --accent-strong: #174d7d;
+      --green: #2f8f5b;
+      --orange: #c56d22;
+      --red: #c7433c;
+      --blue: #2e78c8;
+      --shadow: 0 16px 36px rgba(27, 36, 48, 0.08);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.55;
+    }
+
+    button,
+    input {
+      font: inherit;
+    }
+
+    .wrap {
+      width: min(1180px, calc(100% - 28px));
+      margin: 0 auto;
+      padding: 18px 0 34px;
+    }
+
+    .topbar {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 14px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(24px, 4vw, 40px);
+      line-height: 1.12;
+      letter-spacing: 0;
+    }
+
+    .lead {
+      margin: 8px 0 0;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .mode-tabs {
+      display: inline-flex;
+      gap: 6px;
+      padding: 4px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--surface);
+    }
+
+    .mode-tabs button,
+    .action-row button,
+    .view-tools button {
+      min-height: 38px;
+      border: 1px solid transparent;
+      border-radius: 7px;
+      background: transparent;
+      color: var(--muted);
+      font-size: 14px;
+      font-weight: 700;
+      cursor: pointer;
+    }
+
+    .mode-tabs button {
+      min-width: 82px;
+      padding: 0 14px;
+    }
+
+    .mode-tabs button.is-active {
+      background: var(--accent);
+      color: #ffffff;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1.35fr) minmax(310px, 0.65fr);
+      gap: 14px;
+      align-items: start;
+    }
+
+    .stage,
+    .panel {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--surface);
+      box-shadow: var(--shadow);
+    }
+
+    .stage {
+      padding: 12px;
+    }
+
+    .canvas-shell {
+      position: relative;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: linear-gradient(180deg, #f9fbfd 0%, #eef4f9 100%);
+    }
+
+    canvas {
+      display: block;
+      width: 100%;
+      height: 440px;
+      cursor: grab;
+      touch-action: none;
+    }
+
+    canvas.dragging {
+      cursor: grabbing;
+    }
+
+    .readouts {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .readout {
+      min-height: 64px;
+      padding: 8px 10px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fbfcfd;
+    }
+
+    .readout span {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .readout strong {
+      display: block;
+      margin-top: 3px;
+      font-size: 18px;
+      line-height: 1.2;
+      letter-spacing: 0;
+    }
+
+    .action-row,
+    .view-tools {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .action-row button,
+    .view-tools button {
+      padding: 0 13px;
+      border-color: var(--line);
+      background: #fbfcfd;
+      color: var(--ink);
+    }
+
+    .action-row button.primary {
+      border-color: var(--accent);
+      background: var(--accent);
+      color: #ffffff;
+    }
+
+    .action-row button:hover,
+    .view-tools button:hover,
+    .mode-tabs button:hover {
+      border-color: var(--accent);
+    }
+
+    .panel {
+      padding: 14px;
+    }
+
+    .panel h2 {
+      margin: 0 0 10px;
+      font-size: 16px;
+      letter-spacing: 0;
+    }
+
+    .control-list {
+      display: grid;
+      gap: 10px;
+    }
+
+    .control {
+      display: grid;
+      gap: 6px;
+      padding: 10px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fbfcfd;
+    }
+
+    .control label,
+    .check-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .control input[type="number"] {
+      width: 92px;
+      min-height: 32px;
+      padding: 4px 7px;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: #ffffff;
+      color: var(--ink);
+      text-align: right;
+    }
+
+    .control input[type="range"] {
+      width: 100%;
+      accent-color: var(--accent);
+    }
+
+    .check-row {
+      min-height: 40px;
+      padding: 8px 10px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fbfcfd;
+    }
+
+    .check-row input {
+      width: 18px;
+      height: 18px;
+      accent-color: var(--accent);
+    }
+
+    .subgrid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .status-line {
+      margin-top: 10px;
+      padding: 10px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--surface-2);
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .status-line strong {
+      color: var(--ink);
+    }
+
+    [hidden] {
+      display: none !important;
+    }
+
+    @media (max-width: 900px) {
+      .topbar {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+
+      .layout {
+        grid-template-columns: 1fr;
+      }
+
+      canvas {
+        height: 390px;
+      }
+
+      .readouts {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width: 540px) {
+      .wrap {
+        width: min(100% - 18px, 1180px);
+      }
+
+      canvas {
+        height: 330px;
+      }
+
+      .readouts,
+      .subgrid {
+        grid-template-columns: 1fr;
+      }
+
+      .action-row button,
+      .view-tools button {
+        flex: 1 1 128px;
+      }
+    }
+  </style>
+</head>
+<body>
+<script>
+  PhysicsSimShell.create({
+    title: '斜方投射 Re',
+    subtitle: '基本/詳細UI・イベント時刻ベースの衝突処理',
+    basePath: '../../'
+  });
+</script>
+
+<main class="wrap">
+  <div class="topbar">
+    <div>
+      <h1>斜方投射 Re</h1>
+      <p class="lead">基本操作を絞り、壁と地面の衝突は各ステップ内で最初に起きるイベントとして扱います。</p>
+    </div>
+    <div class="mode-tabs" role="group" aria-label="設定モード">
+      <button type="button" class="is-active" data-mode="basic">基本</button>
+      <button type="button" data-mode="detail">詳細</button>
+    </div>
+  </div>
+
+  <div class="layout">
+    <section class="stage" aria-label="斜方投射の表示">
+      <div class="canvas-shell">
+        <canvas id="view" width="1200" height="720"></canvas>
+      </div>
+      <div class="readouts" aria-live="polite">
+        <div class="readout"><span>時刻</span><strong id="read-time">0.00 s</strong></div>
+        <div class="readout"><span>位置</span><strong id="read-pos">(0.00, 0.00) m</strong></div>
+        <div class="readout"><span>速度</span><strong id="read-vel">0.00 m/s</strong></div>
+        <div class="readout"><span>理論値</span><strong id="read-theory">-</strong></div>
+      </div>
+      <div class="action-row">
+        <button id="play" type="button" class="primary">再生</button>
+        <button id="step" type="button">1ステップ</button>
+        <button id="reset" type="button">リセット</button>
+        <button id="fit" type="button">全体表示</button>
+      </div>
+      <div class="status-line" id="event-status">衝突: <strong>未発生</strong></div>
+    </section>
+
+    <aside class="panel" aria-label="設定">
+      <section data-panel="basic">
+        <h2>基本</h2>
+        <div class="control-list">
+          <div class="control" data-control="v0">
+            <label><span>初速度 v0 [m/s]</span><input id="v0n" type="number" step="0.1"></label>
+            <input id="v0" type="range" min="1" max="80" step="0.1">
+          </div>
+          <div class="control" data-control="angle">
+            <label><span>射角 θ [deg]</span><input id="angn" type="number" step="0.1"></label>
+            <input id="ang" type="range" min="-10" max="85" step="0.1">
+          </div>
+          <div class="control" data-control="g">
+            <label><span>重力 g [m/s²]</span><input id="gn" type="number" step="0.1"></label>
+            <input id="g" type="range" min="1" max="20" step="0.1">
+          </div>
+          <label class="check-row"><span>軌道表示</span><input id="trace" type="checkbox"></label>
+        </div>
+      </section>
+
+      <section data-panel="detail" hidden>
+        <h2>詳細</h2>
+        <div class="control-list">
+          <div class="subgrid">
+            <div class="control">
+              <label><span>初期位置 x0 [m]</span><input id="x0n" type="number" step="0.1"></label>
+              <input id="x0" type="range" min="-10" max="30" step="0.1">
+            </div>
+            <div class="control">
+              <label><span>初期高さ y0 [m]</span><input id="y0n" type="number" step="0.1"></label>
+              <input id="y0" type="range" min="0" max="30" step="0.1">
+            </div>
+          </div>
+          <label class="check-row"><span>壁を表示</span><input id="showWall" type="checkbox"></label>
+          <div class="subgrid">
+            <div class="control">
+              <label><span>壁位置 xw [m]</span><input id="wxn" type="number" step="0.1"></label>
+              <input id="wx" type="range" min="-10" max="80" step="0.1">
+            </div>
+            <div class="control">
+              <label><span>壁高さ hw [m]</span><input id="whn" type="number" step="0.1"></label>
+              <input id="wh" type="range" min="0" max="40" step="0.1">
+            </div>
+          </div>
+          <div class="subgrid">
+            <div class="control">
+              <label><span>壁反発 ew</span><input id="ewn" type="number" step="0.01"></label>
+              <input id="ew" type="range" min="0" max="1" step="0.01">
+            </div>
+            <div class="control">
+              <label><span>地面反発 eg</span><input id="egn" type="number" step="0.01"></label>
+              <input id="eg" type="range" min="0" max="1" step="0.01">
+            </div>
+          </div>
+          <div class="subgrid">
+            <div class="control">
+              <label><span>時間刻み dt [s]</span><input id="dtn" type="number" step="0.001"></label>
+              <input id="dt" type="range" min="0.001" max="0.05" step="0.001">
+            </div>
+            <div class="control">
+              <label><span>タイムスケール</span><input id="speedn" type="number" step="0.1"></label>
+              <input id="speed" type="range" min="0.1" max="3" step="0.1">
+            </div>
+          </div>
+          <div class="subgrid">
+            <label class="check-row"><span>理論軌道</span><input id="showTheory" type="checkbox"></label>
+            <label class="check-row"><span>グリッド</span><input id="showGrid" type="checkbox"></label>
+          </div>
+          <label class="check-row"><span>地面到達で停止</span><input id="stopOnGround" type="checkbox"></label>
+          <div class="view-tools">
+            <button id="zin" type="button">拡大</button>
+            <button id="zout" type="button">縮小</button>
+            <button id="panL" type="button">左</button>
+            <button id="panR" type="button">右</button>
+            <button id="panU" type="button">上</button>
+            <button id="panD" type="button">下</button>
+          </div>
+        </div>
+      </section>
+    </aside>
+  </div>
+</main>
+
+<script>
+(() => {
+  'use strict';
+
+  const EPS = 1e-9;
+  const REST_SPEED = 0.04;
+  const $ = (id) => document.getElementById(id);
+
+  const canvas = $('view');
+  const ctx = canvas.getContext('2d');
+  let dpr = Math.max(1, Math.min(2.5, window.devicePixelRatio || 1));
+
+  const params = {
+    x0: 0,
+    y0: 0,
+    v0: 18,
+    angle: 38,
+    g: 9.8,
+    showWall: true,
+    wallX: 23,
+    wallH: 7,
+    ew: 1,
+    eg: 0.72,
+    dt: 0.012,
+    speed: 1,
+    trace: true,
+    showTheory: true,
+    showGrid: true,
+    stopOnGround: false
+  };
+
+  const state = {
+    t: 0,
+    x: params.x0,
+    y: params.y0,
+    vx: 0,
+    vy: 0,
+    playing: false,
+    path: [],
+    hits: [],
+    view: { xmin: -2, xmax: 38, ymin: -1.5, ymax: 16 },
+    lastEvent: null
+  };
+
+  const bindings = [
+    ['v0', 'v0n', 'v0'],
+    ['ang', 'angn', 'angle'],
+    ['g', 'gn', 'g'],
+    ['x0', 'x0n', 'x0'],
+    ['y0', 'y0n', 'y0'],
+    ['wx', 'wxn', 'wallX'],
+    ['wh', 'whn', 'wallH'],
+    ['ew', 'ewn', 'ew'],
+    ['eg', 'egn', 'eg'],
+    ['dt', 'dtn', 'dt'],
+    ['speed', 'speedn', 'speed']
+  ];
+
+  function resizeCanvas() {
+    const rect = canvas.getBoundingClientRect();
+    dpr = Math.max(1, Math.min(2.5, window.devicePixelRatio || 1));
+    canvas.width = Math.max(1, Math.round(rect.width * dpr));
+    canvas.height = Math.max(1, Math.round(rect.height * dpr));
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    draw();
+  }
+
+  function theory() {
+    const th = params.angle * Math.PI / 180;
+    const vx0 = params.v0 * Math.cos(th);
+    const vy0 = params.v0 * Math.sin(th);
+    const a = -0.5 * params.g;
+    const b = vy0;
+    const c = params.y0;
+    const disc = Math.max(0, b * b - 4 * a * c);
+    const roots = [
+      (-b - Math.sqrt(disc)) / (2 * a),
+      (-b + Math.sqrt(disc)) / (2 * a)
+    ].filter((t) => Number.isFinite(t) && t >= 0);
+    const tGround = roots.length ? Math.max(...roots) : 0;
+    const tApex = Math.max(0, vy0 / params.g);
+    return {
+      vx0,
+      vy0,
+      tGround,
+      range: params.x0 + vx0 * tGround,
+      apexX: params.x0 + vx0 * tApex,
+      apexY: params.y0 + vy0 * tApex - 0.5 * params.g * tApex * tApex,
+      tApex
+    };
+  }
+
+  function resetSimulation(keepView = false) {
+    const th = params.angle * Math.PI / 180;
+    state.t = 0;
+    state.x = params.x0;
+    state.y = params.y0;
+    state.vx = params.v0 * Math.cos(th);
+    state.vy = params.v0 * Math.sin(th);
+    state.playing = false;
+    state.path = [[state.x, state.y]];
+    state.hits = [];
+    state.lastEvent = null;
+    if (!keepView) fitView();
+    draw();
+  }
+
+  function integrate(dt) {
+    state.x += state.vx * dt;
+    state.y += state.vy * dt - 0.5 * params.g * dt * dt;
+    state.vy -= params.g * dt;
+    state.t += dt;
+  }
+
+  function groundEventTime(limit) {
+    if (params.g <= 0) return null;
+    if (state.y <= EPS && state.vy <= 0) return null;
+    const a = -0.5 * params.g;
+    const b = state.vy;
+    const c = state.y;
+    const disc = b * b - 4 * a * c;
+    if (disc < 0) return null;
+    const sqrt = Math.sqrt(disc);
+    const candidates = [
+      (-b - sqrt) / (2 * a),
+      (-b + sqrt) / (2 * a)
+    ].filter((t) => t > EPS && t <= limit + EPS);
+    for (const t of candidates.sort((a0, b0) => a0 - b0)) {
+      const vyAt = state.vy - params.g * t;
+      if (vyAt < 0) return Math.min(t, limit);
+    }
+    return null;
+  }
+
+  function wallEventTime(limit) {
+    if (!params.showWall || Math.abs(state.vx) < EPS) return null;
+    const t = (params.wallX - state.x) / state.vx;
+    if (!(t > EPS && t <= limit + EPS)) return null;
+    const yAt = state.y + state.vy * t - 0.5 * params.g * t * t;
+    if (yAt < -EPS || yAt > params.wallH + EPS) return null;
+    return Math.min(t, limit);
+  }
+
+  function nextEvent(limit) {
+    const ground = groundEventTime(limit);
+    const wall = wallEventTime(limit);
+    if (ground === null && wall === null) return null;
+    if (ground !== null && (wall === null || ground <= wall)) {
+      return { type: 'ground', time: ground };
+    }
+    return { type: 'wall', time: wall };
+  }
+
+  function pushPath() {
+    if (!params.trace) return;
+    const last = state.path.at(-1);
+    if (!last || Math.hypot(last[0] - state.x, last[1] - state.y) > 0.002) {
+      state.path.push([state.x, state.y]);
+    }
+    if (state.path.length > 3500) state.path.splice(0, state.path.length - 3500);
+  }
+
+  function handleCollision(type) {
+    const before = { vx: state.vx, vy: state.vy };
+    if (type === 'wall') {
+      state.x = params.wallX;
+      state.vx = -params.ew * state.vx;
+      state.x += Math.sign(state.vx || 1) * 1e-6;
+    } else {
+      state.y = 0;
+      if (params.stopOnGround || params.eg === 0) {
+        state.vx = 0;
+        state.vy = 0;
+        state.playing = false;
+      } else {
+        state.vy = -params.eg * state.vy;
+        if (Math.abs(state.vy) < REST_SPEED) {
+          state.vx = 0;
+          state.vy = 0;
+          state.playing = false;
+        } else {
+          state.y = 1e-6;
+        }
+      }
+    }
+    state.lastEvent = {
+      type,
+      t: state.t,
+      x: type === 'wall' ? params.wallX : state.x,
+      y: type === 'ground' ? 0 : state.y,
+      vx: before.vx,
+      vy: before.vy
+    };
+    state.hits.push(state.lastEvent);
+  }
+
+  function stepSimulation(dt, render = true) {
+    if (state.y <= EPS && state.vy <= 0 && Math.hypot(state.vx, state.vy) < REST_SPEED) {
+      state.y = 0;
+      state.vx = 0;
+      state.vy = 0;
+      state.playing = false;
+      if (render) draw();
+      return;
+    }
+    let remaining = Math.max(0, dt);
+    let guard = 0;
+    while (remaining > EPS && guard < 40) {
+      guard++;
+      const event = nextEvent(remaining);
+      if (!event) {
+        integrate(remaining);
+        pushPath();
+        remaining = 0;
+        break;
+      }
+      integrate(event.time);
+      if (event.type === 'ground') state.y = 0;
+      pushPath();
+      handleCollision(event.type);
+      pushPath();
+      remaining -= event.time;
+      if (!state.playing && event.type === 'ground') break;
+    }
+    if (state.t > 1200) state.playing = false;
+    if (render) draw();
+  }
+
+  function fitView() {
+    const th = theory();
+    const xs = [params.x0, th.range, th.apexX, state.x];
+    const ys = [0, params.y0, th.apexY, state.y];
+    if (params.showWall) {
+      xs.push(params.wallX);
+      ys.push(params.wallH);
+    }
+    const xmin = Math.min(...xs) - 2;
+    const xmax = Math.max(...xs) + 2;
+    const ymin = -1.5;
+    const ymax = Math.max(3, Math.max(...ys) + 2);
+    state.view = { xmin, xmax: Math.max(xmax, xmin + 8), ymin, ymax };
+  }
+
+  function worldToScreen(x, y) {
+    const width = canvas.width / dpr;
+    const height = canvas.height / dpr;
+    const v = state.view;
+    return [
+      (x - v.xmin) * width / (v.xmax - v.xmin),
+      height - (y - v.ymin) * height / (v.ymax - v.ymin)
+    ];
+  }
+
+  function niceStep(span) {
+    const raw = span / 8;
+    const pow = 10 ** Math.floor(Math.log10(raw));
+    const f = raw / pow;
+    if (f < 1.5) return pow;
+    if (f < 3.5) return 2 * pow;
+    if (f < 7.5) return 5 * pow;
+    return 10 * pow;
+  }
+
+  function drawGrid(width, height) {
+    if (!params.showGrid) return;
+    const v = state.view;
+    const sx = niceStep(v.xmax - v.xmin);
+    const sy = niceStep(v.ymax - v.ymin);
+    ctx.save();
+    ctx.strokeStyle = '#dbe5ee';
+    ctx.lineWidth = 1;
+    for (let x = Math.ceil(v.xmin / sx) * sx; x <= v.xmax; x += sx) {
+      const [px] = worldToScreen(x, 0);
+      ctx.beginPath();
+      ctx.moveTo(px, 0);
+      ctx.lineTo(px, height);
+      ctx.stroke();
+    }
+    for (let y = Math.ceil(v.ymin / sy) * sy; y <= v.ymax; y += sy) {
+      const [, py] = worldToScreen(0, y);
+      ctx.beginPath();
+      ctx.moveTo(0, py);
+      ctx.lineTo(width, py);
+      ctx.stroke();
+    }
+    const [, gy] = worldToScreen(0, 0);
+    ctx.strokeStyle = '#8ca0b2';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(0, gy);
+    ctx.lineTo(width, gy);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawTheoryPath() {
+    if (!params.showTheory) return;
+    const th = theory();
+    const count = 180;
+    ctx.save();
+    ctx.strokeStyle = 'rgba(46, 120, 200, 0.72)';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([6, 5]);
+    ctx.beginPath();
+    for (let i = 0; i <= count; i++) {
+      const t = th.tGround * i / count;
+      const x = params.x0 + th.vx0 * t;
+      const y = params.y0 + th.vy0 * t - 0.5 * params.g * t * t;
+      const [px, py] = worldToScreen(x, y);
+      if (i === 0) ctx.moveTo(px, py);
+      else ctx.lineTo(px, py);
+    }
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawPath() {
+    if (!params.trace || state.path.length < 2) return;
+    ctx.save();
+    ctx.strokeStyle = '#2f8f5b';
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    state.path.forEach(([x, y], index) => {
+      const [px, py] = worldToScreen(x, y);
+      if (index === 0) ctx.moveTo(px, py);
+      else ctx.lineTo(px, py);
+    });
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawWall() {
+    if (!params.showWall) return;
+    const [x0, y0] = worldToScreen(params.wallX, 0);
+    const [x1, y1] = worldToScreen(params.wallX, params.wallH);
+    ctx.save();
+    ctx.strokeStyle = '#c56d22';
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.moveTo(x0, y0);
+    ctx.lineTo(x1, y1);
+    ctx.stroke();
+    ctx.fillStyle = '#c56d22';
+    ctx.fillRect(x1 - 8, y1 - 3, 16, 6);
+    ctx.restore();
+  }
+
+  function drawMarker(x, y, color, radius = 5) {
+    const [px, py] = worldToScreen(x, y);
+    ctx.save();
+    ctx.fillStyle = color;
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(px, py, radius, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawLabel(lines, x, y, color = '#1b2430') {
+    const [px, py] = worldToScreen(x, y);
+    ctx.save();
+    ctx.font = '12px system-ui, -apple-system, Segoe UI, sans-serif';
+    const pad = 6;
+    const lineHeight = 16;
+    const w = Math.max(...lines.map((line) => ctx.measureText(line).width)) + pad * 2;
+    const h = lineHeight * lines.length + pad;
+    const width = canvas.width / dpr;
+    const height = canvas.height / dpr;
+    let bx = px + 10;
+    let by = py - h - 10;
+    if (bx + w > width - 6) bx = px - w - 10;
+    if (by < 6) by = py + 10;
+    if (by + h > height - 6) by = height - h - 6;
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.92)';
+    ctx.strokeStyle = '#d7e0e8';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.roundRect(bx, by, w, h, 6);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = color;
+    lines.forEach((line, index) => ctx.fillText(line, bx + pad, by + pad + 12 + index * lineHeight));
+    ctx.restore();
+  }
+
+  function draw() {
+    const width = canvas.width / dpr;
+    const height = canvas.height / dpr;
+    ctx.clearRect(0, 0, width, height);
+    drawGrid(width, height);
+    drawTheoryPath();
+    drawWall();
+    drawPath();
+
+    const th = theory();
+    drawMarker(params.x0, params.y0, '#1f6fb2', 4);
+    drawMarker(th.apexX, th.apexY, '#2e78c8', 4);
+    drawMarker(state.x, Math.max(0, state.y), '#c7433c', 6);
+    drawLabel(['最高点', `(${th.apexX.toFixed(2)}, ${th.apexY.toFixed(2)}) m`], th.apexX, th.apexY, '#174d7d');
+
+    state.hits.slice(-6).forEach((hit) => {
+      drawMarker(hit.x, hit.y, hit.type === 'wall' ? '#c56d22' : '#c7433c', 4);
+    });
+
+    updateReadouts();
+  }
+
+  function updateReadouts() {
+    const speed = Math.hypot(state.vx, state.vy);
+    const th = theory();
+    $('read-time').textContent = `${state.t.toFixed(2)} s`;
+    $('read-pos').textContent = `(${state.x.toFixed(2)}, ${Math.max(0, state.y).toFixed(2)}) m`;
+    $('read-vel').textContent = `${speed.toFixed(2)} m/s`;
+    $('read-theory').textContent = `R ${th.range.toFixed(2)} m`;
+    if (state.lastEvent) {
+      const label = state.lastEvent.type === 'wall' ? '壁' : '地面';
+      $('event-status').innerHTML = `衝突: <strong>${label}</strong> t=${state.lastEvent.t.toFixed(2)} s, (${state.lastEvent.x.toFixed(2)}, ${state.lastEvent.y.toFixed(2)})`;
+    } else {
+      $('event-status').innerHTML = '衝突: <strong>未発生</strong>';
+    }
+    $('play').textContent = state.playing ? '一時停止' : '再生';
+  }
+
+  function syncInputs() {
+    bindings.forEach(([rangeId, numberId, key]) => {
+      $(rangeId).value = params[key];
+      $(numberId).value = params[key];
+    });
+    $('trace').checked = params.trace;
+    $('showWall').checked = params.showWall;
+    $('showTheory').checked = params.showTheory;
+    $('showGrid').checked = params.showGrid;
+    $('stopOnGround').checked = params.stopOnGround;
+  }
+
+  function updateParam(key, value) {
+    params[key] = value;
+    resetSimulation(true);
+  }
+
+  function hookInputs() {
+    bindings.forEach(([rangeId, numberId, key]) => {
+      const range = $(rangeId);
+      const number = $(numberId);
+      range.addEventListener('input', () => {
+        const value = Number(range.value);
+        number.value = value;
+        updateParam(key, value);
+      });
+      number.addEventListener('input', () => {
+        const value = Number(number.value);
+        if (!Number.isFinite(value)) return;
+        range.value = value;
+        updateParam(key, value);
+      });
+      number.addEventListener('change', () => {
+        const value = Number(number.value);
+        range.value = value;
+        updateParam(key, value);
+      });
+    });
+    [
+      ['trace', 'trace'],
+      ['showWall', 'showWall'],
+      ['showTheory', 'showTheory'],
+      ['showGrid', 'showGrid'],
+      ['stopOnGround', 'stopOnGround']
+    ].forEach(([id, key]) => {
+      $(id).addEventListener('change', (event) => {
+        params[key] = event.target.checked;
+        resetSimulation(true);
+      });
+    });
+
+    document.querySelectorAll('[data-mode]').forEach((button) => {
+      button.addEventListener('click', () => setMode(button.dataset.mode));
+    });
+
+    $('play').addEventListener('click', () => {
+      state.playing = !state.playing;
+      draw();
+    });
+    $('step').addEventListener('click', () => stepSimulation(params.dt));
+    $('reset').addEventListener('click', () => resetSimulation(false));
+    $('fit').addEventListener('click', () => {
+      fitView();
+      draw();
+    });
+    $('zin').addEventListener('click', () => zoom(1.25));
+    $('zout').addEventListener('click', () => zoom(1 / 1.25));
+    $('panL').addEventListener('click', () => pan(-0.12, 0));
+    $('panR').addEventListener('click', () => pan(0.12, 0));
+    $('panU').addEventListener('click', () => pan(0, 0.12));
+    $('panD').addEventListener('click', () => pan(0, -0.12));
+
+    let dragging = false;
+    let last = null;
+    canvas.addEventListener('pointerdown', (event) => {
+      dragging = true;
+      last = { x: event.clientX, y: event.clientY };
+      canvas.setPointerCapture(event.pointerId);
+      canvas.classList.add('dragging');
+    });
+    canvas.addEventListener('pointermove', (event) => {
+      if (!dragging || !last) return;
+      const width = canvas.width / dpr;
+      const height = canvas.height / dpr;
+      const dx = event.clientX - last.x;
+      const dy = event.clientY - last.y;
+      const v = state.view;
+      const wx = dx * (v.xmax - v.xmin) / width;
+      const wy = dy * (v.ymax - v.ymin) / height;
+      state.view = { xmin: v.xmin - wx, xmax: v.xmax - wx, ymin: v.ymin + wy, ymax: v.ymax + wy };
+      last = { x: event.clientX, y: event.clientY };
+      draw();
+    });
+    canvas.addEventListener('pointerup', (event) => {
+      dragging = false;
+      last = null;
+      canvas.releasePointerCapture(event.pointerId);
+      canvas.classList.remove('dragging');
+    });
+  }
+
+  function setMode(mode) {
+    document.querySelectorAll('[data-mode]').forEach((button) => {
+      button.classList.toggle('is-active', button.dataset.mode === mode);
+    });
+    document.querySelector('[data-panel="basic"]').hidden = mode !== 'basic';
+    document.querySelector('[data-panel="detail"]').hidden = mode !== 'detail';
+  }
+
+  function zoom(scale) {
+    const v = state.view;
+    const cx = (v.xmin + v.xmax) / 2;
+    const cy = (v.ymin + v.ymax) / 2;
+    const w = (v.xmax - v.xmin) / scale;
+    const h = (v.ymax - v.ymin) / scale;
+    state.view = { xmin: cx - w / 2, xmax: cx + w / 2, ymin: cy - h / 2, ymax: cy + h / 2 };
+    draw();
+  }
+
+  function pan(rx, ry) {
+    const v = state.view;
+    const dx = rx * (v.xmax - v.xmin);
+    const dy = ry * (v.ymax - v.ymin);
+    state.view = { xmin: v.xmin + dx, xmax: v.xmax + dx, ymin: v.ymin + dy, ymax: v.ymax + dy };
+    draw();
+  }
+
+  let accumulator = 0;
+  const clock = new PhysicsSimClock.FixedStepClock({
+    step: 1 / 120,
+    onStep(dt) {
+      if (!state.playing) {
+        accumulator = 0;
+        return;
+      }
+      accumulator += dt * params.speed;
+      let guard = 0;
+      while (state.playing && accumulator > EPS && guard < 25) {
+        const h = Math.min(params.dt, accumulator);
+        stepSimulation(h, false);
+        accumulator -= h;
+        guard++;
+      }
+      if (!state.playing) accumulator = 0;
+    },
+    onRender() {
+      draw();
+    }
+  });
+
+  syncInputs();
+  hookInputs();
+  resetSimulation(false);
+  resizeCanvas();
+  window.addEventListener('resize', resizeCanvas);
+  clock.start();
+})();
+</script>
+</body>
+</html>
