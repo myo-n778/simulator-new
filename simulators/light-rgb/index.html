@@ -400,7 +400,7 @@
           </span>
           <span class="readout-row">
             <span class="cursor-swatch" id="cursorSwatch"></span>
-            <span id="cursorFormula">カーソル RGB(-, -, -)</span>
+            <span id="cursorFormula">カーソル RGB(-, -, -) / -</span>
           </span>
         </div>
       </div>
@@ -864,11 +864,11 @@
   }
   function updateCursorReadout(rgb){
     if (!rgb) {
-      els.cursorFormula.textContent = 'カーソル RGB(-, -, -)';
+      els.cursorFormula.textContent = 'カーソル RGB(-, -, -) / -';
       els.cursorSwatch.style.background = 'rgb(15,23,42)';
       return;
     }
-    els.cursorFormula.textContent = 'カーソル RGB(' + rgb.join(', ') + ')';
+    els.cursorFormula.textContent = 'カーソル RGB(' + rgb.join(', ') + ') / ' + nameColor(rgb);
     els.cursorSwatch.style.background = rgbCss(rgb);
   }
   function drawCursorMarker(x, y, rgb){
