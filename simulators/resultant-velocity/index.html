@@ -1,0 +1,1289 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>合成速度シミュレーター</title>
+<link rel="stylesheet" href="../../assets/common-sim.css">
+<script src="../../assets/sim-shell.js"></script>
+<script src="../../assets/sim-clock.js"></script>
+<style>
+  :root {
+    --bg: #f5f8fc;
+    --surface: #ffffff;
+    --surface-2: #f0f5fb;
+    --line: #cbd8e8;
+    --line-soft: rgba(64, 97, 134, .18);
+    --ink: #152234;
+    --muted: #637489;
+    --blue: #1d74d4;
+    --blue-soft: #e4f1ff;
+    --water: #8fd0eb;
+    --water-deep: #52a9d6;
+    --shore: #78ad59;
+    --orange: #f27a1a;
+    --green: #168847;
+    --red: #cf3d35;
+    --radius: 8px;
+  }
+
+  * { box-sizing: border-box; }
+
+  html,
+  body {
+    margin: 0;
+    min-height: 100%;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: ui-sans-serif, system-ui, -apple-system, "Hiragino Kaku Gothic ProN", Meiryo, sans-serif;
+    font-size: 14px;
+    line-height: 1.5;
+  }
+
+  button,
+  input,
+  select {
+    font: inherit;
+  }
+
+  .app {
+    width: min(1380px, calc(100% - 24px));
+    margin: 14px auto 24px;
+  }
+
+  .topbar,
+  .stage,
+  .controls {
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--surface);
+    box-shadow: 0 14px 34px rgba(47, 83, 122, .12);
+  }
+
+  .topbar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 12px;
+    align-items: center;
+    padding: 12px;
+    margin-bottom: 12px;
+  }
+
+  h1 {
+    margin: 0;
+    font-size: 22px;
+    line-height: 1.25;
+    letter-spacing: 0;
+  }
+
+  .subtitle {
+    margin: 4px 0 0;
+    color: var(--muted);
+    font-size: 13px;
+  }
+
+  .mode-switch,
+  .direction-switch {
+    display: grid;
+    grid-auto-flow: column;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    overflow: hidden;
+    background: var(--surface-2);
+  }
+
+  .mode-switch button,
+  .direction-switch button {
+    min-width: 108px;
+    min-height: 38px;
+    border: 0;
+    border-right: 1px solid var(--line);
+    background: transparent;
+    color: var(--ink);
+    cursor: pointer;
+    font-weight: 800;
+  }
+
+  .mode-switch button:last-child,
+  .direction-switch button:last-child {
+    border-right: 0;
+  }
+
+  .mode-switch button[aria-pressed="true"],
+  .direction-switch button[aria-pressed="true"] {
+    background: linear-gradient(180deg, #2482e3 0%, #176bc3 100%);
+    color: #ffffff;
+  }
+
+  .layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 340px;
+    gap: 12px;
+    align-items: start;
+  }
+
+  .stage {
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  .stage-head,
+  .controls-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    min-height: 50px;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .panel-title {
+    font-size: 14px;
+    font-weight: 900;
+  }
+
+  .formula {
+    color: var(--muted);
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+  .canvas-wrap {
+    padding: 12px;
+  }
+
+  canvas {
+    display: block;
+    width: 100%;
+    height: min(62vh, 610px);
+    min-height: 470px;
+    border: 1px solid var(--line-soft);
+    border-radius: var(--radius);
+    background: #d9eff9;
+    touch-action: none;
+  }
+
+  .scene-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 8px;
+    padding: 0 12px 12px;
+  }
+
+  .action-button,
+  .small-button {
+    min-height: 38px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--surface);
+    color: var(--ink);
+    cursor: pointer;
+    font-weight: 800;
+  }
+
+  .action-button.primary {
+    border-color: #125fae;
+    background: linear-gradient(180deg, #2179d2 0%, #1762ad 100%);
+    color: #ffffff;
+  }
+
+  .action-button:hover,
+  .action-button:focus-visible,
+  .small-button:hover,
+  .small-button:focus-visible,
+  .mode-switch button:hover,
+  .mode-switch button:focus-visible,
+  .direction-switch button:hover,
+  .direction-switch button:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(29, 116, 212, .18);
+  }
+
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 8px;
+    padding: 0 12px 12px;
+  }
+
+  .stat {
+    min-width: 0;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: linear-gradient(180deg, #ffffff 0%, #f5f9fe 100%);
+    padding: 8px 10px;
+  }
+
+  .stat-label {
+    overflow: hidden;
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 800;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .stat-value {
+    margin-top: 2px;
+    color: var(--ink);
+    font-size: 17px;
+    font-variant-numeric: tabular-nums;
+    font-weight: 900;
+    line-height: 1.2;
+    white-space: nowrap;
+  }
+
+  .stat-value.warn {
+    color: var(--red);
+  }
+
+  .controls {
+    position: sticky;
+    top: 72px;
+  }
+
+  .control-body {
+    display: grid;
+    gap: 14px;
+    padding: 12px;
+  }
+
+  .control-section {
+    display: grid;
+    gap: 9px;
+    padding-bottom: 14px;
+    border-bottom: 1px solid var(--line-soft);
+  }
+
+  .control-section:last-child {
+    padding-bottom: 0;
+    border-bottom: 0;
+  }
+
+  .section-title {
+    color: #24364b;
+    font-size: 12px;
+    font-weight: 900;
+  }
+
+  .range-row {
+    display: grid;
+    grid-template-columns: 98px minmax(0, 1fr) 72px;
+    gap: 8px;
+    align-items: center;
+  }
+
+  .range-row label {
+    color: var(--ink);
+    font-size: 12px;
+    font-weight: 800;
+  }
+
+  input[type="range"] {
+    width: 100%;
+    accent-color: var(--blue);
+  }
+
+  output {
+    justify-self: end;
+    min-width: 68px;
+    padding: 4px 7px;
+    border: 1px solid var(--line);
+    border-radius: 7px;
+    background: #fbfdff;
+    color: var(--ink);
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+    font-weight: 800;
+    text-align: right;
+  }
+
+  .toggle-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+
+  .check {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 34px;
+    padding: 6px 8px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: #fbfdff;
+    color: var(--ink);
+    font-size: 12px;
+    font-weight: 800;
+  }
+
+  .help {
+    padding: 9px 10px;
+    border: 1px solid #b7d2f1;
+    border-radius: var(--radius);
+    background: var(--blue-soft);
+    color: #1e4f85;
+    font-size: 12px;
+    line-height: 1.6;
+  }
+
+  .component-box {
+    display: grid;
+    gap: 5px;
+    padding: 8px 9px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: #fbfdff;
+    color: var(--muted);
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .component-line {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .component-line b {
+    color: var(--ink);
+  }
+
+  @media (max-width: 980px) {
+    .layout {
+      grid-template-columns: 1fr;
+    }
+
+    .controls {
+      position: static;
+    }
+
+    .stats {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  @media (max-width: 680px) {
+    .app {
+      width: min(100% - 16px, 1380px);
+      margin-top: 10px;
+    }
+
+    .topbar {
+      grid-template-columns: 1fr;
+    }
+
+    h1 {
+      font-size: 18px;
+    }
+
+    .mode-switch {
+      width: 100%;
+    }
+
+    .mode-switch button,
+    .direction-switch button {
+      min-width: 0;
+    }
+
+    canvas {
+      height: 420px;
+      min-height: 420px;
+    }
+
+    .stage-head,
+    .controls-head {
+      align-items: flex-start;
+      flex-direction: column;
+    }
+
+    .formula {
+      white-space: normal;
+    }
+
+    .scene-actions,
+    .stats,
+    .toggle-row {
+      grid-template-columns: 1fr;
+    }
+
+    .range-row {
+      grid-template-columns: 78px minmax(0, 1fr) 64px;
+    }
+  }
+</style>
+</head>
+<body>
+<script>
+  PhysicsSimShell.create({
+    title: '合成速度',
+    subtitle: '川を進む船で、速度ベクトルの和を確認する',
+    basePath: '../../'
+  });
+</script>
+
+<main class="app">
+  <section class="topbar" aria-label="シミュレーターの設定">
+    <div>
+      <h1>合成速度シミュレーター</h1>
+      <p class="subtitle">船の速度と川の流れを足し合わせ、地面から見た進み方を1次元・2次元で比べます。</p>
+    </div>
+    <div class="mode-switch" role="group" aria-label="表示モード">
+      <button type="button" data-mode="one" aria-pressed="false">1次元</button>
+      <button type="button" data-mode="two" aria-pressed="true">2次元</button>
+    </div>
+  </section>
+
+  <div class="layout">
+    <section class="stage" aria-label="シミュレーション画面">
+      <div class="stage-head">
+        <div>
+          <div class="panel-title" id="sceneTitle">2次元: 川を横切る船</div>
+          <div class="formula" id="sceneFormula">v = (v_b cosθ + v_c, v_b sinθ)</div>
+        </div>
+        <div class="formula" id="timeLabel">t = 0.00 s</div>
+      </div>
+      <div class="canvas-wrap">
+        <canvas id="scene" width="1200" height="720"></canvas>
+      </div>
+      <div class="scene-actions">
+        <button type="button" id="playToggle" class="action-button primary">一時停止</button>
+        <button type="button" id="stepButton" class="action-button">1コマ進める</button>
+        <button type="button" id="resetButton" class="action-button">リセット</button>
+      </div>
+      <div class="stats" id="stats" aria-live="polite"></div>
+    </section>
+
+    <aside class="controls" aria-label="パラメーター">
+      <div class="controls-head">
+        <div class="panel-title">パラメーター</div>
+        <div class="formula">単位: m, s, m/s</div>
+      </div>
+      <div class="control-body">
+        <section class="control-section">
+          <div class="section-title">共通</div>
+          <div class="range-row">
+            <label for="boatSpeed">船の速さ</label>
+            <input id="boatSpeed" type="range" min="0.5" max="10" step="0.1" value="3">
+            <output id="boatSpeedOut">3.0</output>
+          </div>
+          <div class="range-row">
+            <label for="currentSpeed">川の流速</label>
+            <input id="currentSpeed" type="range" min="0" max="6" step="0.1" value="1.2">
+            <output id="currentSpeedOut">1.2</output>
+          </div>
+          <div class="range-row">
+            <label for="playback">再生速度</label>
+            <input id="playback" type="range" min="0.25" max="4" step="0.25" value="1">
+            <output id="playbackOut">1.00</output>
+          </div>
+        </section>
+
+        <section class="control-section" id="oneControls">
+          <div class="section-title">1次元</div>
+          <div class="direction-switch" role="group" aria-label="進行方向">
+            <button type="button" data-direction="upstream" aria-pressed="false">川上へ</button>
+            <button type="button" data-direction="downstream" aria-pressed="true">川下へ</button>
+          </div>
+          <div class="range-row">
+            <label for="riverDistance">移動距離</label>
+            <input id="riverDistance" type="range" min="20" max="300" step="5" value="100">
+            <output id="riverDistanceOut">100</output>
+          </div>
+        </section>
+
+        <section class="control-section" id="twoControls">
+          <div class="section-title">2次元</div>
+          <div class="direction-switch" role="group" aria-label="渡る向き">
+            <button type="button" data-crossing="forward" aria-pressed="true">下岸から</button>
+            <button type="button" data-crossing="backward" aria-pressed="false">対岸から</button>
+          </div>
+          <div class="range-row">
+            <label for="riverWidth">川幅 W</label>
+            <input id="riverWidth" type="range" min="20" max="200" step="5" value="100">
+            <output id="riverWidthOut">100</output>
+          </div>
+          <div class="range-row">
+            <label for="angle">角度 θ</label>
+            <input id="angle" type="range" min="0" max="180" step="1" value="90">
+            <output id="angleOut">90°</output>
+          </div>
+        </section>
+
+        <section class="control-section">
+          <div class="section-title">表示</div>
+          <div class="toggle-row">
+            <label class="check"><input id="showVectors" type="checkbox" checked> ベクトル</label>
+            <label class="check"><input id="showTrail" type="checkbox" checked> 軌跡</label>
+            <label class="check"><input id="showGhost" type="checkbox" checked> 流れなし比較</label>
+          </div>
+          <div class="component-box" id="components"></div>
+          <div class="help" id="hint">
+            角度 θ は、川の流れの向きから測った船の向きです。90°で真横、90°より大きいと上流側へ向けます。
+          </div>
+        </section>
+      </div>
+    </aside>
+  </div>
+</main>
+
+<script>
+(() => {
+  'use strict';
+
+  const $ = (id) => document.getElementById(id);
+  const canvas = $('scene');
+  const ctx = canvas.getContext('2d');
+  const statsEl = $('stats');
+  const componentsEl = $('components');
+  const sceneTitleEl = $('sceneTitle');
+  const sceneFormulaEl = $('sceneFormula');
+  const timeLabelEl = $('timeLabel');
+  const playToggle = $('playToggle');
+  const stepButton = $('stepButton');
+  const resetButton = $('resetButton');
+  const modeButtons = [...document.querySelectorAll('[data-mode]')];
+  const directionButtons = [...document.querySelectorAll('[data-direction]')];
+  const crossingButtons = [...document.querySelectorAll('[data-crossing]')];
+
+  const controls = {
+    boatSpeed: $('boatSpeed'),
+    currentSpeed: $('currentSpeed'),
+    playback: $('playback'),
+    riverDistance: $('riverDistance'),
+    riverWidth: $('riverWidth'),
+    angle: $('angle'),
+    showVectors: $('showVectors'),
+    showTrail: $('showTrail'),
+    showGhost: $('showGhost')
+  };
+
+  const outputs = {
+    boatSpeed: $('boatSpeedOut'),
+    currentSpeed: $('currentSpeedOut'),
+    playback: $('playbackOut'),
+    riverDistance: $('riverDistanceOut'),
+    riverWidth: $('riverWidthOut'),
+    angle: $('angleOut')
+  };
+
+  const state = {
+    mode: 'two',
+    direction: 'downstream',
+    crossing: 'forward',
+    running: true,
+    time: 0,
+    dpr: 1,
+    params: {
+      boatSpeed: 3,
+      currentSpeed: 1.2,
+      playback: 1,
+      riverDistance: 100,
+      riverWidth: 100,
+      angle: 90,
+      showVectors: true,
+      showTrail: true,
+      showGhost: true
+    }
+  };
+
+  const clock = new PhysicsSimClock.FixedStepClock({
+    step: 1 / 60,
+    maxFrameTime: 0.1,
+    maxStepsPerFrame: 8,
+    onStep: (dt) => {
+      if (state.running) {
+        state.time += dt * state.params.playback;
+        const limit = getLoopLimit();
+        if (state.time > limit) state.time = 0;
+      }
+    },
+    onRender: () => draw()
+  });
+
+  function clamp(value, min, max) {
+    return Math.max(min, Math.min(max, value));
+  }
+
+  function fmt(value, digits = 2) {
+    if (!Number.isFinite(value)) return '到達不可';
+    return value.toFixed(digits);
+  }
+
+  function signed(value, digits = 2) {
+    if (!Number.isFinite(value)) return '到達不可';
+    return `${value >= 0 ? '+' : ''}${value.toFixed(digits)}`;
+  }
+
+  function readParams() {
+    state.params.boatSpeed = Number(controls.boatSpeed.value);
+    state.params.currentSpeed = Number(controls.currentSpeed.value);
+    state.params.playback = Number(controls.playback.value);
+    state.params.riverDistance = Number(controls.riverDistance.value);
+    state.params.riverWidth = Number(controls.riverWidth.value);
+    state.params.angle = Number(controls.angle.value);
+    state.params.showVectors = controls.showVectors.checked;
+    state.params.showTrail = controls.showTrail.checked;
+    state.params.showGhost = controls.showGhost.checked;
+  }
+
+  function syncOutputs() {
+    const p = state.params;
+    outputs.boatSpeed.textContent = `${p.boatSpeed.toFixed(1)}`;
+    outputs.currentSpeed.textContent = `${p.currentSpeed.toFixed(1)}`;
+    outputs.playback.textContent = `${p.playback.toFixed(2)}x`;
+    outputs.riverDistance.textContent = `${p.riverDistance.toFixed(0)}`;
+    outputs.riverWidth.textContent = `${p.riverWidth.toFixed(0)}`;
+    outputs.angle.textContent = `${p.angle.toFixed(0)}°`;
+  }
+
+  function setMode(mode) {
+    state.mode = mode;
+    state.time = 0;
+    modeButtons.forEach((button) => {
+      button.setAttribute('aria-pressed', String(button.dataset.mode === mode));
+    });
+    $('oneControls').style.display = mode === 'one' ? 'grid' : 'none';
+    $('twoControls').style.display = mode === 'two' ? 'grid' : 'none';
+    updateLabels();
+    draw();
+  }
+
+  function setDirection(direction) {
+    state.direction = direction;
+    state.time = 0;
+    directionButtons.forEach((button) => {
+      button.setAttribute('aria-pressed', String(button.dataset.direction === direction));
+    });
+    draw();
+  }
+
+  function setCrossing(crossing) {
+    state.crossing = crossing;
+    state.time = 0;
+    crossingButtons.forEach((button) => {
+      button.setAttribute('aria-pressed', String(button.dataset.crossing === crossing));
+    });
+    updateLabels();
+    draw();
+  }
+
+  function setRunning(running) {
+    state.running = running;
+    playToggle.textContent = running ? '一時停止' : '再生';
+    playToggle.classList.toggle('primary', running);
+  }
+
+  function oneDimensionalValues() {
+    const p = state.params;
+    const downstreamSpeed = p.boatSpeed + p.currentSpeed;
+    const upstreamSpeed = p.boatSpeed - p.currentSpeed;
+    const selectedSpeed = state.direction === 'downstream' ? downstreamSpeed : upstreamSpeed;
+    const travelTime = selectedSpeed > 0 ? p.riverDistance / selectedSpeed : Infinity;
+    const ghostTravelTime = p.riverDistance / p.boatSpeed;
+    const groundVelocity = state.direction === 'downstream'
+      ? downstreamSpeed
+      : p.currentSpeed - p.boatSpeed;
+    const ghostVelocity = state.direction === 'downstream' ? p.boatSpeed : -p.boatSpeed;
+    return { downstreamSpeed, upstreamSpeed, selectedSpeed, travelTime, groundVelocity, ghostTravelTime, ghostVelocity };
+  }
+
+  function twoDimensionalValues() {
+    const p = state.params;
+    const rad = p.angle * Math.PI / 180;
+    const crossingSign = state.crossing === 'forward' ? 1 : -1;
+    const boatX = p.boatSpeed * Math.cos(rad);
+    const crossSpeed = p.boatSpeed * Math.sin(rad);
+    const boatY = crossingSign * crossSpeed;
+    const resultX = p.currentSpeed + boatX;
+    const resultY = boatY;
+    const resultSpeed = Math.hypot(resultX, resultY);
+    const crossTime = crossSpeed > 0.0001 ? p.riverWidth / crossSpeed : Infinity;
+    const drift = Number.isFinite(crossTime) ? resultX * crossTime : Infinity;
+    const ghostDrift = Number.isFinite(crossTime) ? boatX * crossTime : Infinity;
+    const currentOnlyDrift = Number.isFinite(crossTime) ? p.currentSpeed * crossTime : Infinity;
+    const noDriftAngle = p.currentSpeed <= p.boatSpeed
+      ? Math.acos(-p.currentSpeed / p.boatSpeed) * 180 / Math.PI
+      : Infinity;
+    return { boatX, boatY, crossSpeed, crossingSign, resultX, resultY, resultSpeed, crossTime, drift, ghostDrift, currentOnlyDrift, noDriftAngle };
+  }
+
+  function getLoopLimit() {
+    if (state.mode === 'one') {
+      const values = oneDimensionalValues();
+      return Number.isFinite(values.travelTime) ? values.travelTime + 1.2 : 12;
+    }
+    const values = twoDimensionalValues();
+    return Number.isFinite(values.crossTime) ? values.crossTime + 1.2 : 12;
+  }
+
+  function updateLabels() {
+    if (state.mode === 'one') {
+      sceneTitleEl.textContent = '1次元: 川上・川下の移動';
+      sceneFormulaEl.textContent = '川下: v = v_b + v_c / 川上: v = v_b - v_c';
+      $('hint').textContent = '川下へ進むと船の速さと川の流れは同じ向き、川上へ進むと逆向きです。川の流速が船より大きいと川上へは進めません。';
+    } else {
+      sceneTitleEl.textContent = '2次元: 川を横切る船';
+      sceneFormulaEl.textContent = state.crossing === 'forward'
+        ? '下岸から: v = (v_b cosθ + v_c, v_b sinθ)'
+        : '対岸から: v = (v_b cosθ + v_c, -v_b sinθ)';
+      $('hint').textContent = '半透明の船は川の流れがない場合の比較です。角度 θ は川の流れの向きから測り、90°で対岸へ真横、90°より大きいと上流側へ向けます。';
+    }
+  }
+
+  function updateStats() {
+    const p = state.params;
+    const items = [];
+    if (state.mode === 'one') {
+      const v = oneDimensionalValues();
+      const upstreamWarn = v.upstreamSpeed <= 0;
+      items.push(
+        ['川上へ進む速さ', upstreamWarn ? '到達不可' : `${fmt(v.upstreamSpeed)} m/s`, upstreamWarn],
+        ['川下へ進む速さ', `${fmt(v.downstreamSpeed)} m/s`, false],
+        ['選択中の所要時間', Number.isFinite(v.travelTime) ? `${fmt(v.travelTime)} s` : '到達不可', !Number.isFinite(v.travelTime)],
+        ['流れなし時間', `${fmt(v.ghostTravelTime)} s`, false],
+        ['地面から見た速度', `${signed(v.groundVelocity)} m/s`, v.groundVelocity < 0],
+        ['移動距離', `${p.riverDistance.toFixed(0)} m`, false]
+      );
+      componentsEl.innerHTML = [
+        componentLine('船の速度', state.direction === 'downstream' ? `+${p.boatSpeed.toFixed(2)} m/s` : `-${p.boatSpeed.toFixed(2)} m/s`),
+        componentLine('川の流れ', `+${p.currentSpeed.toFixed(2)} m/s`),
+        componentLine('合成速度', `${signed(v.groundVelocity)} m/s`)
+      ].join('');
+    } else {
+      const v = twoDimensionalValues();
+      const noCross = !Number.isFinite(v.crossTime);
+      items.push(
+        ['対岸までの時間', noCross ? '到達不可' : `${fmt(v.crossTime)} s`, noCross],
+        ['流される距離', noCross ? '到達不可' : `${signed(v.drift)} m`, false],
+        ['流れの差', noCross ? '到達不可' : `${signed(v.currentOnlyDrift)} m`, false],
+        ['合成速度の大きさ', `${fmt(v.resultSpeed)} m/s`, false],
+        ['下流成分', `${signed(v.resultX)} m/s`, v.resultX < 0],
+        ['対岸成分', `${fmt(v.crossSpeed)} m/s`, noCross]
+      );
+      componentsEl.innerHTML = [
+        componentLine('船の成分', `(${v.boatX.toFixed(2)}, ${v.boatY.toFixed(2)}) m/s`),
+        componentLine('川の成分', `(${p.currentSpeed.toFixed(2)}, 0.00) m/s`),
+        componentLine('合成速度', `(${v.resultX.toFixed(2)}, ${v.resultY.toFixed(2)}) m/s`),
+        componentLine('流れなし到達点', `${signed(v.ghostDrift)} m`),
+        componentLine('真正面へ渡る角度', Number.isFinite(v.noDriftAngle) ? `${v.noDriftAngle.toFixed(1)}°` : '条件なし')
+      ].join('');
+    }
+
+    statsEl.innerHTML = items.map(([label, value, warn]) => `
+      <div class="stat">
+        <div class="stat-label">${label}</div>
+        <div class="stat-value${warn ? ' warn' : ''}">${value}</div>
+      </div>
+    `).join('');
+  }
+
+  function componentLine(label, value) {
+    return `<div class="component-line"><span>${label}</span><b>${value}</b></div>`;
+  }
+
+  function resizeCanvas() {
+    const rect = canvas.getBoundingClientRect();
+    state.dpr = Math.max(1, Math.min(2.5, window.devicePixelRatio || 1));
+    canvas.width = Math.round(rect.width * state.dpr);
+    canvas.height = Math.round(rect.height * state.dpr);
+    ctx.setTransform(state.dpr, 0, 0, state.dpr, 0, 0);
+    draw();
+  }
+
+  function drawBackground(w, h, horizontal = true) {
+    ctx.clearRect(0, 0, w, h);
+    const waterGrad = ctx.createLinearGradient(0, 0, 0, h);
+    waterGrad.addColorStop(0, '#aee5f4');
+    waterGrad.addColorStop(.55, '#73c4e4');
+    waterGrad.addColorStop(1, '#55afd8');
+    ctx.fillStyle = waterGrad;
+    ctx.fillRect(0, 0, w, h);
+
+    ctx.save();
+    ctx.globalAlpha = .2;
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 1;
+    for (let y = 28; y < h; y += 34) {
+      ctx.beginPath();
+      for (let x = -40; x <= w + 40; x += 28) {
+        const wave = Math.sin((x + y) * .025) * 5;
+        if (x === -40) ctx.moveTo(x, y + wave);
+        else ctx.lineTo(x, y + wave);
+      }
+      ctx.stroke();
+    }
+    ctx.restore();
+
+    ctx.fillStyle = '#76a95c';
+    if (horizontal) {
+      ctx.fillRect(0, 0, w, 58);
+      ctx.fillRect(0, h - 58, w, 58);
+      drawPebbles(0, 52, w, true);
+      drawPebbles(0, h - 62, w, true);
+    } else {
+      ctx.fillRect(0, 0, w, 52);
+      ctx.fillRect(0, h - 64, w, 64);
+      drawPebbles(0, 48, w, true);
+      drawPebbles(0, h - 68, w, true);
+    }
+  }
+
+  function drawPebbles(x0, y0, width, horizontal) {
+    ctx.save();
+    ctx.fillStyle = '#8d9386';
+    ctx.strokeStyle = 'rgba(56, 64, 58, .25)';
+    for (let i = 0; i < width / 28; i += 1) {
+      const x = x0 + i * 28 + ((i * 17) % 11);
+      const y = y0 + ((i * 13) % 8);
+      ctx.beginPath();
+      if (horizontal) ctx.ellipse(x, y, 12, 5, 0, 0, Math.PI * 2);
+      else ctx.ellipse(x, y, 5, 12, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  function drawCurrentArrows(w, h) {
+    ctx.save();
+    ctx.strokeStyle = '#1d74d4';
+    ctx.fillStyle = '#1d74d4';
+    ctx.lineWidth = 3;
+    ctx.globalAlpha = .72;
+    const ys = [h * .28, h * .42, h * .56, h * .70];
+    ys.forEach((y) => drawArrow(w * .08, y, w * .20, y, '', '#1d74d4', 3));
+    ctx.globalAlpha = 1;
+    drawLabel('川の流れ', w * .07, h * .22, '#1d74d4');
+    drawLabel(`${state.params.currentSpeed.toFixed(2)} m/s`, w * .07, h * .22 + 20, '#1d74d4');
+    ctx.restore();
+  }
+
+  function drawLabel(text, x, y, color = '#152234', align = 'left') {
+    ctx.save();
+    ctx.font = '700 13px system-ui, sans-serif';
+    ctx.textAlign = align;
+    ctx.textBaseline = 'middle';
+    const m = ctx.measureText(text);
+    const pad = 5;
+    const bx = align === 'center' ? x - m.width / 2 - pad : x - pad;
+    ctx.fillStyle = 'rgba(255, 255, 255, .78)';
+    ctx.strokeStyle = 'rgba(95, 117, 139, .25)';
+    ctx.lineWidth = 1;
+    roundRect(bx, y - 11, m.width + pad * 2, 22, 6);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = color;
+    ctx.fillText(text, x, y);
+    ctx.restore();
+  }
+
+  function roundRect(x, y, w, h, r) {
+    const rr = Math.min(r, w / 2, h / 2);
+    ctx.beginPath();
+    ctx.moveTo(x + rr, y);
+    ctx.arcTo(x + w, y, x + w, y + h, rr);
+    ctx.arcTo(x + w, y + h, x, y + h, rr);
+    ctx.arcTo(x, y + h, x, y, rr);
+    ctx.arcTo(x, y, x + w, y, rr);
+    ctx.closePath();
+  }
+
+  function drawArrow(x1, y1, x2, y2, label, color, width = 4, dashed = false) {
+    const angle = Math.atan2(y2 - y1, x2 - x1);
+    ctx.save();
+    ctx.strokeStyle = color;
+    ctx.fillStyle = color;
+    ctx.lineWidth = width;
+    ctx.lineCap = 'round';
+    if (dashed) ctx.setLineDash([7, 7]);
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.beginPath();
+    ctx.moveTo(x2, y2);
+    ctx.lineTo(x2 - 13 * Math.cos(angle - .45), y2 - 13 * Math.sin(angle - .45));
+    ctx.lineTo(x2 - 13 * Math.cos(angle + .45), y2 - 13 * Math.sin(angle + .45));
+    ctx.closePath();
+    ctx.fill();
+    if (label) {
+      const lx = x2 + 10 * Math.cos(angle - .7);
+      const ly = y2 + 18 * Math.sin(angle - .7);
+      drawLabel(label, lx, ly, color);
+    }
+    ctx.restore();
+  }
+
+  function drawBoat(x, y, angle, options = {}) {
+    const ghost = options.ghost === true;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(angle);
+    ctx.globalAlpha = ghost ? .48 : 1;
+    ctx.shadowColor = ghost ? 'rgba(20, 45, 70, .12)' : 'rgba(20, 45, 70, .25)';
+    ctx.shadowBlur = ghost ? 5 : 10;
+    ctx.shadowOffsetY = 3;
+    ctx.fillStyle = ghost ? '#f8fbff' : '#f7f1e6';
+    ctx.strokeStyle = ghost ? '#7a8999' : '#223348';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(28, 0);
+    ctx.quadraticCurveTo(10, -18, -28, -12);
+    ctx.quadraticCurveTo(-38, 0, -28, 12);
+    ctx.quadraticCurveTo(10, 18, 28, 0);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = ghost ? '#b8c3cf' : '#8d5b32';
+    ctx.fillRect(-16, -8, 12, 16);
+    ctx.fillRect(2, -9, 13, 18);
+    ctx.strokeStyle = ghost ? '#8391a1' : '#5b3b24';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(-16, -8, 12, 16);
+    ctx.strokeRect(2, -9, 13, 18);
+    ctx.restore();
+  }
+
+  function drawVectorKey(x, y, entries) {
+    ctx.save();
+    ctx.fillStyle = 'rgba(255, 255, 255, .72)';
+    ctx.strokeStyle = 'rgba(95, 117, 139, .22)';
+    roundRect(x - 12, y - 20, 174, entries.length * 22 + 28, 8);
+    ctx.fill();
+    ctx.stroke();
+    ctx.font = '800 12px system-ui, sans-serif';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#152234';
+    ctx.fillText('固定ベクトル図', x, y - 5);
+    entries.forEach((entry, index) => {
+      const yy = y + 18 + index * 22;
+      ctx.strokeStyle = entry.color;
+      ctx.fillStyle = entry.color;
+      ctx.lineWidth = 4;
+      ctx.beginPath();
+      ctx.moveTo(x, yy);
+      ctx.lineTo(x + 26, yy);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(x + 29, yy);
+      ctx.lineTo(x + 20, yy - 5);
+      ctx.lineTo(x + 20, yy + 5);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = '#344457';
+      ctx.font = '700 12px system-ui, sans-serif';
+      ctx.fillText(entry.label, x + 40, yy);
+    });
+    ctx.restore();
+  }
+
+  function drawOneDimensional(w, h) {
+    const p = state.params;
+    const values = oneDimensionalValues();
+    drawBackground(w, h, true);
+    drawCurrentArrows(w, h);
+
+    const y = h * .52;
+    const left = w * .18;
+    const right = w * .82;
+    const span = right - left;
+    const startX = state.direction === 'downstream' ? left : right;
+    const goalX = state.direction === 'downstream' ? right : left;
+    const groundVelocity = values.groundVelocity;
+    let boatX;
+    if (Number.isFinite(values.travelTime)) {
+      const progress = clamp(state.time / values.travelTime, 0, 1);
+      boatX = startX + (goalX - startX) * progress;
+    } else {
+      const drift = (groundVelocity * state.time / p.riverDistance) * span;
+      boatX = clamp(startX + drift, 58, w - 58);
+    }
+
+    ctx.save();
+    ctx.strokeStyle = 'rgba(24, 42, 64, .55)';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([7, 7]);
+    ctx.beginPath();
+    ctx.moveTo(left, y + 56);
+    ctx.lineTo(right, y + 56);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    drawLabel('出発点', startX, y + 88, '#152234', 'center');
+    drawLabel('目標', goalX, y + 88, '#152234', 'center');
+    ctx.fillStyle = '#152234';
+    ctx.beginPath();
+    ctx.arc(startX, y + 56, 5, 0, Math.PI * 2);
+    ctx.arc(goalX, y + 56, 5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+
+    if (p.showTrail) {
+      ctx.save();
+      ctx.strokeStyle = '#176bc3';
+      ctx.lineWidth = 3;
+      ctx.setLineDash([8, 7]);
+      ctx.beginPath();
+      ctx.moveTo(startX, y);
+      ctx.lineTo(boatX, y);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    const boatAngle = state.direction === 'downstream' ? 0 : Math.PI;
+
+    if (p.showGhost) {
+      const ghostTime = values.ghostTravelTime;
+      const ghostProgress = clamp(state.time / ghostTime, 0, 1);
+      const ghostX = startX + (goalX - startX) * ghostProgress;
+      if (p.showTrail) {
+        ctx.save();
+        ctx.strokeStyle = '#64748b';
+        ctx.lineWidth = 2;
+        ctx.globalAlpha = .55;
+        ctx.setLineDash([5, 7]);
+        ctx.beginPath();
+        ctx.moveTo(startX, y + 28);
+        ctx.lineTo(ghostX, y + 28);
+        ctx.stroke();
+        ctx.restore();
+      }
+      drawBoat(ghostX, y + 28, boatAngle, { ghost: true });
+      drawLabel('流れなし', ghostX, y + 58, '#64748b', 'center');
+    }
+
+    drawBoat(boatX, y, boatAngle);
+
+    if (p.showVectors) {
+      const compactVectors = w < 520;
+      const vectorOriginX = compactVectors ? w * .22 : w * .28;
+      const vectorBaseY = compactVectors ? h * .26 : Math.max(112, h * .22);
+      const maxSpeed = Math.max(p.boatSpeed, p.currentSpeed, Math.abs(groundVelocity), 1);
+      const vectorScale = compactVectors
+        ? Math.min(24, Math.max(12, w * .18 / maxSpeed))
+        : Math.min(38, Math.max(16, w * .23 / maxSpeed));
+      const boatDir = state.direction === 'downstream' ? 1 : -1;
+      if (!compactVectors) drawLabel('固定ベクトル図', vectorOriginX, vectorBaseY - 28, '#152234');
+      drawArrow(vectorOriginX, vectorBaseY, vectorOriginX + p.boatSpeed * vectorScale * boatDir, vectorBaseY, '', '#f27a1a', 4);
+      drawArrow(vectorOriginX, vectorBaseY + 28, vectorOriginX + p.currentSpeed * vectorScale, vectorBaseY + 28, '', '#1d74d4', 4);
+      drawArrow(vectorOriginX, vectorBaseY + 56, vectorOriginX + groundVelocity * vectorScale, vectorBaseY + 56, '', values.selectedSpeed > 0 ? '#168847' : '#cf3d35', 5);
+    }
+
+    if (state.direction === 'upstream' && values.upstreamSpeed <= 0) {
+      drawLabel('川の流れが強く、川上へは到達できません', w * .5, h * .24, '#cf3d35', 'center');
+    }
+  }
+
+  function drawTwoDimensional(w, h) {
+    const p = state.params;
+    const values = twoDimensionalValues();
+    drawBackground(w, h, false);
+    drawCurrentArrows(w, h);
+
+    const marginLeft = 70;
+    const marginRight = 52;
+    const topBank = 52;
+    const bottomBank = h - 64;
+    const riverHeight = bottomBank - topBank;
+    const previewX = values.resultX * 10;
+    const previewGhostX = values.boatX * 10;
+    const minX = Math.min(
+      -30,
+      Number.isFinite(values.drift) ? values.drift : previewX,
+      Number.isFinite(values.ghostDrift) ? values.ghostDrift : previewGhostX,
+      0
+    );
+    const maxX = Math.max(
+      55,
+      Number.isFinite(values.drift) ? values.drift : previewX,
+      Number.isFinite(values.ghostDrift) ? values.ghostDrift : previewGhostX,
+      p.currentSpeed * 10
+    );
+    const worldWidth = maxX - minX;
+    const xScale = (w - marginLeft - marginRight) / worldWidth;
+    const yScale = riverHeight / p.riverWidth;
+    const mapX = (x) => marginLeft + (x - minX) * xScale;
+    const mapY = (y) => bottomBank - y * yScale;
+    const startWorldY = state.crossing === 'forward' ? 0 : p.riverWidth;
+    const goalWorldY = state.crossing === 'forward' ? p.riverWidth : 0;
+    const start = { x: mapX(0), y: mapY(startWorldY) };
+    const crossable = Number.isFinite(values.crossTime);
+    const localTime = crossable ? Math.min(state.time, values.crossTime) : state.time;
+    const worldX = crossable
+      ? values.resultX * localTime
+      : values.resultX * Math.min(localTime, 10);
+    const worldY = crossable
+      ? startWorldY + values.resultY * localTime
+      : clamp(startWorldY + values.resultY * Math.min(localTime, 10), 0, p.riverWidth);
+    const ghostWorldX = crossable
+      ? values.boatX * localTime
+      : values.boatX * Math.min(localTime, 10);
+    const ghostWorldY = crossable
+      ? startWorldY + values.boatY * localTime
+      : clamp(startWorldY + values.boatY * Math.min(localTime, 10), 0, p.riverWidth);
+    const boat = { x: mapX(worldX), y: mapY(worldY) };
+    const ghost = { x: mapX(ghostWorldX), y: mapY(ghostWorldY) };
+    const end = crossable ? { x: mapX(values.drift), y: mapY(goalWorldY) } : null;
+    const ghostEnd = crossable ? { x: mapX(values.ghostDrift), y: mapY(goalWorldY) } : null;
+
+    ctx.save();
+    ctx.strokeStyle = 'rgba(24, 42, 64, .42)';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([7, 7]);
+    ctx.beginPath();
+    ctx.moveTo(start.x, start.y);
+    ctx.lineTo(start.x, mapY(goalWorldY));
+    ctx.stroke();
+    if (end) {
+      ctx.beginPath();
+      ctx.moveTo(start.x, start.y);
+      ctx.lineTo(end.x, end.y);
+      ctx.stroke();
+    }
+    ctx.setLineDash([]);
+    const startLabelY = state.crossing === 'forward' ? bottomBank + 28 : topBank - 27;
+    const goalLabelY = state.crossing === 'forward' ? topBank - 27 : bottomBank + 28;
+    drawLabel('出発地点', start.x, startLabelY, '#152234', 'center');
+    drawLabel('対岸', start.x, goalLabelY, '#152234', 'center');
+    if (end) {
+      drawLabel('到達点', end.x, goalLabelY, '#168847', 'center');
+    }
+    ctx.restore();
+
+    if (p.showGhost && crossable) {
+      if (p.showTrail) {
+        ctx.save();
+        ctx.strokeStyle = '#64748b';
+        ctx.lineWidth = 2;
+        ctx.globalAlpha = .62;
+        ctx.setLineDash([5, 8]);
+        ctx.beginPath();
+        ctx.moveTo(start.x, start.y);
+        ctx.lineTo(ghost.x, ghost.y);
+        ctx.stroke();
+        ctx.restore();
+      }
+      const ghostHeading = Math.atan2(-values.boatY, values.boatX);
+      drawBoat(ghost.x, ghost.y, ghostHeading, { ghost: true });
+      if (ghostEnd) {
+        drawLabel('流れなし', ghostEnd.x, goalLabelY + (state.crossing === 'forward' ? 22 : -22), '#64748b', 'center');
+      }
+    }
+
+    if (p.showTrail && crossable) {
+      ctx.save();
+      ctx.strokeStyle = '#176bc3';
+      ctx.lineWidth = 3;
+      ctx.setLineDash([9, 8]);
+      ctx.beginPath();
+      ctx.moveTo(start.x, start.y);
+      ctx.lineTo(boat.x, boat.y);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    const heading = Math.atan2(-values.resultY, values.resultX);
+    drawBoat(boat.x, boat.y, heading);
+
+    if (p.showVectors) {
+      const compactVectors = w < 520;
+      const maxSpeed = Math.max(p.boatSpeed, p.currentSpeed, values.resultSpeed, 1);
+      const scale = compactVectors
+        ? Math.min(28, Math.max(13, Math.min(w, h) * .17 / maxSpeed))
+        : Math.min(46, Math.max(18, Math.min(w, h) * .24 / maxSpeed));
+      const origin = compactVectors
+        ? { x: w * .68, y: h * .34 }
+        : { x: w * .62, y: h * .54 };
+      if (!compactVectors) drawLabel('固定ベクトル図', origin.x - 10, origin.y - 58, '#152234');
+      drawArrow(origin.x, origin.y, origin.x + values.boatX * scale, origin.y - values.boatY * scale, '', '#f27a1a', 4);
+      drawArrow(origin.x, origin.y, origin.x + p.currentSpeed * scale, origin.y, '', '#1d74d4', 4);
+      drawArrow(origin.x, origin.y, origin.x + values.resultX * scale, origin.y - values.resultY * scale, '', '#168847', 5);
+      if (p.showGhost) {
+        drawArrow(origin.x, origin.y + (compactVectors ? 30 : 42), origin.x + values.boatX * scale, origin.y + (compactVectors ? 30 : 42) - values.boatY * scale, '', '#64748b', 3, true);
+      }
+    }
+
+    ctx.save();
+    ctx.strokeStyle = 'rgba(24, 42, 64, .55)';
+    ctx.setLineDash([5, 7]);
+    ctx.beginPath();
+    ctx.moveTo(start.x, start.y);
+    ctx.lineTo(boat.x, start.y);
+    ctx.lineTo(boat.x, boat.y);
+    ctx.stroke();
+    ctx.restore();
+
+    if (!crossable) {
+      drawLabel('対岸方向の成分が0以下なので、対岸へ渡れません', w * .5, h * .24, '#cf3d35', 'center');
+    }
+  }
+
+  function draw() {
+    const rect = canvas.getBoundingClientRect();
+    const w = rect.width;
+    const h = rect.height;
+    updateStats();
+    timeLabelEl.textContent = `t = ${state.time.toFixed(2)} s`;
+    if (state.mode === 'one') drawOneDimensional(w, h);
+    else drawTwoDimensional(w, h);
+  }
+
+  function bindEvents() {
+    modeButtons.forEach((button) => {
+      button.addEventListener('click', () => setMode(button.dataset.mode));
+    });
+    directionButtons.forEach((button) => {
+      button.addEventListener('click', () => setDirection(button.dataset.direction));
+    });
+    crossingButtons.forEach((button) => {
+      button.addEventListener('click', () => setCrossing(button.dataset.crossing));
+    });
+
+    Object.entries(controls).forEach(([key, control]) => {
+      control.addEventListener('input', () => {
+        readParams();
+        syncOutputs();
+        if (!['showVectors', 'showTrail', 'showGhost', 'playback'].includes(key)) {
+          state.time = 0;
+        }
+        draw();
+      });
+    });
+
+    playToggle.addEventListener('click', () => setRunning(!state.running));
+    stepButton.addEventListener('click', () => {
+      setRunning(false);
+      state.time += (1 / 30) * state.params.playback;
+      const limit = getLoopLimit();
+      if (state.time > limit) state.time = 0;
+      draw();
+    });
+    resetButton.addEventListener('click', () => {
+      state.time = 0;
+      draw();
+    });
+
+    const resizeObserver = new ResizeObserver(resizeCanvas);
+    resizeObserver.observe(canvas);
+    window.addEventListener('resize', resizeCanvas);
+  }
+
+  readParams();
+  syncOutputs();
+  bindEvents();
+  setMode('two');
+  setDirection('downstream');
+  setCrossing('forward');
+  setRunning(true);
+  resizeCanvas();
+  clock.start();
+})();
+</script>
+</body>
+</html>

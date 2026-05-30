@@ -1,0 +1,1282 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>相対速度シミュレーター</title>
+<link rel="stylesheet" href="../../assets/common-sim.css">
+<script src="../../assets/sim-shell.js"></script>
+<script src="../../assets/sim-clock.js"></script>
+<style>
+  :root {
+    --bg: #08111c;
+    --surface: #0d1825;
+    --surface-2: #101f2f;
+    --surface-3: #13283b;
+    --line: #243548;
+    --line-soft: rgba(203, 213, 225, .16);
+    --ink: #edf7ff;
+    --muted: #98adbf;
+    --cyan: #35d9ee;
+    --orange: #ffb454;
+    --green: #76e39c;
+    --violet: #cf9cff;
+    --red: #ff6b7a;
+    --radius: 8px;
+  }
+
+  * { box-sizing: border-box; }
+
+  html,
+  body {
+    margin: 0;
+    min-height: 100%;
+    background:
+      linear-gradient(180deg, rgba(16, 34, 50, .88), rgba(8, 17, 28, 1) 42%),
+      var(--bg);
+    color: var(--ink);
+    font-family: ui-sans-serif, system-ui, -apple-system, "Hiragino Kaku Gothic ProN", Meiryo, sans-serif;
+    font-size: 14px;
+    line-height: 1.5;
+  }
+
+  button,
+  input,
+  select {
+    font: inherit;
+  }
+
+  .app {
+    width: calc(100% - 24px);
+    max-width: 1480px;
+    margin: 14px auto 26px;
+    display: grid;
+    gap: 12px;
+  }
+
+  .control-deck,
+  .mode-panel,
+  .readout-strip {
+    min-width: 0;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: linear-gradient(180deg, rgba(16, 31, 47, .96), rgba(9, 20, 32, .98));
+    box-shadow: 0 16px 36px rgba(0, 0, 0, .28);
+  }
+
+  .control-head {
+    display: grid;
+    grid-template-columns: minmax(220px, 1fr) auto minmax(220px, 1fr);
+    gap: 10px;
+    align-items: center;
+    min-height: 54px;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  h1,
+  h2,
+  h3 {
+    margin: 0;
+    letter-spacing: 0;
+  }
+
+  h1 {
+    font-size: 18px;
+    line-height: 1.25;
+  }
+
+  h2 {
+    font-size: 16px;
+    line-height: 1.25;
+  }
+
+  h3,
+  .panel-title {
+    color: #dceeff;
+    font-size: 13px;
+    font-weight: 800;
+  }
+
+  .formula {
+    color: var(--muted);
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+  .button-row,
+  .toggle-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+  }
+
+  .button-row {
+    justify-content: center;
+  }
+
+  .toggle-row {
+    justify-content: flex-end;
+  }
+
+  .main-button,
+  .icon-button,
+  .small-button {
+    min-height: 38px;
+    border: 1px solid var(--line);
+    border-radius: 7px;
+    background: var(--surface-2);
+    color: var(--ink);
+  }
+
+  .main-button,
+  .icon-button,
+  .small-button {
+    cursor: pointer;
+  }
+
+  .main-button {
+    min-width: 120px;
+    background: linear-gradient(180deg, #14965a 0%, #0f7548 100%);
+    border-color: rgba(118, 227, 156, .46);
+    font-weight: 800;
+  }
+
+  .main-button[data-playing="false"] {
+    background: linear-gradient(180deg, #1d70dc 0%, #1959ad 100%);
+    border-color: rgba(53, 217, 238, .5);
+  }
+
+  .icon-button {
+    width: 42px;
+    font-size: 18px;
+    font-weight: 800;
+  }
+
+  .small-button,
+  .small-button {
+    padding: 0 10px;
+    font-size: 12px;
+    font-weight: 800;
+  }
+
+  .main-button:hover,
+  .main-button:focus-visible,
+  .icon-button:hover,
+  .icon-button:focus-visible,
+  .small-button:hover,
+  .small-button:focus-visible,
+  .observer-option:hover,
+  .observer-option:focus-visible {
+    border-color: var(--cyan);
+    outline: none;
+  }
+
+  .check {
+    display: inline-flex;
+    gap: 6px;
+    align-items: center;
+    min-height: 34px;
+    color: #d8e7f7;
+    font-size: 12px;
+    font-weight: 800;
+    white-space: nowrap;
+  }
+
+  .observer-switch {
+    display: inline-grid;
+    grid-template-columns: repeat(2, minmax(38px, 1fr));
+    gap: 3px;
+    padding: 3px;
+    border: 1px solid var(--line);
+    border-radius: 7px;
+    background: rgba(7, 17, 28, .58);
+  }
+
+  .observer-option {
+    min-height: 28px;
+    border: 1px solid transparent;
+    border-radius: 5px;
+    background: transparent;
+    color: var(--muted);
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: 900;
+  }
+
+  .observer-option[aria-pressed="true"] {
+    border-color: rgba(53, 217, 238, .62);
+    background: rgba(53, 217, 238, .16);
+    color: var(--cyan);
+  }
+
+  .control-grid {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 10px;
+    padding: 12px;
+  }
+
+  .control-group {
+    min-width: 0;
+    border: 1px solid var(--line-soft);
+    border-radius: 7px;
+    background: rgba(13, 27, 42, .72);
+    padding: 10px;
+  }
+
+  .control-group .panel-title {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 8px;
+  }
+
+  .range-row {
+    display: grid;
+    grid-template-columns: 88px minmax(0, 1fr) 54px;
+    gap: 8px;
+    align-items: center;
+    min-height: 30px;
+  }
+
+  .range-row label {
+    overflow: hidden;
+    color: #d7e7f8;
+    font-size: 12px;
+    font-weight: 700;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .range-row output {
+    color: var(--ink);
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+    font-weight: 800;
+    text-align: right;
+  }
+
+  input[type="range"] {
+    width: 100%;
+    accent-color: var(--cyan);
+  }
+
+  .readout-strip {
+    display: grid;
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 8px;
+    padding: 10px;
+  }
+
+  .stat {
+    min-width: 0;
+    border: 1px solid var(--line-soft);
+    border-radius: 7px;
+    background: rgba(15, 31, 47, .76);
+    padding: 8px 9px;
+  }
+
+  .stat-label {
+    overflow: hidden;
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 700;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .stat-value {
+    margin-top: 2px;
+    color: var(--ink);
+    font-size: 14px;
+    font-variant-numeric: tabular-nums;
+    font-weight: 800;
+    white-space: nowrap;
+  }
+
+  .mode-grid {
+    min-width: 0;
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+
+  .mode-panel {
+    min-width: 0;
+  }
+
+  .mode-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    min-height: 48px;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .view-stack {
+    display: grid;
+    gap: 10px;
+    padding: 12px;
+  }
+
+  .view-card {
+    min-width: 0;
+    overflow: hidden;
+    border: 1px solid var(--line-soft);
+    border-radius: 7px;
+    background: rgba(7, 17, 28, .82);
+  }
+
+  .view-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    min-height: 34px;
+    padding: 7px 9px;
+    border-bottom: 1px solid var(--line-soft);
+  }
+
+  .view-title {
+    color: #dceeff;
+    font-size: 12px;
+    font-weight: 800;
+  }
+
+  .view-note {
+    overflow: hidden;
+    color: var(--muted);
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  canvas {
+    display: block;
+    width: 100%;
+    height: 206px;
+    background:
+      linear-gradient(rgba(148, 163, 184, .045) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(148, 163, 184, .045) 1px, transparent 1px),
+      #07111c;
+    background-size: 24px 24px, 24px 24px, auto;
+  }
+
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 700;
+  }
+
+  .legend span {
+    display: inline-flex;
+    gap: 5px;
+    align-items: center;
+  }
+
+  .dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 50%;
+  }
+
+  @media (max-width: 1120px) {
+    .control-head,
+    .control-grid,
+    .mode-grid,
+    .readout-strip {
+      grid-template-columns: 1fr;
+    }
+
+    .button-row,
+    .toggle-row {
+      justify-content: flex-start;
+    }
+
+    .control-head {
+      align-items: start;
+    }
+  }
+
+  @media (max-width: 640px) {
+    .app {
+      width: calc(100% - 16px);
+      margin-top: 10px;
+    }
+
+    .formula {
+      white-space: normal;
+    }
+
+    .range-row {
+      grid-template-columns: 76px minmax(0, 1fr) 48px;
+      gap: 6px;
+    }
+
+    canvas {
+      height: 188px;
+    }
+  }
+</style>
+</head>
+<body>
+<script>
+  PhysicsSimShell.create({
+    title: "相対速度",
+    subtitle: "1次元・2次元を同時に見ながら、第3者視点、当事者視点、上空からの視点を比較",
+    basePath: "../../"
+  });
+</script>
+
+<main class="app">
+  <section class="control-deck" aria-labelledby="stage-title">
+    <div class="control-head">
+      <div>
+        <h1 id="stage-title">相対速度シミュレーター</h1>
+        <div class="formula">基準を変えると、相手の速度は <strong>v<sub>相手</sub> - v<sub>自分</sub></strong> として見えます。</div>
+      </div>
+      <div class="button-row">
+        <button id="playButton" class="main-button" data-playing="false" type="button">再生</button>
+        <button id="stepButton" class="icon-button" type="button" title="1コマ進める">›</button>
+        <button id="resetButton" class="icon-button" type="button" title="時刻を戻す">↺</button>
+      </div>
+      <div class="toggle-row">
+        <div class="check">当事者
+          <div class="observer-switch" role="group" aria-label="当事者">
+            <button class="observer-option" type="button" data-observer-option="A" aria-pressed="true">A</button>
+            <button class="observer-option" type="button" data-observer-option="B" aria-pressed="false">B</button>
+          </div>
+        </div>
+        <label class="check"><input id="trailToggle" type="checkbox" checked>軌跡</label>
+        <label class="check"><input id="gridToggle" type="checkbox" checked>グリッド</label>
+      </div>
+    </div>
+
+    <div class="control-grid">
+      <div class="control-group">
+        <div class="panel-title"><span>共通</span><span class="formula">等速直線運動</span></div>
+        <div class="range-row">
+          <label for="timeScale">時間倍率</label>
+          <input id="timeScale" type="range" min="0.1" max="2.5" step="0.1" value="1.0">
+          <output id="timeScaleOut" for="timeScale">1.0</output>
+        </div>
+        <div class="range-row">
+          <label for="zoom">表示倍率</label>
+          <input id="zoom" type="range" min="0.7" max="1.5" step="0.1" value="1.0">
+          <output id="zoomOut" for="zoom">1.0</output>
+        </div>
+      </div>
+
+      <div class="control-group">
+        <div class="panel-title"><span>1次元モード</span><span class="formula">x軸だけを見る</span></div>
+        <div class="range-row">
+          <label for="oneXA">A 初期x</label>
+          <input id="oneXA" type="range" min="-4" max="4" step="0.1" value="-2.4">
+          <output id="oneXAOut" for="oneXA">-2.4</output>
+        </div>
+        <div class="range-row">
+          <label for="oneVA">A 速度</label>
+          <input id="oneVA" type="range" min="-3" max="3" step="0.1" value="1.1">
+          <output id="oneVAOut" for="oneVA">1.1</output>
+        </div>
+        <div class="range-row">
+          <label for="oneXB">B 初期x</label>
+          <input id="oneXB" type="range" min="-4" max="4" step="0.1" value="1.8">
+          <output id="oneXBOut" for="oneXB">1.8</output>
+        </div>
+        <div class="range-row">
+          <label for="oneVB">B 速度</label>
+          <input id="oneVB" type="range" min="-3" max="3" step="0.1" value="-0.7">
+          <output id="oneVBOut" for="oneVB">-0.7</output>
+        </div>
+      </div>
+
+      <div class="control-group">
+        <div class="panel-title"><span>2次元モード</span><span class="formula">x-y平面で見る</span></div>
+        <div class="range-row">
+          <label for="twoVAx">A vx</label>
+          <input id="twoVAx" type="range" min="-2.5" max="2.5" step="0.1" value="1.0">
+          <output id="twoVAxOut" for="twoVAx">1.0</output>
+        </div>
+        <div class="range-row">
+          <label for="twoVAy">A vy</label>
+          <input id="twoVAy" type="range" min="-2.5" max="2.5" step="0.1" value="0.4">
+          <output id="twoVAyOut" for="twoVAy">0.4</output>
+        </div>
+        <div class="range-row">
+          <label for="twoVBx">B vx</label>
+          <input id="twoVBx" type="range" min="-2.5" max="2.5" step="0.1" value="-0.6">
+          <output id="twoVBxOut" for="twoVBx">-0.6</output>
+        </div>
+        <div class="range-row">
+          <label for="twoVBy">B vy</label>
+          <input id="twoVBy" type="range" min="-2.5" max="2.5" step="0.1" value="1.1">
+          <output id="twoVByOut" for="twoVBy">1.1</output>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="readout-strip" aria-label="相対速度の読み取り">
+    <div class="stat">
+      <div class="stat-label">時刻</div>
+      <div id="timeReadout" class="stat-value">0.00 s</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">1D: vB - vA</div>
+      <div id="oneRelReadout" class="stat-value">-1.80 m/s</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">1D: 当事者から見た相手</div>
+      <div id="oneObserverReadout" class="stat-value">B: -1.80 m/s</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">2D: vB - vA</div>
+      <div id="twoRelReadout" class="stat-value">(-1.60, 0.70)</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label">2D: 相対速度の大きさ</div>
+      <div id="twoSpeedReadout" class="stat-value">1.75 m/s</div>
+    </div>
+  </section>
+
+  <section class="mode-grid" aria-label="1次元と2次元の同時表示">
+    <article class="mode-panel">
+      <div class="mode-head">
+        <div>
+          <h2>1次元モード</h2>
+          <div class="formula">同じ直線上を動くAとB</div>
+        </div>
+        <div class="legend">
+          <span><i class="dot" style="background: var(--cyan);"></i>A</span>
+          <span><i class="dot" style="background: var(--orange);"></i>B</span>
+          <span><i class="dot" style="background: var(--green);"></i>相対速度</span>
+        </div>
+      </div>
+      <div class="view-stack">
+        <div class="view-card">
+          <div class="view-head">
+            <div class="view-title">第3者視点</div>
+            <div id="oneThirdNote" class="view-note">地面から見る</div>
+          </div>
+          <canvas id="oneThird" width="640" height="240"></canvas>
+        </div>
+        <div class="view-card">
+          <div class="view-head">
+            <div class="view-title">当事者視点</div>
+            <div id="onePartyNote" class="view-note">Aを原点に固定</div>
+          </div>
+          <canvas id="oneParty" width="640" height="240"></canvas>
+        </div>
+        <div class="view-card">
+          <div class="view-head">
+            <div class="view-title">上空からの視点</div>
+            <div id="oneTopNote" class="view-note">直線上の位置と間隔</div>
+          </div>
+          <canvas id="oneTop" width="640" height="240"></canvas>
+        </div>
+      </div>
+    </article>
+
+    <article class="mode-panel">
+      <div class="mode-head">
+        <div>
+          <h2>2次元モード</h2>
+          <div class="formula">平面内を動くAとB</div>
+        </div>
+        <div class="legend">
+          <span><i class="dot" style="background: var(--cyan);"></i>A</span>
+          <span><i class="dot" style="background: var(--orange);"></i>B</span>
+          <span><i class="dot" style="background: var(--green);"></i>v<sub>相対</sub></span>
+        </div>
+      </div>
+      <div class="view-stack">
+        <div class="view-card">
+          <div class="view-head">
+            <div class="view-title">第3者視点</div>
+            <div id="twoThirdNote" class="view-note">固定座標から見る</div>
+          </div>
+          <canvas id="twoThird" width="640" height="240"></canvas>
+        </div>
+        <div class="view-card">
+          <div class="view-head">
+            <div class="view-title">当事者視点</div>
+            <div id="twoPartyNote" class="view-note">Aを原点に固定</div>
+          </div>
+          <canvas id="twoParty" width="640" height="240"></canvas>
+        </div>
+        <div class="view-card">
+          <div class="view-head">
+            <div class="view-title">上空からの視点</div>
+            <div id="twoTopNote" class="view-note">俯瞰図と速度差</div>
+          </div>
+          <canvas id="twoTop" width="640" height="240"></canvas>
+        </div>
+      </div>
+    </article>
+  </section>
+</main>
+
+<script>
+(() => {
+  const COLORS = {
+    bg: "#07111c",
+    grid: "rgba(148, 163, 184, .12)",
+    axis: "rgba(203, 213, 225, .42)",
+    text: "#edf7ff",
+    muted: "#98adbf",
+    a: "#35d9ee",
+    b: "#ffb454",
+    rel: "#76e39c",
+    violet: "#cf9cff",
+    red: "#ff6b7a",
+    panel: "rgba(8, 17, 28, .82)"
+  };
+
+  const world = { min: -5, max: 5, span: 10 };
+  const twoStarts = {
+    A: { x: -2.6, y: -1.2 },
+    B: { x: 2.2, y: 1.4 }
+  };
+
+  const ids = [
+    "timeScale", "zoom", "oneXA", "oneVA", "oneXB", "oneVB",
+    "twoVAx", "twoVAy", "twoVBx", "twoVBy"
+  ];
+  const ui = Object.fromEntries(ids.map((id) => [id, document.querySelector(`#${id}`)]));
+  const out = Object.fromEntries(ids.map((id) => [id, document.querySelector(`#${id}Out`)]));
+
+  const observerButtons = [...document.querySelectorAll("[data-observer-option]")];
+  const trailToggle = document.querySelector("#trailToggle");
+  const gridToggle = document.querySelector("#gridToggle");
+  const playButton = document.querySelector("#playButton");
+  const stepButton = document.querySelector("#stepButton");
+  const resetButton = document.querySelector("#resetButton");
+
+  const readouts = {
+    time: document.querySelector("#timeReadout"),
+    oneRel: document.querySelector("#oneRelReadout"),
+    oneObserver: document.querySelector("#oneObserverReadout"),
+    twoRel: document.querySelector("#twoRelReadout"),
+    twoSpeed: document.querySelector("#twoSpeedReadout"),
+    oneThirdNote: document.querySelector("#oneThirdNote"),
+    onePartyNote: document.querySelector("#onePartyNote"),
+    oneTopNote: document.querySelector("#oneTopNote"),
+    twoThirdNote: document.querySelector("#twoThirdNote"),
+    twoPartyNote: document.querySelector("#twoPartyNote"),
+    twoTopNote: document.querySelector("#twoTopNote")
+  };
+
+  const canvases = {
+    oneThird: document.querySelector("#oneThird"),
+    oneParty: document.querySelector("#oneParty"),
+    oneTop: document.querySelector("#oneTop"),
+    twoThird: document.querySelector("#twoThird"),
+    twoParty: document.querySelector("#twoParty"),
+    twoTop: document.querySelector("#twoTop")
+  };
+
+  let t = 0;
+  let selectedObserver = "A";
+  let trails = makeEmptyTrails();
+
+  const clock = new PhysicsSimClock.FixedStepClock({
+    step: 1 / 60,
+    maxStepsPerFrame: 8,
+    onStep(dt) {
+      t += dt * value("timeScale");
+      collectTrail(snapshot());
+    },
+    onRender() {
+      render();
+    }
+  });
+
+  function value(id) {
+    return Number(ui[id].value);
+  }
+
+  function makeEmptyTrails() {
+    return {
+      oneA: [],
+      oneB: [],
+      twoA: [],
+      twoB: []
+    };
+  }
+
+  function wrap(v) {
+    const span = world.span;
+    return ((v - world.min) % span + span) % span + world.min;
+  }
+
+  function shortDelta(to, from) {
+    let d = to - from;
+    const span = world.span;
+    if (d > span / 2) d -= span;
+    if (d < -span / 2) d += span;
+    return d;
+  }
+
+  function snapshot() {
+    const one = {
+      A: { x: wrap(value("oneXA") + value("oneVA") * t), v: value("oneVA") },
+      B: { x: wrap(value("oneXB") + value("oneVB") * t), v: value("oneVB") }
+    };
+
+    const two = {
+      A: {
+        x: wrap(twoStarts.A.x + value("twoVAx") * t),
+        y: wrap(twoStarts.A.y + value("twoVAy") * t),
+        vx: value("twoVAx"),
+        vy: value("twoVAy")
+      },
+      B: {
+        x: wrap(twoStarts.B.x + value("twoVBx") * t),
+        y: wrap(twoStarts.B.y + value("twoVBy") * t),
+        vx: value("twoVBx"),
+        vy: value("twoVBy")
+      }
+    };
+
+    return { one, two, observer: selectedObserver };
+  }
+
+  function collectTrail(s) {
+    const push = (arr, point) => {
+      arr.push({ ...point, t });
+      if (arr.length > 240) arr.shift();
+    };
+    push(trails.oneA, { x: s.one.A.x });
+    push(trails.oneB, { x: s.one.B.x });
+    push(trails.twoA, { x: s.two.A.x, y: s.two.A.y });
+    push(trails.twoB, { x: s.two.B.x, y: s.two.B.y });
+  }
+
+  function resetTime(keepTrails = false) {
+    t = 0;
+    if (!keepTrails) {
+      trails = makeEmptyTrails();
+      collectTrail(snapshot());
+    }
+    clock.reset();
+    render();
+  }
+
+  function syncOutputs() {
+    ids.forEach((id) => {
+      const digits = id === "timeScale" || id === "zoom" ? 1 : 1;
+      out[id].textContent = value(id).toFixed(digits);
+    });
+  }
+
+  function canvasContext(canvas) {
+    const rect = canvas.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+    const width = Math.max(1, Math.round(rect.width * dpr));
+    const height = Math.max(1, Math.round(rect.height * dpr));
+    if (canvas.width !== width || canvas.height !== height) {
+      canvas.width = width;
+      canvas.height = height;
+    }
+    const ctx = canvas.getContext("2d");
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    return { ctx, w: rect.width, h: rect.height };
+  }
+
+  function clear(ctx, w, h) {
+    ctx.clearRect(0, 0, w, h);
+    ctx.fillStyle = COLORS.bg;
+    ctx.fillRect(0, 0, w, h);
+  }
+
+  function drawGrid(ctx, w, h, map, options = {}) {
+    if (!gridToggle.checked) return;
+    ctx.save();
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = COLORS.grid;
+    for (let x = Math.ceil(world.min); x <= Math.floor(world.max); x += 1) {
+      const p = map(x, 0).x;
+      ctx.beginPath();
+      ctx.moveTo(p, 10);
+      ctx.lineTo(p, h - 10);
+      ctx.stroke();
+    }
+    for (let y = Math.ceil(world.min); y <= Math.floor(world.max); y += 1) {
+      const p = map(0, y).y;
+      ctx.beginPath();
+      ctx.moveTo(10, p);
+      ctx.lineTo(w - 10, p);
+      ctx.stroke();
+    }
+    if (!options.noAxes) {
+      ctx.strokeStyle = COLORS.axis;
+      ctx.beginPath();
+      ctx.moveTo(map(world.min, 0).x, map(0, 0).y);
+      ctx.lineTo(map(world.max, 0).x, map(0, 0).y);
+      ctx.moveTo(map(0, world.min).x, map(0, world.min).y);
+      ctx.lineTo(map(0, world.max).x, map(0, world.max).y);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  function map1D(w, h, padX = 42) {
+    const zoom = value("zoom");
+    const visible = world.span / zoom;
+    const min = -visible / 2;
+    const max = visible / 2;
+    return (x, y = 0) => ({
+      x: padX + ((x - min) / (max - min)) * (w - padX * 2),
+      y: h / 2 + y
+    });
+  }
+
+  function map2D(w, h, pad = 26) {
+    const zoom = value("zoom");
+    const visible = world.span / zoom;
+    const min = -visible / 2;
+    const max = visible / 2;
+    const scale = Math.min((w - pad * 2) / (max - min), (h - pad * 2) / (max - min));
+    const cx = w / 2;
+    const cy = h / 2;
+    return (x, y) => ({
+      x: cx + x * scale,
+      y: cy - y * scale
+    });
+  }
+
+  function arrow(ctx, x1, y1, x2, y2, color, width = 2.2) {
+    const dx = x2 - x1;
+    const dy = y2 - y1;
+    const len = Math.hypot(dx, dy);
+    if (len < 4) return;
+    const ux = dx / len;
+    const uy = dy / len;
+    const head = Math.min(13, Math.max(8, len * .18));
+    ctx.save();
+    ctx.strokeStyle = color;
+    ctx.fillStyle = color;
+    ctx.lineWidth = width;
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2 - ux * head, y2 - uy * head);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(x2, y2);
+    ctx.lineTo(x2 - ux * head - uy * head * .45, y2 - uy * head + ux * head * .45);
+    ctx.lineTo(x2 - ux * head + uy * head * .45, y2 - uy * head - ux * head * .45);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function label(ctx, text, x, y, color = COLORS.text, align = "center") {
+    ctx.save();
+    ctx.font = "700 12px system-ui, -apple-system, sans-serif";
+    ctx.textAlign = align;
+    ctx.textBaseline = "middle";
+    ctx.fillStyle = "rgba(7, 17, 28, .78)";
+    const m = ctx.measureText(text);
+    const left = align === "center" ? x - m.width / 2 : align === "right" ? x - m.width : x;
+    roundRect(ctx, left - 5, y - 10, m.width + 10, 20, 5, true, false);
+    ctx.fillStyle = color;
+    ctx.fillText(text, x, y);
+    ctx.restore();
+  }
+
+  function roundRect(ctx, x, y, w, h, r, fill, stroke) {
+    const rr = Math.min(r, w / 2, h / 2);
+    ctx.beginPath();
+    ctx.moveTo(x + rr, y);
+    ctx.arcTo(x + w, y, x + w, y + h, rr);
+    ctx.arcTo(x + w, y + h, x, y + h, rr);
+    ctx.arcTo(x, y + h, x, y, rr);
+    ctx.arcTo(x, y, x + w, y, rr);
+    ctx.closePath();
+    if (fill) ctx.fill();
+    if (stroke) ctx.stroke();
+  }
+
+  function drawCart(ctx, x, y, color, name, active = false) {
+    ctx.save();
+    ctx.fillStyle = color;
+    ctx.strokeStyle = active ? COLORS.green : "rgba(255, 255, 255, .5)";
+    ctx.lineWidth = active ? 2.5 : 1.2;
+    roundRect(ctx, x - 24, y - 18, 48, 28, 6, true, true);
+    ctx.fillStyle = "rgba(7, 17, 28, .88)";
+    ctx.beginPath();
+    ctx.arc(x - 14, y + 13, 5, 0, Math.PI * 2);
+    ctx.arc(x + 14, y + 13, 5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.font = "800 13px system-ui, -apple-system, sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillStyle = "#07111c";
+    ctx.fillText(name, x, y - 3);
+    ctx.restore();
+  }
+
+  function drawDisk(ctx, x, y, color, name, active = false) {
+    ctx.save();
+    ctx.fillStyle = color;
+    ctx.strokeStyle = active ? COLORS.green : "rgba(255, 255, 255, .58)";
+    ctx.lineWidth = active ? 2.6 : 1.2;
+    ctx.beginPath();
+    ctx.arc(x, y, active ? 12 : 10, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.font = "800 12px system-ui, -apple-system, sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillStyle = "#07111c";
+    ctx.fillText(name, x, y);
+    ctx.restore();
+  }
+
+  function drawTrail1D(ctx, map, arr, color, yOffset = 0) {
+    if (!trailToggle.checked || arr.length < 2) return;
+    ctx.save();
+    ctx.strokeStyle = color;
+    ctx.globalAlpha = .42;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    let started = false;
+    arr.forEach((p, idx) => {
+      if (idx > 0 && Math.abs(p.x - arr[idx - 1].x) > world.span / 2) {
+        started = false;
+      }
+      const m = map(p.x, yOffset);
+      if (!started) {
+        ctx.moveTo(m.x, m.y);
+        started = true;
+      } else {
+        ctx.lineTo(m.x, m.y);
+      }
+    });
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawTrail2D(ctx, map, arr, color) {
+    if (!trailToggle.checked || arr.length < 2) return;
+    ctx.save();
+    ctx.strokeStyle = color;
+    ctx.globalAlpha = .42;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    let started = false;
+    arr.forEach((p, idx) => {
+      if (idx > 0) {
+        const prev = arr[idx - 1];
+        if (Math.abs(p.x - prev.x) > world.span / 2 || Math.abs(p.y - prev.y) > world.span / 2) {
+          started = false;
+        }
+      }
+      const m = map(p.x, p.y);
+      if (!started) {
+        ctx.moveTo(m.x, m.y);
+        started = true;
+      } else {
+        ctx.lineTo(m.x, m.y);
+      }
+    });
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawAxisTicks(ctx, w, h, map) {
+    ctx.save();
+    ctx.strokeStyle = "rgba(203, 213, 225, .38)";
+    ctx.fillStyle = COLORS.muted;
+    ctx.font = "700 10px system-ui, -apple-system, sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "top";
+    for (let x = world.min; x <= world.max; x += 1) {
+      const p = map(x, 0);
+      ctx.beginPath();
+      ctx.moveTo(p.x, h / 2 - 5);
+      ctx.lineTo(p.x, h / 2 + 5);
+      ctx.stroke();
+      if (x !== 0 && x % 2 === 0) ctx.fillText(String(x), p.x, h / 2 + 11);
+    }
+    ctx.restore();
+  }
+
+  function drawOneThird(s) {
+    const { ctx, w, h } = canvasContext(canvases.oneThird);
+    clear(ctx, w, h);
+    const map = map1D(w, h);
+    const y = h * .56;
+    ctx.strokeStyle = COLORS.axis;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(32, y + 18);
+    ctx.lineTo(w - 32, y + 18);
+    ctx.stroke();
+    drawAxisTicks(ctx, w, h, (x) => ({ x: map(x).x, y }));
+    drawTrail1D(ctx, (x) => ({ x: map(x).x, y }), trails.oneA, COLORS.a, 0);
+    drawTrail1D(ctx, (x) => ({ x: map(x).x, y: y - 26 }), trails.oneB, COLORS.b, 0);
+    const ax = map(s.one.A.x).x;
+    const bx = map(s.one.B.x).x;
+    drawCart(ctx, ax, y, COLORS.a, "A");
+    drawCart(ctx, bx, y - 42, COLORS.b, "B");
+    arrow(ctx, ax, y - 32, ax + s.one.A.v * 34, y - 32, COLORS.a);
+    arrow(ctx, bx, y - 74, bx + s.one.B.v * 34, y - 74, COLORS.b);
+    label(ctx, `vA=${fmt(s.one.A.v)}`, ax + s.one.A.v * 34, y - 48, COLORS.a);
+    label(ctx, `vB=${fmt(s.one.B.v)}`, bx + s.one.B.v * 34, y - 90, COLORS.b);
+    label(ctx, "地面に立った観測者からは、それぞれの実速度が見える", w / 2, 26, COLORS.text);
+  }
+
+  function drawOneParty(s) {
+    const { ctx, w, h } = canvasContext(canvases.oneParty);
+    clear(ctx, w, h);
+    const observer = s.observer;
+    const other = observer === "A" ? "B" : "A";
+    const selfState = s.one[observer];
+    const otherState = s.one[other];
+    const relX = shortDelta(otherState.x, selfState.x);
+    const relV = otherState.v - selfState.v;
+    const map = map1D(w, h);
+    const y = h * .56;
+    ctx.strokeStyle = COLORS.axis;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(32, y + 18);
+    ctx.lineTo(w - 32, y + 18);
+    ctx.stroke();
+    drawAxisTicks(ctx, w, h, (x) => ({ x: map(x).x, y }));
+    const cx = map(0).x;
+    const ox = map(relX).x;
+    drawCart(ctx, cx, y, observer === "A" ? COLORS.a : COLORS.b, observer, true);
+    drawCart(ctx, ox, y - 42, other === "A" ? COLORS.a : COLORS.b, other);
+    arrow(ctx, ox, y - 76, ox + relV * 38, y - 76, COLORS.rel, 2.6);
+    label(ctx, `${other}の相対速度 ${fmt(relV)} m/s`, ox + relV * 38, y - 94, COLORS.rel);
+    ctx.strokeStyle = "rgba(118, 227, 156, .48)";
+    ctx.setLineDash([6, 5]);
+    ctx.beginPath();
+    ctx.moveTo(cx, y + 42);
+    ctx.lineTo(ox, y + 42);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    label(ctx, `相対位置 ${fmt(relX)} m`, (cx + ox) / 2, y + 62, COLORS.green);
+    label(ctx, `${observer}に乗ると${observer}は止まり、${other}だけが動いて見える`, w / 2, 26, COLORS.text);
+  }
+
+  function drawOneTop(s) {
+    const { ctx, w, h } = canvasContext(canvases.oneTop);
+    clear(ctx, w, h);
+    const map = map1D(w, h, 46);
+    const y = h * .5;
+    ctx.strokeStyle = COLORS.axis;
+    ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    ctx.moveTo(34, y);
+    ctx.lineTo(w - 34, y);
+    ctx.stroke();
+    drawAxisTicks(ctx, w, h, (x) => ({ x: map(x).x, y }));
+    drawTrail1D(ctx, (x) => ({ x: map(x).x, y: y - 20 }), trails.oneA, COLORS.a, 0);
+    drawTrail1D(ctx, (x) => ({ x: map(x).x, y: y + 20 }), trails.oneB, COLORS.b, 0);
+    const ax = map(s.one.A.x).x;
+    const bx = map(s.one.B.x).x;
+    drawDisk(ctx, ax, y - 20, COLORS.a, "A");
+    drawDisk(ctx, bx, y + 20, COLORS.b, "B");
+    arrow(ctx, ax, y - 48, ax + s.one.A.v * 32, y - 48, COLORS.a);
+    arrow(ctx, bx, y + 48, bx + s.one.B.v * 32, y + 48, COLORS.b);
+    const dx = shortDelta(s.one.B.x, s.one.A.x);
+    const relV = s.one.B.v - s.one.A.v;
+    label(ctx, `Δx = xB - xA = ${fmt(dx)} m`, w / 2, 24, COLORS.text);
+    label(ctx, `vB - vA = ${fmt(relV)} m/s`, w / 2, h - 24, COLORS.rel);
+  }
+
+  function drawTwoThird(s) {
+    const { ctx, w, h } = canvasContext(canvases.twoThird);
+    clear(ctx, w, h);
+    const map = map2D(w, h);
+    drawGrid(ctx, w, h, map);
+    drawTrail2D(ctx, map, trails.twoA, COLORS.a);
+    drawTrail2D(ctx, map, trails.twoB, COLORS.b);
+    const a = map(s.two.A.x, s.two.A.y);
+    const b = map(s.two.B.x, s.two.B.y);
+    drawDisk(ctx, a.x, a.y, COLORS.a, "A");
+    drawDisk(ctx, b.x, b.y, COLORS.b, "B");
+    arrow(ctx, a.x, a.y, a.x + s.two.A.vx * 34, a.y - s.two.A.vy * 34, COLORS.a);
+    arrow(ctx, b.x, b.y, b.x + s.two.B.vx * 34, b.y - s.two.B.vy * 34, COLORS.b);
+    label(ctx, "固定されたx-y座標でAとBの実速度を見る", w / 2, 20, COLORS.text);
+  }
+
+  function drawTwoParty(s) {
+    const { ctx, w, h } = canvasContext(canvases.twoParty);
+    clear(ctx, w, h);
+    const observer = s.observer;
+    const other = observer === "A" ? "B" : "A";
+    const selfState = s.two[observer];
+    const otherState = s.two[other];
+    const rel = {
+      x: shortDelta(otherState.x, selfState.x),
+      y: shortDelta(otherState.y, selfState.y),
+      vx: otherState.vx - selfState.vx,
+      vy: otherState.vy - selfState.vy
+    };
+    const map = map2D(w, h);
+    drawGrid(ctx, w, h, map);
+    const center = map(0, 0);
+    const p = map(rel.x, rel.y);
+    drawDisk(ctx, center.x, center.y, observer === "A" ? COLORS.a : COLORS.b, observer, true);
+    drawDisk(ctx, p.x, p.y, other === "A" ? COLORS.a : COLORS.b, other);
+    arrow(ctx, p.x, p.y, p.x + rel.vx * 38, p.y - rel.vy * 38, COLORS.rel, 2.6);
+    ctx.strokeStyle = "rgba(118, 227, 156, .5)";
+    ctx.setLineDash([6, 5]);
+    ctx.beginPath();
+    ctx.moveTo(center.x, center.y);
+    ctx.lineTo(p.x, p.y);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    label(ctx, `${other}/${observer}: (${fmt(rel.vx)}, ${fmt(rel.vy)})`, p.x + rel.vx * 38, p.y - rel.vy * 38 - 14, COLORS.rel);
+    label(ctx, `${observer}を原点に固定した座標。速度も位置も相対量になる`, w / 2, 20, COLORS.text);
+  }
+
+  function drawTwoTop(s) {
+    const { ctx, w, h } = canvasContext(canvases.twoTop);
+    clear(ctx, w, h);
+    const map = map2D(w, h);
+    drawGrid(ctx, w, h, map);
+    drawTrail2D(ctx, map, trails.twoA, COLORS.a);
+    drawTrail2D(ctx, map, trails.twoB, COLORS.b);
+    const a = map(s.two.A.x, s.two.A.y);
+    const b = map(s.two.B.x, s.two.B.y);
+    drawDisk(ctx, a.x, a.y, COLORS.a, "A");
+    drawDisk(ctx, b.x, b.y, COLORS.b, "B");
+    ctx.strokeStyle = "rgba(207, 156, 255, .62)";
+    ctx.lineWidth = 1.4;
+    ctx.setLineDash([5, 5]);
+    ctx.beginPath();
+    ctx.moveTo(a.x, a.y);
+    ctx.lineTo(b.x, b.y);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    const dv = {
+      x: s.two.B.vx - s.two.A.vx,
+      y: s.two.B.vy - s.two.A.vy
+    };
+    const insetX = Math.max(108, w - 124);
+    const insetY = 70;
+    ctx.fillStyle = "rgba(8, 17, 28, .78)";
+    ctx.strokeStyle = "rgba(203, 213, 225, .22)";
+    ctx.lineWidth = 1;
+    roundRect(ctx, insetX - 74, insetY - 46, 148, 92, 7, true, true);
+    label(ctx, "速度差ベクトル", insetX, insetY - 26, COLORS.text);
+    arrow(ctx, insetX - 42, insetY + 18, insetX - 42 + dv.x * 30, insetY + 18 - dv.y * 30, COLORS.rel, 2.4);
+    label(ctx, `|Δv|=${fmt(Math.hypot(dv.x, dv.y))}`, insetX, insetY + 38, COLORS.rel);
+    label(ctx, "上空から位置関係と速度差を同時に確認する", w / 2, 20, COLORS.text);
+  }
+
+  function fmt(v) {
+    return (Math.abs(v) < 0.005 ? 0 : v).toFixed(2);
+  }
+
+  function updateReadouts(s) {
+    const oneRel = s.one.B.v - s.one.A.v;
+    const observer = s.observer;
+    const other = observer === "A" ? "B" : "A";
+    const oneObserverRel = s.one[other].v - s.one[observer].v;
+    const twoRel = {
+      x: s.two.B.vx - s.two.A.vx,
+      y: s.two.B.vy - s.two.A.vy
+    };
+    const twoObserverRel = {
+      x: s.two[other].vx - s.two[observer].vx,
+      y: s.two[other].vy - s.two[observer].vy
+    };
+    readouts.time.textContent = `${fmt(t)} s`;
+    readouts.oneRel.textContent = `${fmt(oneRel)} m/s`;
+    readouts.oneObserver.textContent = `${other}: ${fmt(oneObserverRel)} m/s`;
+    readouts.twoRel.textContent = `(${fmt(twoRel.x)}, ${fmt(twoRel.y)}) m/s`;
+    readouts.twoSpeed.textContent = `${fmt(Math.hypot(twoObserverRel.x, twoObserverRel.y))} m/s`;
+    readouts.onePartyNote.textContent = `${observer}を原点に固定`;
+    readouts.twoPartyNote.textContent = `${observer}を原点に固定`;
+    readouts.oneThirdNote.textContent = `vA=${fmt(s.one.A.v)}, vB=${fmt(s.one.B.v)}`;
+    readouts.oneTopNote.textContent = `Δv=${fmt(oneRel)} m/s`;
+    readouts.twoThirdNote.textContent = `A(${fmt(s.two.A.vx)}, ${fmt(s.two.A.vy)}) / B(${fmt(s.two.B.vx)}, ${fmt(s.two.B.vy)})`;
+    readouts.twoTopNote.textContent = `Δv=(${fmt(twoRel.x)}, ${fmt(twoRel.y)})`;
+  }
+
+  function render() {
+    syncOutputs();
+    const s = snapshot();
+    updateReadouts(s);
+    drawOneThird(s);
+    drawOneParty(s);
+    drawOneTop(s);
+    drawTwoThird(s);
+    drawTwoParty(s);
+    drawTwoTop(s);
+  }
+
+  function setPlaying(playing) {
+    if (playing) {
+      clock.start();
+    } else {
+      clock.pause();
+    }
+    playButton.dataset.playing = String(playing);
+    playButton.textContent = playing ? "一時停止" : "再生";
+  }
+
+  ids.forEach((id) => {
+    ui[id].addEventListener("input", () => {
+      syncOutputs();
+      if (["oneXA", "oneXB"].includes(id)) resetTime(false);
+      render();
+    });
+  });
+
+  observerButtons.forEach((button) => {
+    button.addEventListener("click", () => {
+      selectedObserver = button.dataset.observerOption;
+      observerButtons.forEach((item) => {
+        item.setAttribute("aria-pressed", String(item.dataset.observerOption === selectedObserver));
+      });
+      render();
+    });
+  });
+
+  [trailToggle, gridToggle].forEach((node) => {
+    node.addEventListener("change", render);
+  });
+
+  playButton.addEventListener("click", () => {
+    setPlaying(!clock.running);
+  });
+
+  stepButton.addEventListener("click", () => {
+    setPlaying(false);
+    t += (1 / 30) * value("timeScale");
+    collectTrail(snapshot());
+    render();
+  });
+
+  resetButton.addEventListener("click", () => {
+    resetTime(false);
+  });
+
+  window.addEventListener("resize", render);
+
+  syncOutputs();
+  resetTime(false);
+  setPlaying(false);
+})();
+</script>
+</body>
+</html>

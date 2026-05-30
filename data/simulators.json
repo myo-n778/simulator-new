@@ -13,6 +13,32 @@
     "lastReviewed": "2026-05-05"
   },
   {
+    "id": "restitution",
+    "title": "反発係数",
+    "category": "力学",
+    "route": "./simulators/restitution/",
+    "originalSource": "new-simulator-2026-05-30",
+    "alternateSources": [],
+    "status": "初版作成",
+    "dependencies": [],
+    "physicsModel": "床との反発、斜め衝突、階段状の段差でのバウンド、1次元2球衝突、反発係数",
+    "purpose": "反発係数による衝突直前後の速さ、反発角度、段差寸法によるバウンド軌道、2物体の衝突後速度の変化を確認する。",
+    "lastReviewed": "2026-05-30"
+  },
+  {
+    "id": "relative-velocity",
+    "title": "相対速度",
+    "category": "力学",
+    "route": "./simulators/relative-velocity/",
+    "originalSource": "new-simulator-2026-05-30",
+    "alternateSources": [],
+    "status": "初版作成",
+    "dependencies": [],
+    "physicsModel": "1次元と2次元の等速直線運動、観測者を変えた相対速度ベクトル",
+    "purpose": "第3者視点、当事者視点、上空からの視点を同時に見て、相対速度が基準の取り方でどう変わるかを確認する。",
+    "lastReviewed": "2026-05-30"
+  },
+  {
     "id": "projectile",
     "title": "斜方投射",
     "category": "力学",
@@ -130,6 +156,19 @@
     "physicsModel": "軽い棒、壁端支持、糸の張力、張力成分、壁との摩擦条件",
     "purpose": "棒上のおもり位置、質量、糸角度、摩擦係数による張力と摩擦条件の変化を確認する。",
     "lastReviewed": "2026-05-06"
+  },
+  {
+    "id": "resultant-velocity",
+    "title": "合成速度",
+    "category": "力学",
+    "route": "./simulators/resultant-velocity/",
+    "originalSource": "new-simulator-2026-05-30",
+    "alternateSources": [],
+    "status": "初版作成",
+    "dependencies": [],
+    "physicsModel": "川を進む船の速度合成、1次元の川上・川下移動、2次元の渡河時間と流され量、流れなし比較",
+    "purpose": "船の速度と川の流れをベクトルとして合成し、川上・川下の速度や角度つき渡河の進み方を、流れなしの比較船とともに可視化する。",
+    "lastReviewed": "2026-05-30"
   },
   {
     "id": "loop-coaster",

@@ -1,0 +1,1729 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>反発係数シミュレーター</title>
+<link rel="stylesheet" href="../../assets/common-sim.css">
+<script src="../../assets/sim-shell.js"></script>
+<script src="../../assets/sim-clock.js"></script>
+<style>
+  :root {
+    --bg: #0a1118;
+    --panel: #101b26;
+    --panel-2: #132332;
+    --ink: #edf7ff;
+    --muted: #9eb0c0;
+    --line: #2a3b4d;
+    --line-soft: rgba(203, 213, 225, .17);
+    --cyan: #40d9f1;
+    --green: #6ee7a8;
+    --amber: #ffc857;
+    --red: #ff6978;
+    --blue: #72a7ff;
+    --violet: #cf9cff;
+    --shadow: rgba(0, 0, 0, .28);
+    --radius: 8px;
+  }
+
+  * { box-sizing: border-box; }
+
+  html,
+  body {
+    margin: 0;
+    min-height: 100%;
+    background:
+      linear-gradient(180deg, rgba(14, 32, 47, .82), rgba(10, 17, 24, 1) 38%),
+      var(--bg);
+    color: var(--ink);
+    font-family: ui-sans-serif, system-ui, -apple-system, "Hiragino Kaku Gothic ProN", Meiryo, sans-serif;
+    font-size: 14px;
+    line-height: 1.5;
+  }
+
+  button,
+  input {
+    font: inherit;
+  }
+
+  .wrap {
+    width: min(1420px, calc(100% - 24px));
+    margin: 14px auto 24px;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 356px;
+    gap: 12px;
+    align-items: start;
+  }
+
+  .stage-panel,
+  .control-panel {
+    min-width: 0;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: linear-gradient(180deg, rgba(19, 35, 50, .96), rgba(10, 20, 31, .98));
+    box-shadow: 0 18px 40px var(--shadow);
+  }
+
+  .panel-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    min-height: 50px;
+    padding: 11px 12px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  h1,
+  h2,
+  h3 {
+    margin: 0;
+    letter-spacing: 0;
+  }
+
+  h1 {
+    font-size: 18px;
+    line-height: 1.25;
+  }
+
+  h2,
+  h3,
+  .panel-title {
+    color: #dceeff;
+    font-size: 13px;
+    font-weight: 800;
+  }
+
+  .formula {
+    color: var(--muted);
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+  .canvas-shell {
+    padding: 12px;
+  }
+
+  canvas {
+    display: block;
+    width: 100%;
+    height: min(68vh, 690px);
+    min-height: 560px;
+    border: 1px solid var(--line-soft);
+    border-radius: var(--radius);
+    background:
+      linear-gradient(rgba(148, 163, 184, .045) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(148, 163, 184, .045) 1px, transparent 1px),
+      radial-gradient(circle at 22% 14%, rgba(64, 217, 241, .11), transparent 24%),
+      radial-gradient(circle at 82% 30%, rgba(255, 200, 87, .08), transparent 22%),
+      #07111c;
+    background-size: 26px 26px, 26px 26px, auto, auto, auto;
+    touch-action: none;
+  }
+
+  .status-strip {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 8px;
+    padding: 0 12px 12px;
+  }
+
+  .stat {
+    min-width: 0;
+    border: 1px solid var(--line-soft);
+    border-radius: 7px;
+    background: rgba(15, 31, 47, .76);
+    padding: 8px 9px;
+  }
+
+  .stat-label {
+    overflow: hidden;
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 700;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .stat-value {
+    margin-top: 2px;
+    color: var(--ink);
+    font-size: 14px;
+    font-variant-numeric: tabular-nums;
+    font-weight: 800;
+    white-space: nowrap;
+  }
+
+  .control-panel {
+    position: sticky;
+    top: 72px;
+  }
+
+  .controls {
+    display: grid;
+    gap: 12px;
+    padding: 12px;
+  }
+
+  .mode-tabs {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  .mode-tab,
+  .main-button,
+  .icon-button,
+  .small-button {
+    min-height: 38px;
+    border: 1px solid var(--line);
+    border-radius: 7px;
+    background: var(--panel-2);
+    color: var(--ink);
+    cursor: pointer;
+  }
+
+  .mode-tab {
+    min-height: 36px;
+    padding: 6px 5px;
+    color: #c9d9ea;
+    font-size: 12px;
+    font-weight: 800;
+  }
+
+  .mode-tab[aria-selected="true"] {
+    border-color: rgba(64, 217, 241, .72);
+    background: rgba(64, 217, 241, .16);
+    color: var(--cyan);
+  }
+
+  .button-row {
+    display: grid;
+    grid-template-columns: 1fr 42px 42px;
+    gap: 8px;
+  }
+
+  .main-button {
+    background: linear-gradient(180deg, #14965a 0%, #0f7548 100%);
+    border-color: rgba(110, 231, 168, .46);
+    font-weight: 800;
+  }
+
+  .main-button[data-playing="false"] {
+    background: linear-gradient(180deg, #1c72dd 0%, #1856a9 100%);
+    border-color: rgba(114, 167, 255, .5);
+  }
+
+  .icon-button {
+    font-size: 18px;
+    font-weight: 800;
+  }
+
+  .mode-tab:hover,
+  .mode-tab:focus-visible,
+  .main-button:hover,
+  .main-button:focus-visible,
+  .icon-button:hover,
+  .icon-button:focus-visible,
+  .small-button:hover,
+  .small-button:focus-visible {
+    border-color: var(--cyan);
+    outline: none;
+  }
+
+  .group {
+    display: grid;
+    gap: 9px;
+  }
+
+  .group[hidden] {
+    display: none;
+  }
+
+  .range-row {
+    display: grid;
+    grid-template-columns: 86px minmax(0, 1fr) 58px;
+    gap: 8px;
+    align-items: center;
+  }
+
+  .range-row label {
+    color: #d7e7f8;
+    font-size: 12px;
+    font-weight: 800;
+  }
+
+  input[type="range"] {
+    width: 100%;
+    accent-color: var(--cyan);
+  }
+
+  output {
+    color: var(--ink);
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+    font-weight: 800;
+    text-align: right;
+  }
+
+  .equation,
+  .result-table {
+    border: 1px solid var(--line-soft);
+    border-radius: 7px;
+    background: rgba(3, 9, 17, .45);
+    padding: 9px 10px;
+    color: #cbd5e1;
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .equation strong {
+    color: var(--cyan);
+    font-weight: 800;
+  }
+
+  .result-table {
+    display: grid;
+    gap: 6px;
+  }
+
+  .result-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 10px;
+    align-items: center;
+  }
+
+  .result-row span:first-child {
+    overflow: hidden;
+    color: var(--muted);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .result-row span:last-child {
+    color: var(--ink);
+    font-weight: 800;
+    white-space: nowrap;
+  }
+
+  .note {
+    color: var(--muted);
+    font-size: 12px;
+  }
+
+  @media (max-width: 1060px) {
+    .wrap {
+      grid-template-columns: 1fr;
+    }
+
+    .control-panel {
+      position: static;
+    }
+
+    .status-strip {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    canvas {
+      height: min(64vh, 620px);
+      min-height: 500px;
+    }
+  }
+
+  @media (max-width: 640px) {
+    .wrap {
+      display: block;
+      width: calc(100% - 16px);
+      margin-top: 10px;
+    }
+
+    .stage-panel,
+    .control-panel {
+      width: 100%;
+      overflow: hidden;
+    }
+
+    .control-panel {
+      margin-top: 10px;
+    }
+
+    .panel-head {
+      align-items: flex-start;
+      flex-direction: column;
+    }
+
+    .formula {
+      white-space: normal;
+    }
+
+    .status-strip {
+      grid-template-columns: 1fr 1fr;
+    }
+
+    .mode-tabs {
+      grid-template-columns: 1fr 1fr;
+    }
+
+    .range-row {
+      grid-template-columns: 76px minmax(0, 1fr) 52px;
+    }
+
+    canvas {
+      height: 520px;
+      min-height: 480px;
+    }
+  }
+</style>
+</head>
+<body>
+<script>
+  PhysicsSimShell.create({
+    title: "反発係数",
+    subtitle: "床との反発・斜め衝突・階段バウンド・球2物体の衝突前後の速さ",
+    basePath: "../../"
+  });
+</script>
+
+<main class="wrap">
+  <section class="stage-panel" aria-labelledby="stage-title">
+    <div class="panel-head">
+      <h1 id="stage-title">反発係数シミュレーター</h1>
+      <div class="formula" id="formulaText">e = 衝突後の相対速度 / 衝突前の相対速度</div>
+    </div>
+    <div class="canvas-shell">
+      <canvas id="scene" width="1200" height="720"></canvas>
+    </div>
+    <div class="status-strip" aria-live="polite">
+      <div class="stat">
+        <div class="stat-label" id="stat1Label">時刻 t</div>
+        <div class="stat-value" id="stat1">0.00 s</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label" id="stat2Label">衝突直前</div>
+        <div class="stat-value" id="stat2">-</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label" id="stat3Label">衝突直後</div>
+        <div class="stat-value" id="stat3">-</div>
+      </div>
+      <div class="stat">
+        <div class="stat-label" id="stat4Label">エネルギー比</div>
+        <div class="stat-value" id="stat4">e² = 0.64</div>
+      </div>
+    </div>
+  </section>
+
+  <aside class="control-panel" aria-labelledby="controls-title">
+    <div class="panel-head">
+      <h2 id="controls-title">操作</h2>
+      <span class="panel-title">係数と初期条件</span>
+    </div>
+    <div class="controls">
+      <div class="mode-tabs" role="tablist" aria-label="表示モード">
+        <button class="mode-tab" id="mode-drop" type="button" role="tab" aria-selected="true" data-mode="drop">自由落下</button>
+        <button class="mode-tab" id="mode-oblique" type="button" role="tab" aria-selected="false" data-mode="oblique">斜め衝突</button>
+        <button class="mode-tab" id="mode-stairs" type="button" role="tab" aria-selected="false" data-mode="stairs">階段</button>
+        <button class="mode-tab" id="mode-pair" type="button" role="tab" aria-selected="false" data-mode="pair">球2物体</button>
+      </div>
+
+      <div class="button-row">
+        <button class="main-button" id="togglePlay" type="button" data-playing="true">一時停止</button>
+        <button class="icon-button" id="stepOnce" type="button" aria-label="1コマ進める">›</button>
+        <button class="icon-button" id="reset" type="button" aria-label="リセット">↺</button>
+      </div>
+
+      <div class="group">
+        <div class="range-row">
+          <label for="restitution">反発 e</label>
+          <input id="restitution" type="range" min="0" max="1" step="0.01" value="0.80">
+          <output id="restitutionOut" for="restitution">0.80</output>
+        </div>
+        <div class="range-row">
+          <label for="timeScale">再生</label>
+          <input id="timeScale" type="range" min="0.1" max="2.5" step="0.05" value="1.00">
+          <output id="timeScaleOut" for="timeScale">1.00</output>
+        </div>
+      </div>
+
+      <div class="group" id="dropControls">
+        <h3>自由落下</h3>
+        <div class="range-row">
+          <label for="dropHeight">高さ h</label>
+          <input id="dropHeight" type="range" min="1" max="8" step="0.1" value="5.0">
+          <output id="dropHeightOut" for="dropHeight">5.0</output>
+        </div>
+      </div>
+
+      <div class="group" id="obliqueControls" hidden>
+        <h3>斜め衝突</h3>
+        <div class="range-row">
+          <label for="obliqueHeight">高さ h</label>
+          <input id="obliqueHeight" type="range" min="1" max="7" step="0.1" value="4.0">
+          <output id="obliqueHeightOut" for="obliqueHeight">4.0</output>
+        </div>
+        <div class="range-row">
+          <label for="obliqueSpeed">初速 v</label>
+          <input id="obliqueSpeed" type="range" min="1" max="12" step="0.1" value="6.0">
+          <output id="obliqueSpeedOut" for="obliqueSpeed">6.0</output>
+        </div>
+        <div class="range-row">
+          <label for="obliqueAngle">角度 θ</label>
+          <input id="obliqueAngle" type="range" min="10" max="80" step="1" value="38">
+          <output id="obliqueAngleOut" for="obliqueAngle">38°</output>
+        </div>
+      </div>
+
+      <div class="group" id="stairsControls" hidden>
+        <h3>階段バウンド</h3>
+        <div class="range-row">
+          <label for="stairWidth">段横 w</label>
+          <input id="stairWidth" type="range" min="0.7" max="2.4" step="0.05" value="1.45">
+          <output id="stairWidthOut" for="stairWidth">1.45</output>
+        </div>
+        <div class="range-row">
+          <label for="stairHeight">段高 d</label>
+          <input id="stairHeight" type="range" min="0.25" max="1.1" step="0.05" value="0.55">
+          <output id="stairHeightOut" for="stairHeight">0.55</output>
+        </div>
+        <div class="range-row">
+          <label for="stairCount">段数 n</label>
+          <input id="stairCount" type="range" min="3" max="8" step="1" value="6">
+          <output id="stairCountOut" for="stairCount">6</output>
+        </div>
+        <div class="range-row">
+          <label for="stairSpeed">初速 v</label>
+          <input id="stairSpeed" type="range" min="1" max="8" step="0.1" value="4.2">
+          <output id="stairSpeedOut" for="stairSpeed">4.2</output>
+        </div>
+        <div class="range-row">
+          <label for="stairAngle">角度 θ</label>
+          <input id="stairAngle" type="range" min="0" max="55" step="1" value="18">
+          <output id="stairAngleOut" for="stairAngle">18°</output>
+        </div>
+      </div>
+
+      <div class="group" id="pairControls" hidden>
+        <h3>球2物体</h3>
+        <div class="range-row">
+          <label for="mass1">質量 m1</label>
+          <input id="mass1" type="range" min="0.5" max="5" step="0.1" value="1.0">
+          <output id="mass1Out" for="mass1">1.0</output>
+        </div>
+        <div class="range-row">
+          <label for="mass2">質量 m2</label>
+          <input id="mass2" type="range" min="0.5" max="5" step="0.1" value="1.5">
+          <output id="mass2Out" for="mass2">1.5</output>
+        </div>
+        <div class="range-row">
+          <label for="speed1">初速 u1</label>
+          <input id="speed1" type="range" min="-5" max="8" step="0.1" value="4.0">
+          <output id="speed1Out" for="speed1">4.0</output>
+        </div>
+        <div class="range-row">
+          <label for="speed2">初速 u2</label>
+          <input id="speed2" type="range" min="-5" max="8" step="0.1" value="-1.0">
+          <output id="speed2Out" for="speed2">-1.0</output>
+        </div>
+      </div>
+
+      <div class="result-table" aria-live="polite">
+        <div class="result-row"><span id="result1Name">衝突直前の速さ</span><span id="result1">-</span></div>
+        <div class="result-row"><span id="result2Name">衝突直後の速さ</span><span id="result2">-</span></div>
+        <div class="result-row"><span id="result3Name">反発後の角度</span><span id="result3">-</span></div>
+        <div class="result-row"><span id="result4Name">力学的エネルギー比</span><span id="result4">0.64</span></div>
+      </div>
+
+      <div class="equation" id="equationText">
+        床との衝突では、床に垂直な速度成分だけが <strong>e</strong> 倍で反転します。
+      </div>
+      <div class="note">空気抵抗、床との摩擦、球の回転は初版では扱いません。</div>
+    </div>
+  </aside>
+</main>
+
+<script>
+(function () {
+  const g = 9.8;
+  const ballR = 0.22;
+  const canvas = document.querySelector("#scene");
+  const ctx = canvas.getContext("2d");
+  const modeButtons = Array.from(document.querySelectorAll(".mode-tab"));
+  const controls = {
+    restitution: document.querySelector("#restitution"),
+    timeScale: document.querySelector("#timeScale"),
+    dropHeight: document.querySelector("#dropHeight"),
+    obliqueHeight: document.querySelector("#obliqueHeight"),
+    obliqueSpeed: document.querySelector("#obliqueSpeed"),
+    obliqueAngle: document.querySelector("#obliqueAngle"),
+    stairWidth: document.querySelector("#stairWidth"),
+    stairHeight: document.querySelector("#stairHeight"),
+    stairCount: document.querySelector("#stairCount"),
+    stairSpeed: document.querySelector("#stairSpeed"),
+    stairAngle: document.querySelector("#stairAngle"),
+    mass1: document.querySelector("#mass1"),
+    mass2: document.querySelector("#mass2"),
+    speed1: document.querySelector("#speed1"),
+    speed2: document.querySelector("#speed2")
+  };
+  const outputs = {
+    formula: document.querySelector("#formulaText"),
+    restitution: document.querySelector("#restitutionOut"),
+    timeScale: document.querySelector("#timeScaleOut"),
+    dropHeight: document.querySelector("#dropHeightOut"),
+    obliqueHeight: document.querySelector("#obliqueHeightOut"),
+    obliqueSpeed: document.querySelector("#obliqueSpeedOut"),
+    obliqueAngle: document.querySelector("#obliqueAngleOut"),
+    stairWidth: document.querySelector("#stairWidthOut"),
+    stairHeight: document.querySelector("#stairHeightOut"),
+    stairCount: document.querySelector("#stairCountOut"),
+    stairSpeed: document.querySelector("#stairSpeedOut"),
+    stairAngle: document.querySelector("#stairAngleOut"),
+    mass1: document.querySelector("#mass1Out"),
+    mass2: document.querySelector("#mass2Out"),
+    speed1: document.querySelector("#speed1Out"),
+    speed2: document.querySelector("#speed2Out"),
+    statLabels: [
+      document.querySelector("#stat1Label"),
+      document.querySelector("#stat2Label"),
+      document.querySelector("#stat3Label"),
+      document.querySelector("#stat4Label")
+    ],
+    stats: [
+      document.querySelector("#stat1"),
+      document.querySelector("#stat2"),
+      document.querySelector("#stat3"),
+      document.querySelector("#stat4")
+    ],
+    resultNames: [
+      document.querySelector("#result1Name"),
+      document.querySelector("#result2Name"),
+      document.querySelector("#result3Name"),
+      document.querySelector("#result4Name")
+    ],
+    results: [
+      document.querySelector("#result1"),
+      document.querySelector("#result2"),
+      document.querySelector("#result3"),
+      document.querySelector("#result4")
+    ],
+    equation: document.querySelector("#equationText")
+  };
+  const panels = {
+    drop: document.querySelector("#dropControls"),
+    oblique: document.querySelector("#obliqueControls"),
+    stairs: document.querySelector("#stairsControls"),
+    pair: document.querySelector("#pairControls")
+  };
+  const togglePlayButton = document.querySelector("#togglePlay");
+  const stepOnceButton = document.querySelector("#stepOnce");
+  const resetButton = document.querySelector("#reset");
+
+  const state = {
+    mode: "drop",
+    playing: !window.matchMedia("(prefers-reduced-motion: reduce)").matches,
+    model: null,
+    history: []
+  };
+
+  const clock = new PhysicsSimClock.FixedStepClock({
+    step: 1 / 120,
+    maxFrameTime: 0.08,
+    maxStepsPerFrame: 10,
+    onStep(dt) {
+      if (state.playing) {
+        advance(dt * value("timeScale"));
+      }
+    },
+    onRender() {
+      draw();
+    }
+  });
+
+  function value(id) {
+    return Number(controls[id].value);
+  }
+
+  function e() {
+    return value("restitution");
+  }
+
+  function resetModel() {
+    state.history = [];
+    if (state.mode === "drop") {
+      state.model = {
+        t: 0,
+        x: 2.2,
+        y: value("dropHeight"),
+        vy: 0,
+        rest: false,
+        pre: null,
+        post: null,
+        collisionT: null
+      };
+    } else if (state.mode === "oblique") {
+      const angle = value("obliqueAngle") * Math.PI / 180;
+      const speed = value("obliqueSpeed");
+      state.model = {
+        t: 0,
+        x: 0.8,
+        y: value("obliqueHeight"),
+        vx: speed * Math.cos(angle),
+        vy: -speed * Math.sin(angle),
+        rest: false,
+        grounded: false,
+        preNormal: null,
+        postNormal: null,
+        incidentAngle: angle * 180 / Math.PI,
+        reboundAngle: null,
+        collisionPoint: null
+      };
+    } else if (state.mode === "stairs") {
+      const geom = stairGeometry();
+      const angle = value("stairAngle") * Math.PI / 180;
+      const speed = value("stairSpeed");
+      state.model = {
+        t: 0,
+        x: geom.w * 0.24,
+        y: geom.totalH + ballR + 0.75,
+        vx: speed * Math.cos(angle),
+        vy: -speed * Math.sin(angle),
+        rest: false,
+        onSurface: null,
+        preSpeed: null,
+        postSpeed: null,
+        lastCollision: null,
+        collisionCount: 0
+      };
+    } else {
+      const params = pairParams();
+      state.model = {
+        t: 0,
+        x1: 2.1,
+        x2: 7.6,
+        v1: params.u1,
+        v2: params.u2,
+        collided: false,
+        collisionX: null,
+        pairResult: pairResult(params)
+      };
+    }
+    pushHistory();
+    updateOutputs();
+    draw();
+  }
+
+  function pairParams() {
+    return {
+      m1: value("mass1"),
+      m2: value("mass2"),
+      u1: value("speed1"),
+      u2: value("speed2"),
+      e: e()
+    };
+  }
+
+  function pairResult(p) {
+    const total = p.m1 + p.m2;
+    return {
+      v1: ((p.m1 - p.e * p.m2) * p.u1 + (1 + p.e) * p.m2 * p.u2) / total,
+      v2: ((p.m2 - p.e * p.m1) * p.u2 + (1 + p.e) * p.m1 * p.u1) / total
+    };
+  }
+
+  function stairGeometry() {
+    const count = Math.round(value("stairCount"));
+    const w = value("stairWidth");
+    const h = value("stairHeight");
+    return {
+      count,
+      w,
+      h,
+      totalW: count * w,
+      totalH: count * h
+    };
+  }
+
+  function advance(dt) {
+    if (state.mode === "drop") advanceDrop(dt);
+    if (state.mode === "oblique") advanceOblique(dt);
+    if (state.mode === "stairs") advanceStairs(dt);
+    if (state.mode === "pair") advancePair(dt);
+    pushHistory();
+    updateOutputs();
+  }
+
+  function advanceDrop(dt) {
+    const m = state.model;
+    if (m.rest) return;
+    let remaining = dt;
+    for (let i = 0; i < 3 && remaining > 0; i += 1) {
+      const hitTime = groundHitTime(m.y, m.vy, remaining);
+      if (hitTime === null) {
+        m.y = m.y + m.vy * remaining - 0.5 * g * remaining * remaining;
+        m.vy = m.vy - g * remaining;
+        m.t += remaining;
+        remaining = 0;
+      } else {
+        m.y = ballR;
+        m.vy = m.vy - g * hitTime;
+        m.t += hitTime;
+        const before = Math.abs(m.vy);
+        const after = e() * before;
+        m.pre = before;
+        m.post = after;
+        m.collisionT = m.t;
+        if (after < 0.08 || e() === 0) {
+          m.vy = 0;
+          m.rest = true;
+          remaining = 0;
+        } else {
+          m.vy = after;
+          remaining -= hitTime;
+        }
+      }
+    }
+  }
+
+  function advanceOblique(dt) {
+    const m = state.model;
+    if (m.rest) return;
+    if (m.grounded) {
+      m.x += m.vx * dt;
+      m.y = ballR;
+      m.vy = 0;
+      m.t += dt;
+      if (m.x > 10.4) state.playing = false;
+      return;
+    }
+    let remaining = dt;
+    for (let i = 0; i < 3 && remaining > 0; i += 1) {
+      const hitTime = groundHitTime(m.y, m.vy, remaining);
+      if (hitTime === null) {
+        m.x += m.vx * remaining;
+        m.y = m.y + m.vy * remaining - 0.5 * g * remaining * remaining;
+        m.vy = m.vy - g * remaining;
+        m.t += remaining;
+        remaining = 0;
+      } else {
+        m.x += m.vx * hitTime;
+        m.y = ballR;
+        m.vy = m.vy - g * hitTime;
+        m.t += hitTime;
+        const beforeNormal = Math.abs(m.vy);
+        const afterNormal = e() * beforeNormal;
+        m.preNormal = beforeNormal;
+        m.postNormal = afterNormal;
+        m.incidentAngle = Math.atan2(beforeNormal, Math.abs(m.vx)) * 180 / Math.PI;
+        m.reboundAngle = Math.atan2(afterNormal, Math.abs(m.vx)) * 180 / Math.PI;
+        m.collisionPoint = { x: m.x, y: ballR };
+        if (afterNormal < 0.08) {
+          m.vy = 0;
+          m.grounded = true;
+          remaining = 0;
+        } else {
+          m.vy = afterNormal;
+          remaining -= hitTime;
+        }
+      }
+    }
+    if (m.x > 10.4 || m.y > 8.5) state.playing = false;
+  }
+
+  function advanceStairs(dt) {
+    const m = state.model;
+    if (m.rest) return;
+    let remaining = dt;
+    for (let i = 0; i < 8 && remaining > 0; i += 1) {
+      if (m.onSurface) {
+        remaining = advanceOnStairSurface(m, remaining);
+        if (remaining <= 0) break;
+      }
+
+      const hit = nextStairCollision(m, remaining);
+      if (!hit) {
+        integrateStairFree(m, remaining);
+        remaining = 0;
+      } else {
+        integrateStairFree(m, hit.t);
+        applyStairCollision(m, hit);
+        remaining -= hit.t;
+      }
+    }
+
+    const geom = stairGeometry();
+    if (m.x > geom.totalW + geom.w * 2.2 || m.x < -geom.w || m.y < -1.4) {
+      state.playing = false;
+    }
+  }
+
+  function advanceOnStairSurface(m, dt) {
+    const surface = m.onSurface;
+    const edge = m.vx >= 0 ? surface.x1 + ballR * 0.2 : surface.x0 - ballR * 0.2;
+    const timeToEdge = Math.abs(m.vx) < 1e-6 ? Infinity : (edge - m.x) / m.vx;
+    if (timeToEdge > 0 && timeToEdge <= dt) {
+      m.x += m.vx * timeToEdge;
+      m.y = surface.y + ballR;
+      m.vy = 0;
+      m.t += timeToEdge;
+      m.onSurface = null;
+      return dt - timeToEdge;
+    }
+    m.x += m.vx * dt;
+    m.y = surface.y + ballR;
+    m.vy = 0;
+    m.t += dt;
+    return 0;
+  }
+
+  function integrateStairFree(m, dt) {
+    m.x += m.vx * dt;
+    m.y = m.y + m.vy * dt - 0.5 * g * dt * dt;
+    m.vy = m.vy - g * dt;
+    m.t += dt;
+  }
+
+  function nextStairCollision(m, limit) {
+    const geom = stairGeometry();
+    const candidates = [];
+    for (let i = 0; i < geom.count; i += 1) {
+      const y = geom.totalH - i * geom.h;
+      const x0 = i * geom.w;
+      const x1 = (i + 1) * geom.w;
+      addHorizontalCandidate(candidates, m, limit, x0, x1, y, i);
+      const riserX = x1;
+      const yLow = y - geom.h;
+      const yHigh = y;
+      addVerticalCandidate(candidates, m, limit, riserX, yLow, yHigh, i);
+    }
+    addHorizontalCandidate(candidates, m, limit, geom.totalW, geom.totalW + geom.w * 2.2, 0, geom.count);
+    if (!candidates.length) return null;
+    candidates.sort((a, b) => a.t - b.t);
+    return candidates[0];
+  }
+
+  function addHorizontalCandidate(candidates, m, limit, x0, x1, y, index) {
+    const t = horizontalSurfaceHitTime(m.y, m.vy, y, limit);
+    if (t === null) return;
+    const x = m.x + m.vx * t;
+    const vyAt = m.vy - g * t;
+    if (vyAt < 0 && x >= x0 - ballR * 0.15 && x <= x1 + ballR * 0.15) {
+      candidates.push({ t, type: "horizontal", y, x0, x1, index });
+    }
+  }
+
+  function addVerticalCandidate(candidates, m, limit, x, yLow, yHigh, index) {
+    if (Math.abs(m.vx) < 1e-6) return;
+    const contactX = m.vx > 0 ? x - ballR : x + ballR;
+    const t = (contactX - m.x) / m.vx;
+    if (t <= 1e-6 || t > limit + 1e-9) return;
+    const y = m.y + m.vy * t - 0.5 * g * t * t;
+    if (y >= yLow + ballR * 0.35 && y <= yHigh - ballR * 0.15) {
+      candidates.push({ t, type: "vertical", x, yLow, yHigh, index });
+    }
+  }
+
+  function applyStairCollision(m, hit) {
+    m.preSpeed = Math.hypot(m.vx, m.vy);
+    m.collisionCount += 1;
+    if (hit.type === "horizontal") {
+      const beforeNormal = Math.abs(m.vy);
+      const afterNormal = e() * beforeNormal;
+      m.y = hit.y + ballR;
+      m.lastCollision = `段${hit.index + 1}の水平面`;
+      if (afterNormal < 0.08) {
+        m.vy = 0;
+        m.onSurface = hit;
+      } else {
+        m.vy = afterNormal;
+        m.onSurface = null;
+      }
+      m.postSpeed = Math.hypot(m.vx, m.vy);
+    } else {
+      const vxBefore = m.vx;
+      m.x = hit.x - Math.sign(vxBefore) * ballR;
+      m.vx = -e() * vxBefore;
+      if (Math.abs(m.vx) < 0.05) m.vx = 0;
+      m.lastCollision = `段${hit.index + 1}の垂直面`;
+      m.postSpeed = Math.hypot(m.vx, m.vy);
+      m.onSurface = null;
+    }
+  }
+
+  function advancePair(dt) {
+    const m = state.model;
+    let remaining = dt;
+    const radius = 0.32;
+    const left = 0.55;
+    const right = 9.45;
+
+    if (!m.collided && m.v1 > m.v2) {
+      const gap = m.x2 - m.x1 - 2 * radius;
+      const relative = m.v1 - m.v2;
+      const hitTime = gap / relative;
+      if (hitTime >= 0 && hitTime <= remaining) {
+        m.x1 += m.v1 * hitTime;
+        m.x2 += m.v2 * hitTime;
+        m.t += hitTime;
+        const params = pairParams();
+        const result = pairResult(params);
+        m.v1 = result.v1;
+        m.v2 = result.v2;
+        m.pairResult = result;
+        m.collided = true;
+        m.collisionX = (m.x1 + m.x2) / 2;
+        remaining -= hitTime;
+      }
+    }
+
+    m.x1 += m.v1 * remaining;
+    m.x2 += m.v2 * remaining;
+    m.t += remaining;
+
+    if (m.x1 < left || m.x2 > right || m.x1 > right || m.x2 < left) {
+      state.playing = false;
+    }
+  }
+
+  function groundHitTime(y, vy, limit) {
+    return horizontalSurfaceHitTime(y, vy, 0, limit);
+  }
+
+  function horizontalSurfaceHitTime(y, vy, surfaceY, limit) {
+    const a = -0.5 * g;
+    const b = vy;
+    const c = y - (surfaceY + ballR);
+    const d = b * b - 4 * a * c;
+    if (d < 0) return null;
+    const root = Math.sqrt(d);
+    const t1 = (-b - root) / (2 * a);
+    const t2 = (-b + root) / (2 * a);
+    const candidates = [t1, t2].filter((t) => t > 1e-6 && t <= limit + 1e-9);
+    if (!candidates.length) return null;
+    const t = Math.min(...candidates);
+    const vyAt = vy - g * t;
+    return vyAt < 0 ? t : null;
+  }
+
+  function pushHistory() {
+    const m = state.model;
+    if (!m) return;
+    let point;
+    if (state.mode === "drop") {
+      point = { t: m.t, y: m.y, v: m.vy, x: m.x };
+    } else if (state.mode === "oblique") {
+      point = { t: m.t, x: m.x, y: m.y, v: Math.hypot(m.vx, m.vy), vx: m.vx, vy: m.vy };
+    } else if (state.mode === "stairs") {
+      point = { t: m.t, x: m.x, y: m.y, v: Math.hypot(m.vx, m.vy), vx: m.vx, vy: m.vy };
+    } else {
+      point = { t: m.t, x1: m.x1, x2: m.x2, v1: m.v1, v2: m.v2 };
+    }
+    state.history.push(point);
+    if (state.history.length > 900) state.history.shift();
+  }
+
+  function resizeCanvas() {
+    const rect = canvas.getBoundingClientRect();
+    const dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
+    const width = Math.max(320, Math.round(rect.width * dpr));
+    const height = Math.max(420, Math.round(rect.height * dpr));
+    if (canvas.width !== width || canvas.height !== height) {
+      canvas.width = width;
+      canvas.height = height;
+    }
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    return { width: rect.width, height: rect.height };
+  }
+
+  function draw() {
+    const size = resizeCanvas();
+    const width = size.width;
+    const height = size.height;
+    ctx.clearRect(0, 0, width, height);
+    const scene = {
+      x: 28,
+      y: 28,
+      w: width - 56,
+      h: Math.max(300, height * 0.62)
+    };
+    const graph = {
+      x: 28,
+      y: scene.y + scene.h + 24,
+      w: width - 56,
+      h: Math.max(118, height - scene.h - 76)
+    };
+    drawSceneFrame(scene, graph);
+    if (state.mode === "drop") drawDrop(scene, graph);
+    if (state.mode === "oblique") drawOblique(scene, graph);
+    if (state.mode === "stairs") drawStairs(scene, graph);
+    if (state.mode === "pair") drawPair(scene, graph);
+  }
+
+  function drawSceneFrame(scene, graph) {
+    roundRect(scene.x, scene.y, scene.w, scene.h, 8);
+    ctx.fillStyle = "rgba(4, 12, 21, .58)";
+    ctx.fill();
+    ctx.strokeStyle = "rgba(203, 213, 225, .18)";
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    roundRect(graph.x, graph.y, graph.w, graph.h, 8);
+    ctx.fillStyle = "rgba(4, 12, 21, .45)";
+    ctx.fill();
+    ctx.strokeStyle = "rgba(203, 213, 225, .16)";
+    ctx.stroke();
+  }
+
+  function drawDrop(scene, graph) {
+    const m = state.model;
+    const x = scene.x + scene.w * 0.38;
+    const floorY = scene.y + scene.h - 46;
+    const topY = scene.y + 42;
+    const scale = (floorY - topY) / 8.4;
+    const ballX = x;
+    const ballY = floorY - m.y * scale;
+    drawFloor(scene.x + 24, floorY, scene.x + scene.w - 24);
+    drawHeightAxis(scene.x + scene.w - 82, topY, floorY, 8);
+    drawTrajectoryTrail((p) => ({
+      x: ballX,
+      y: floorY - p.y * scale
+    }), "#40d9f1");
+    drawBall(ballX, ballY, ballR * scale, "#40d9f1", "#bff7ff");
+    drawArrow(ballX + 54, ballY, ballX + 54, ballY - Math.max(-92, Math.min(92, m.vy * scale * 0.18)), m.vy >= 0 ? "#6ee7a8" : "#ff6978", 2.4);
+    label("v", ballX + 63, ballY - Math.max(-92, Math.min(92, m.vy * scale * 0.18)) + 4, "#dceeff");
+    if (m.pre !== null) {
+      const bounceY = floorY - ballR * scale;
+      drawArrow(ballX - 70, bounceY - 82, ballX - 70, bounceY - 12, "#ff6978", 2.2);
+      drawArrow(ballX - 42, bounceY - 12, ballX - 42, bounceY - Math.max(18, 12 + m.post * scale * 0.13), "#6ee7a8", 2.2);
+      label(`衝突: e=${e().toFixed(2)}`, ballX - 96, bounceY - 98, "#ffc857");
+    }
+    drawGraph(graph, "高さ y [m]", "#40d9f1", state.history.map((p) => ({ x: p.t, y: p.y })), 0, 8);
+    annotateDrop(scene, floorY);
+  }
+
+  function drawOblique(scene, graph) {
+    const m = state.model;
+    const floorY = scene.y + scene.h - 46;
+    const left = scene.x + 34;
+    const right = scene.x + scene.w - 26;
+    const topY = scene.y + 42;
+    const xScale = (right - left) / 10.5;
+    const yScale = (floorY - topY) / 7.8;
+    const toPx = (p) => ({ x: left + p.x * xScale, y: floorY - p.y * yScale });
+    drawFloor(left - 10, floorY, right + 8);
+    drawTrajectoryTrail((p) => toPx(p), "#ffc857");
+    const b = toPx(m);
+    drawBall(b.x, b.y, ballR * yScale, "#ffc857", "#fff0ad");
+    drawArrow(b.x, b.y, b.x + clamp(m.vx * 18, -95, 95), b.y - clamp(m.vy * 18, -95, 95), "#dceeff", 2.2);
+    label("v", b.x + clamp(m.vx * 18, -95, 95) + 8, b.y - clamp(m.vy * 18, -95, 95), "#dceeff");
+    if (m.collisionPoint) {
+      const c = toPx(m.collisionPoint);
+      drawDot(c.x, c.y, 4, "#ff6978", "#ffd1d7");
+      const inLen = 82;
+      const outLen = 82;
+      const inc = m.incidentAngle * Math.PI / 180;
+      const reb = (m.reboundAngle || 0) * Math.PI / 180;
+      drawArrow(c.x - Math.cos(inc) * inLen, c.y - Math.sin(inc) * inLen, c.x, c.y, "#ff6978", 2.2);
+      drawArrow(c.x, c.y, c.x + Math.cos(reb) * outLen, c.y - Math.sin(reb) * outLen, "#6ee7a8", 2.2);
+      drawAngleArc(c.x, c.y, inc, reb);
+      label(`入射 ${m.incidentAngle.toFixed(1)}°`, c.x - 128, c.y - 82, "#ffb6bf");
+      label(`反発 ${m.reboundAngle.toFixed(1)}°`, c.x + 18, c.y - 74, "#a7f2cb");
+    }
+    drawGraph(graph, "速さ |v| [m/s]", "#ffc857", state.history.map((p) => ({ x: p.t, y: p.v })), 0, 13);
+    annotateOblique(scene, floorY);
+  }
+
+  function drawStairs(scene, graph) {
+    const m = state.model;
+    const geom = stairGeometry();
+    const view = stairView(scene, geom);
+    const toPx = (p) => ({
+      x: view.left + p.x * view.scale,
+      y: view.floorY - p.y * view.scale
+    });
+
+    drawStairShape(geom, view);
+    drawTrajectoryTrail((p) => toPx(p), "#6ee7a8");
+    const ball = toPx(m);
+    drawBall(ball.x, ball.y, ballR * view.scale, "#6ee7a8", "#d8ffe9");
+    drawArrow(
+      ball.x,
+      ball.y,
+      ball.x + clamp(m.vx * 16, -90, 90),
+      ball.y - clamp(m.vy * 16, -90, 90),
+      "#dceeff",
+      2.2
+    );
+    label("v", ball.x + clamp(m.vx * 16, -90, 90) + 7, ball.y - clamp(m.vy * 16, -90, 90), "#dceeff");
+
+    if (m.lastCollision) {
+      label(`直近: ${m.lastCollision}`, scene.x + 28, scene.y + 82, "#ffc857");
+    }
+    drawStairDimensions(geom, view);
+    annotateStairs(scene);
+    drawGraph(graph, "高さ y [m]", "#6ee7a8", state.history.map((p) => ({ x: p.t, y: p.y })), 0, geom.totalH + 1.6);
+  }
+
+  function stairView(scene, geom) {
+    const minX = -geom.w * 0.35;
+    const maxX = geom.totalW + geom.w * 1.45;
+    const minY = -0.25;
+    const maxY = geom.totalH + 1.45;
+    const scale = Math.min(scene.w / (maxX - minX + 0.2), scene.h / (maxY - minY + 0.35));
+    return {
+      scale,
+      left: scene.x + 34 - minX * scale,
+      floorY: scene.y + scene.h - 40 + minY * scale
+    };
+  }
+
+  function drawStairShape(geom, view) {
+    ctx.save();
+    ctx.strokeStyle = "#8fa6ba";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    let x = 0;
+    let y = geom.totalH;
+    ctx.moveTo(view.left + x * view.scale, view.floorY - y * view.scale);
+    for (let i = 0; i < geom.count; i += 1) {
+      x = (i + 1) * geom.w;
+      ctx.lineTo(view.left + x * view.scale, view.floorY - y * view.scale);
+      y -= geom.h;
+      ctx.lineTo(view.left + x * view.scale, view.floorY - y * view.scale);
+    }
+    ctx.lineTo(view.left + (geom.totalW + geom.w * 1.3) * view.scale, view.floorY);
+    ctx.stroke();
+
+    ctx.strokeStyle = "rgba(143, 166, 186, .28)";
+    ctx.lineWidth = 1;
+    for (let i = 0; i < geom.count; i += 1) {
+      const yTop = geom.totalH - i * geom.h;
+      const x0 = i * geom.w;
+      const x1 = (i + 1) * geom.w;
+      for (let sx = x0; sx < x1; sx += geom.w / 5) {
+        ctx.beginPath();
+        ctx.moveTo(view.left + sx * view.scale, view.floorY - yTop * view.scale + 7);
+        ctx.lineTo(view.left + (sx + geom.w * 0.12) * view.scale, view.floorY - yTop * view.scale);
+        ctx.stroke();
+      }
+    }
+    ctx.restore();
+  }
+
+  function drawStairDimensions(geom, view) {
+    const topY = geom.totalH;
+    const x0 = 0;
+    const x1 = geom.w;
+    const dimY = topY + 0.38;
+    const dimX = geom.w + 0.28;
+    ctx.save();
+    drawArrow(view.left + x0 * view.scale, view.floorY - dimY * view.scale, view.left + x1 * view.scale, view.floorY - dimY * view.scale, "#40d9f1", 1.4);
+    label(`横幅 w=${geom.w.toFixed(2)}m`, view.left + (x0 + 0.08) * view.scale, view.floorY - (dimY + 0.1) * view.scale, "#9aeaf6");
+    drawArrow(view.left + dimX * view.scale, view.floorY - topY * view.scale, view.left + dimX * view.scale, view.floorY - (topY - geom.h) * view.scale, "#ffc857", 1.4);
+    label(`縦幅 d=${geom.h.toFixed(2)}m`, view.left + (dimX + 0.08) * view.scale, view.floorY - (topY - geom.h * 0.45) * view.scale, "#ffd889");
+    ctx.restore();
+  }
+
+  function annotateStairs(scene) {
+    const maxWidth = Math.max(150, Math.min(scene.w - 56, scene.w * 0.62));
+    const nextY = drawWrappedText("階段の水平面では vy' = -e vy、垂直面では vx' = -e vx", scene.x + 28, scene.y + 34, maxWidth, 16, "#cbd5e1", "700 13px system-ui, sans-serif");
+    drawWrappedText("横幅 w と 縦幅 d を変えると、次の段に届く条件が変わります。", scene.x + 28, nextY + 4, maxWidth, 15, "#94a9bd", "700 12px system-ui, sans-serif");
+  }
+
+  function drawPair(scene, graph) {
+    const m = state.model;
+    const floorY = scene.y + scene.h * 0.58;
+    const left = scene.x + 42;
+    const right = scene.x + scene.w - 42;
+    const scale = (right - left) / 10;
+    drawFloor(left - 8, floorY + 30, right + 8);
+    drawAxis(left, floorY + 54, right, floorY + 54, "#8fa6ba");
+    const r1 = radiusFromMass(value("mass1"));
+    const r2 = radiusFromMass(value("mass2"));
+    const b1 = { x: left + m.x1 * scale, y: floorY };
+    const b2 = { x: left + m.x2 * scale, y: floorY };
+    drawBall(b1.x, b1.y, r1, "#40d9f1", "#bff7ff");
+    drawBall(b2.x, b2.y, r2, "#cf9cff", "#efdfff");
+    label("1", b1.x - 4, b1.y + 5, "#07111c");
+    label("2", b2.x - 4, b2.y + 5, "#07111c");
+    drawArrow(b1.x, b1.y - r1 - 20, b1.x + clamp(m.v1 * 24, -112, 112), b1.y - r1 - 20, "#40d9f1", 2.4);
+    drawArrow(b2.x, b2.y - r2 - 20, b2.x + clamp(m.v2 * 24, -112, 112), b2.y - r2 - 20, "#cf9cff", 2.4);
+    if (m.collided && m.collisionX !== null) {
+      const cx = left + m.collisionX * scale;
+      ctx.save();
+      ctx.strokeStyle = "rgba(255, 200, 87, .78)";
+      ctx.setLineDash([6, 6]);
+      ctx.beginPath();
+      ctx.moveTo(cx, scene.y + 36);
+      ctx.lineTo(cx, floorY + 70);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      label("衝突位置", cx + 8, scene.y + 54, "#ffc857");
+      ctx.restore();
+    }
+    drawPairFormula(scene);
+    drawTwoLineGraph(
+      graph,
+      "速度 v [m/s]",
+      state.history.map((p) => ({ x: p.t, y: p.v1 })),
+      state.history.map((p) => ({ x: p.t, y: p.v2 })),
+      "#40d9f1",
+      "#cf9cff",
+      -7,
+      8
+    );
+  }
+
+  function annotateDrop(scene, floorY) {
+    ctx.save();
+    const maxWidth = Math.max(140, Math.min(scene.w - 56, scene.w * 0.56));
+    const nextY = drawWrappedText("床に垂直な成分:  v' = e v", scene.x + 28, scene.y + 34, maxWidth, 16, "#cbd5e1", "700 13px system-ui, sans-serif");
+    drawWrappedText("床は静止しているので、反発係数は上下速度の比で読めます。", scene.x + 28, nextY + 4, maxWidth, 15, "#94a9bd", "700 12px system-ui, sans-serif");
+    ctx.fillStyle = "#94a9bd";
+    ctx.font = "700 12px system-ui, sans-serif";
+    ctx.fillText("床", scene.x + 32, floorY + 24);
+    ctx.restore();
+  }
+
+  function annotateOblique(scene, floorY) {
+    ctx.save();
+    const maxWidth = Math.max(140, Math.min(scene.w - 56, scene.w * 0.56));
+    const nextY = drawWrappedText("水平成分はそのまま、鉛直成分だけ v'y = -e vy", scene.x + 28, scene.y + 34, maxWidth, 16, "#cbd5e1", "700 13px system-ui, sans-serif");
+    drawWrappedText("e が小さいほど、反発後の角度は床に沿う向きへ近づきます。", scene.x + 28, nextY + 4, maxWidth, 15, "#94a9bd", "700 12px system-ui, sans-serif");
+    ctx.fillStyle = "#94a9bd";
+    ctx.font = "700 12px system-ui, sans-serif";
+    ctx.fillText("床", scene.x + 32, floorY + 24);
+    ctx.restore();
+  }
+
+  function drawPairFormula(scene) {
+    ctx.save();
+    const x = scene.x + 28;
+    const y = scene.y + 34;
+    const maxWidth = Math.max(150, Math.min(scene.w - 56, scene.w * 0.62));
+    const nextY = drawWrappedText("一直線上の正面衝突:  m1u1 + m2u2 = m1v1 + m2v2", x, y, maxWidth, 16, "#cbd5e1", "700 13px system-ui, sans-serif");
+    drawWrappedText("反発係数:  e = (v2 - v1) / (u1 - u2)。右向きを正として表示します。", x, nextY + 5, maxWidth, 15, "#94a9bd", "700 12px system-ui, sans-serif");
+    ctx.restore();
+  }
+
+  function drawGraph(area, title, color, data, minY, maxY) {
+    drawGraphBase(area, title, minY, maxY);
+    drawPolyline(area, data, color, minY, maxY);
+  }
+
+  function drawTwoLineGraph(area, title, a, b, colorA, colorB, minY, maxY) {
+    drawGraphBase(area, title, minY, maxY);
+    drawPolyline(area, a, colorA, minY, maxY);
+    drawPolyline(area, b, colorB, minY, maxY);
+    label("球1", area.x + area.w - 94, area.y + 26, colorA);
+    label("球2", area.x + area.w - 48, area.y + 26, colorB);
+  }
+
+  function drawGraphBase(area, title, minY, maxY) {
+    ctx.save();
+    ctx.fillStyle = "#dceeff";
+    ctx.font = "800 13px system-ui, sans-serif";
+    ctx.fillText(title, area.x + 12, area.y + 24);
+    ctx.strokeStyle = "rgba(203, 213, 225, .14)";
+    ctx.lineWidth = 1;
+    for (let i = 1; i < 4; i += 1) {
+      const y = area.y + 34 + i * (area.h - 48) / 4;
+      ctx.beginPath();
+      ctx.moveTo(area.x + 12, y);
+      ctx.lineTo(area.x + area.w - 12, y);
+      ctx.stroke();
+    }
+    ctx.fillStyle = "#94a9bd";
+    ctx.font = "700 11px system-ui, sans-serif";
+    ctx.fillText(maxY.toFixed(0), area.x + 12, area.y + 42);
+    ctx.fillText(minY.toFixed(0), area.x + 12, area.y + area.h - 12);
+    ctx.restore();
+  }
+
+  function drawPolyline(area, data, color, minY, maxY) {
+    if (data.length < 2) return;
+    const left = area.x + 48;
+    const right = area.x + area.w - 14;
+    const top = area.y + 36;
+    const bottom = area.y + area.h - 18;
+    const tMax = data[data.length - 1].x;
+    const tMin = Math.max(0, tMax - 8);
+    ctx.save();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2.3;
+    ctx.shadowBlur = 10;
+    ctx.shadowColor = color;
+    ctx.beginPath();
+    let started = false;
+    data.forEach((p) => {
+      if (p.x < tMin) return;
+      const u = tMax === tMin ? 1 : (p.x - tMin) / (tMax - tMin);
+      const v = (clamp(p.y, minY, maxY) - minY) / (maxY - minY);
+      const x = left + u * (right - left);
+      const y = bottom - v * (bottom - top);
+      if (!started) {
+        ctx.moveTo(x, y);
+        started = true;
+      } else {
+        ctx.lineTo(x, y);
+      }
+    });
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function updateOutputs() {
+    outputs.restitution.textContent = e().toFixed(2);
+    outputs.timeScale.textContent = value("timeScale").toFixed(2);
+    outputs.dropHeight.textContent = value("dropHeight").toFixed(1);
+    outputs.obliqueHeight.textContent = value("obliqueHeight").toFixed(1);
+    outputs.obliqueSpeed.textContent = value("obliqueSpeed").toFixed(1);
+    outputs.obliqueAngle.textContent = `${value("obliqueAngle").toFixed(0)}°`;
+    outputs.stairWidth.textContent = value("stairWidth").toFixed(2);
+    outputs.stairHeight.textContent = value("stairHeight").toFixed(2);
+    outputs.stairCount.textContent = `${Math.round(value("stairCount"))}`;
+    outputs.stairSpeed.textContent = value("stairSpeed").toFixed(1);
+    outputs.stairAngle.textContent = `${value("stairAngle").toFixed(0)}°`;
+    outputs.mass1.textContent = value("mass1").toFixed(1);
+    outputs.mass2.textContent = value("mass2").toFixed(1);
+    outputs.speed1.textContent = value("speed1").toFixed(1);
+    outputs.speed2.textContent = value("speed2").toFixed(1);
+    togglePlayButton.dataset.playing = String(state.playing);
+    togglePlayButton.textContent = state.playing ? "一時停止" : "再生";
+
+    if (state.mode === "drop") updateDropOutputs();
+    if (state.mode === "oblique") updateObliqueOutputs();
+    if (state.mode === "stairs") updateStairsOutputs();
+    if (state.mode === "pair") updatePairOutputs();
+  }
+
+  function updateDropOutputs() {
+    const m = state.model;
+    outputs.formula.textContent = "e = v上向き / v下向き, 反発後のエネルギー比 = e²";
+    setLabels(["時刻 t", "衝突直前", "衝突直後", "エネルギー比"]);
+    setStats([
+      `${m.t.toFixed(2)} s`,
+      m.pre === null ? "-" : `${m.pre.toFixed(2)} m/s`,
+      m.post === null ? "-" : `${m.post.toFixed(2)} m/s`,
+      `e² = ${(e() * e()).toFixed(2)}`
+    ]);
+    setResultNames(["衝突直前の速さ", "衝突直後の速さ", "現在の高さ", "力学的エネルギー比"]);
+    setResults([
+      m.pre === null ? "-" : `${m.pre.toFixed(2)} m/s`,
+      m.post === null ? "-" : `${m.post.toFixed(2)} m/s`,
+      `${m.y.toFixed(2)} m`,
+      `${(e() * e()).toFixed(2)}`
+    ]);
+    outputs.equation.innerHTML = "床との衝突では、床に垂直な速度成分だけが <strong>e</strong> 倍で反転します。";
+  }
+
+  function updateObliqueOutputs() {
+    const m = state.model;
+    outputs.formula.textContent = "vx は保存, vy' = -e vy, tan θ' = e tan θ";
+    setLabels(["時刻 t", "直前の鉛直成分", "直後の鉛直成分", "反発後の角度"]);
+    setStats([
+      `${m.t.toFixed(2)} s`,
+      m.preNormal === null ? "-" : `${m.preNormal.toFixed(2)} m/s`,
+      m.postNormal === null ? "-" : `${m.postNormal.toFixed(2)} m/s`,
+      m.reboundAngle === null ? "-" : `${m.reboundAngle.toFixed(1)}°`
+    ]);
+    setResultNames(["衝突直前の速さ", "衝突直後の速さ", "反発後の角度", "鉛直エネルギー比"]);
+    const beforeSpeed = m.preNormal === null ? null : Math.hypot(m.vx, m.preNormal);
+    const afterSpeed = m.postNormal === null ? null : Math.hypot(m.vx, m.postNormal);
+    setResults([
+      beforeSpeed === null ? "-" : `${beforeSpeed.toFixed(2)} m/s`,
+      afterSpeed === null ? "-" : `${afterSpeed.toFixed(2)} m/s`,
+      m.reboundAngle === null ? "-" : `${m.reboundAngle.toFixed(1)}°`,
+      `${(e() * e()).toFixed(2)}`
+    ]);
+    outputs.equation.innerHTML = "床に平行な速度は変えず、垂直成分だけを <strong>e</strong> 倍にします。";
+  }
+
+  function updatePairOutputs() {
+    const params = pairParams();
+    const result = pairResult(params);
+    const m = state.model;
+    outputs.formula.textContent = "e = (v2 - v1) / (u1 - u2), 運動量保存と組み合わせる";
+    setLabels(["時刻 t", "球1 速度", "球2 速度", "衝突"]);
+    setStats([
+      `${m.t.toFixed(2)} s`,
+      `${m.v1.toFixed(2)} m/s`,
+      `${m.v2.toFixed(2)} m/s`,
+      m.collided ? "衝突後" : "衝突前"
+    ]);
+    setResultNames(["球1: 衝突前 → 後", "球2: 衝突前 → 後", "相対速さの比", "運動エネルギー比"]);
+    const beforeK = 0.5 * params.m1 * params.u1 * params.u1 + 0.5 * params.m2 * params.u2 * params.u2;
+    const afterK = 0.5 * params.m1 * result.v1 * result.v1 + 0.5 * params.m2 * result.v2 * result.v2;
+    setResults([
+      `${params.u1.toFixed(2)} → ${result.v1.toFixed(2)} m/s`,
+      `${params.u2.toFixed(2)} → ${result.v2.toFixed(2)} m/s`,
+      `${Math.abs(result.v2 - result.v1).toFixed(2)} / ${Math.abs(params.u1 - params.u2).toFixed(2)}`,
+      `${(afterK / Math.max(beforeK, 1e-6)).toFixed(2)}`
+    ]);
+    outputs.equation.innerHTML = "球2物体は一直線上の正面衝突として、運動量保存と反発係数から衝突後速度を計算します。";
+  }
+
+  function updateStairsOutputs() {
+    const m = state.model;
+    const geom = stairGeometry();
+    outputs.formula.textContent = "階段: 水平面は vy を反発, 垂直面は vx を反発";
+    setLabels(["時刻 t", "現在の速さ", "衝突回数", "段差寸法"]);
+    setStats([
+      `${m.t.toFixed(2)} s`,
+      `${Math.hypot(m.vx, m.vy).toFixed(2)} m/s`,
+      `${m.collisionCount} 回`,
+      `w=${geom.w.toFixed(2)}m, d=${geom.h.toFixed(2)}m`
+    ]);
+    setResultNames(["衝突直前の速さ", "衝突直後の速さ", "直近の衝突面", "段数"]);
+    setResults([
+      m.preSpeed === null ? "-" : `${m.preSpeed.toFixed(2)} m/s`,
+      m.postSpeed === null ? "-" : `${m.postSpeed.toFixed(2)} m/s`,
+      m.lastCollision || "-",
+      `${geom.count} 段`
+    ]);
+    outputs.equation.innerHTML = "階段の水平面と垂直面を別々に判定し、面に垂直な速度成分だけを <strong>e</strong> 倍で反転します。";
+  }
+
+  function setLabels(values) {
+    values.forEach((text, i) => {
+      outputs.statLabels[i].textContent = text;
+    });
+  }
+
+  function setStats(values) {
+    values.forEach((text, i) => {
+      outputs.stats[i].textContent = text;
+    });
+  }
+
+  function setResultNames(values) {
+    values.forEach((text, i) => {
+      outputs.resultNames[i].textContent = text;
+    });
+  }
+
+  function setResults(values) {
+    values.forEach((text, i) => {
+      outputs.results[i].textContent = text;
+    });
+  }
+
+  function setMode(mode) {
+    state.mode = mode;
+    Object.entries(panels).forEach(([key, panel]) => {
+      panel.hidden = key !== mode;
+    });
+    modeButtons.forEach((button) => {
+      button.setAttribute("aria-selected", String(button.dataset.mode === mode));
+    });
+    resetModel();
+  }
+
+  function radiusFromMass(mass) {
+    return 21 + Math.sqrt(mass) * 7;
+  }
+
+  function drawFloor(x1, y, x2) {
+    ctx.save();
+    ctx.strokeStyle = "#8fa6ba";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(x1, y);
+    ctx.lineTo(x2, y);
+    ctx.stroke();
+    ctx.strokeStyle = "rgba(143, 166, 186, .36)";
+    ctx.lineWidth = 1;
+    for (let x = x1; x < x2; x += 18) {
+      ctx.beginPath();
+      ctx.moveTo(x, y + 8);
+      ctx.lineTo(x + 10, y);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  function drawHeightAxis(x, y1, y2, maxHeight) {
+    drawArrow(x, y2, x, y1, "#8fa6ba", 1.4);
+    ctx.save();
+    ctx.fillStyle = "#94a9bd";
+    ctx.font = "700 11px system-ui, sans-serif";
+    for (let h = 0; h <= maxHeight; h += 2) {
+      const y = y2 - h / maxHeight * (y2 - y1);
+      ctx.beginPath();
+      ctx.moveTo(x - 6, y);
+      ctx.lineTo(x + 6, y);
+      ctx.strokeStyle = "rgba(203, 213, 225, .32)";
+      ctx.stroke();
+      ctx.fillText(`${h}m`, x + 10, y + 4);
+    }
+    ctx.restore();
+  }
+
+  function drawAxis(x1, y1, x2, y2, color) {
+    drawArrow(x1, y1, x2, y2, color, 1.4);
+  }
+
+  function drawTrajectoryTrail(mapper, color) {
+    if (state.history.length < 2) return;
+    ctx.save();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2.3;
+    ctx.shadowBlur = 10;
+    ctx.shadowColor = color;
+    ctx.beginPath();
+    state.history.forEach((p, i) => {
+      const pt = mapper(p);
+      if (i === 0) ctx.moveTo(pt.x, pt.y);
+      else ctx.lineTo(pt.x, pt.y);
+    });
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawBall(x, y, r, fill, stroke) {
+    const gradient = ctx.createRadialGradient(x - r * 0.35, y - r * 0.45, r * 0.1, x, y, r);
+    gradient.addColorStop(0, "#ffffff");
+    gradient.addColorStop(.18, stroke);
+    gradient.addColorStop(1, fill);
+    ctx.save();
+    ctx.fillStyle = gradient;
+    ctx.strokeStyle = "rgba(255, 255, 255, .82)";
+    ctx.lineWidth = 1.4;
+    ctx.beginPath();
+    ctx.arc(x, y, Math.max(4, r), 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawDot(x, y, r, fill, stroke) {
+    ctx.save();
+    ctx.fillStyle = fill;
+    ctx.strokeStyle = stroke;
+    ctx.lineWidth = 1.2;
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawAngleArc(x, y, incident, rebound) {
+    ctx.save();
+    ctx.strokeStyle = "rgba(255, 200, 87, .8)";
+    ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    ctx.arc(x, y, 44, Math.PI + incident, Math.PI * 2 - rebound, true);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawArrow(x1, y1, x2, y2, color, width) {
+    const angle = Math.atan2(y2 - y1, x2 - x1);
+    ctx.save();
+    ctx.strokeStyle = color;
+    ctx.fillStyle = color;
+    ctx.lineWidth = width;
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(x2, y2);
+    ctx.lineTo(x2 - 9 * Math.cos(angle - Math.PI / 6), y2 - 9 * Math.sin(angle - Math.PI / 6));
+    ctx.lineTo(x2 - 9 * Math.cos(angle + Math.PI / 6), y2 - 9 * Math.sin(angle + Math.PI / 6));
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function label(text, x, y, color) {
+    ctx.save();
+    ctx.fillStyle = color;
+    ctx.font = "800 12px system-ui, sans-serif";
+    ctx.fillText(text, x, y);
+    ctx.restore();
+  }
+
+  function drawWrappedText(text, x, y, maxWidth, lineHeight, color, font) {
+    ctx.save();
+    ctx.fillStyle = color;
+    ctx.font = font;
+    const chars = Array.from(text);
+    let line = "";
+    let lineY = y;
+    let lines = 0;
+    chars.forEach((char) => {
+      const next = line + char;
+      if (line && ctx.measureText(next).width > maxWidth) {
+        ctx.fillText(line, x, lineY);
+        lines += 1;
+        line = char.trimStart();
+        lineY += lineHeight;
+      } else {
+        line = next;
+      }
+    });
+    if (line) {
+      ctx.fillText(line, x, lineY);
+      lines += 1;
+    }
+    ctx.restore();
+    return y + lines * lineHeight;
+  }
+
+  function roundRect(x, y, width, height, radius) {
+    ctx.beginPath();
+    ctx.moveTo(x + radius, y);
+    ctx.lineTo(x + width - radius, y);
+    ctx.quadraticCurveTo(x + width, y, x + width, y + radius);
+    ctx.lineTo(x + width, y + height - radius);
+    ctx.quadraticCurveTo(x + width, y + height, x + width - radius, y + height);
+    ctx.lineTo(x + radius, y + height);
+    ctx.quadraticCurveTo(x, y + height, x, y + height - radius);
+    ctx.lineTo(x, y + radius);
+    ctx.quadraticCurveTo(x, y, x + radius, y);
+    ctx.closePath();
+  }
+
+  function clamp(v, lo, hi) {
+    return Math.max(lo, Math.min(hi, v));
+  }
+
+  Object.values(controls).forEach((control) => {
+    control.addEventListener("input", () => {
+      if (control === controls.timeScale) {
+        updateOutputs();
+        return;
+      }
+      resetModel();
+    });
+  });
+
+  modeButtons.forEach((button) => {
+    button.addEventListener("click", () => setMode(button.dataset.mode));
+  });
+
+  togglePlayButton.addEventListener("click", () => {
+    state.playing = !state.playing;
+    updateOutputs();
+  });
+
+  stepOnceButton.addEventListener("click", () => {
+    state.playing = false;
+    advance(1 / 30 * value("timeScale"));
+    draw();
+  });
+
+  resetButton.addEventListener("click", () => {
+    resetModel();
+  });
+
+  window.addEventListener("resize", draw);
+  resetModel();
+  clock.start();
+})();
+</script>
+</body>
+</html>
