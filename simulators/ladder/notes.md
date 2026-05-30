@@ -30,3 +30,13 @@ Checked fifteenth.
 - Added the common simulator shell for the "一覧へ" header.
 - Replaced the main update loop with `PhysicsSimClock.FixedStepClock`.
 - Force-balance logic, jump display, and UI controls were not otherwise changed.
+
+## Animation Smoothness 2026-05-30
+
+- Restored the ladder simulator's animation loop to a direct `requestAnimationFrame` loop.
+- Reason:
+  - The fixed-step clock updated the ladder state at `1/60` second intervals.
+  - On higher-refresh displays or in the in-app browser, this could look more stepped than the original smoother animation.
+  - The ladder model does not require strict fixed-step integration, so per-frame variable `dt` is a better fit for visual smoothness.
+- `dt` is capped at `1/30` second to avoid a large jump after tab inactivity.
+- Force-balance logic, friction model, controls, and drawing geometry were not otherwise changed.

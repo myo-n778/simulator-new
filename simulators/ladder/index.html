@@ -291,7 +291,13 @@ function mainLoop(dt){
 
   draw(0,false); updateReads(C); updateControlFrame();
 }
-const clock = new PhysicsSimClock.FixedStepClock({ step: 1/60, onStep(dt){ mainLoop(dt); } });
+let lastFrameTime = performance.now();
+function animate(now){
+  const dt = Math.min((now - lastFrameTime) / 1000, 1 / 30);
+  lastFrameTime = now;
+  mainLoop(dt);
+  requestAnimationFrame(animate);
+}
 
 function draw(personLift=0, jumping=false){
   const rect=cvs.getBoundingClientRect(), W=rect.width, H=rect.height;
@@ -587,7 +593,15 @@ function setSfromPoint(x,y){
 }
 
 /* ====== 初期化 ====== */
-(function init(){ resizeCanvas(); updateControlFrame(); refreshAll(); clock.start(); })();
+(function init(){
+  resizeCanvas();
+  updateControlFrame();
+  refreshAll();
+  requestAnimationFrame((now)=>{
+    lastFrameTime = now;
+    animate(now);
+  });
+})();
 </script>
 </body>
 </html>
