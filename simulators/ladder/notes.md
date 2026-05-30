@@ -40,3 +40,10 @@ Checked fifteenth.
   - The ladder model does not require strict fixed-step integration, so per-frame variable `dt` is a better fit for visual smoothness.
 - `dt` is capped at `1/30` second to avoid a large jump after tab inactivity.
 - Force-balance logic, friction model, controls, and drawing geometry were not otherwise changed.
+
+## Always-Playing State 2026-05-30
+
+- Changed the play control from `再生/停止` to `常時再生`.
+- The button no longer toggles into a stopped state; pressing it only restores/keeps playback.
+- Reset explicitly returns to the playing state.
+- After falling or jump completion, the simulator remains in the playing state instead of becoming paused.

@@ -144,7 +144,7 @@
           <div id="controlFrame" style="margin-top:6px;">
             <div class="btnrow">
               <button id="resetBtn">初期化</button>
-              <button id="playBtn">再生/停止</button>
+              <button id="playBtn">常時再生</button>
               <button id="fullBtn">全体表示</button>
               <div class="sideopts">
                 <label class="chk small"><input type="checkbox" id="kineticToggle" checked> 動摩擦モードを有効</label>
@@ -249,7 +249,7 @@ function mainLoop(dt){
     }else if(pMode==='p_down'){
       const u=Math.min(1,(now-pStart)/downDur);
       lift = pJumpH * (1 - easeInQuad(u)); // 速やかに降下
-      if(u>=1){ pMode='normal'; S.playing=false; }
+      if(u>=1){ pMode='normal'; S.playing=true; }
     }
     draw(lift,true);
     updateReads(check(Math.max(S.theta,1e-4),S.mu_s_f,S.mu_s_w,S.mu_k_f,S.mu_k_w,S.m,S.mp,S.g,S.sp,S.personOn));
@@ -284,7 +284,7 @@ function mainLoop(dt){
         landOffset = FIG.footH; // 「|」の高さ分だけ上で着地
         pMode='p_up'; pStart=now; S.playing=true;
       }else{
-        S.playing=false;
+        S.playing=true;
       }
     }
   }
@@ -555,6 +555,7 @@ personToggle.addEventListener('change',()=>{S.personOn=personToggle.checked;upda
 
 resetBtn.addEventListener('click',()=>{
   const keepPerson = S.personOn; // 人ON/OFFは保持
+  S.playing = true;
   onTheta(55); onM(1.0);
   onMp(60.0);
   onSpUI(0.50);
@@ -564,7 +565,7 @@ resetBtn.addEventListener('click',()=>{
   updateControlFrame(); refreshAll();
 });
 
-playBtn.addEventListener('click',()=>{ S.playing=!S.playing; updateControlFrame(); });
+playBtn.addEventListener('click',()=>{ S.playing=true; updateControlFrame(); refreshAll(); });
 fullBtn.addEventListener('click',()=>{ draw(0,false); });
 
 /* ====== ドラッグ：内部 s は自然 0→1（底→頂点） ====== */
