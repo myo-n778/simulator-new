@@ -158,6 +158,32 @@
     "lastReviewed": "2026-05-05"
   },
   {
+    "id": "circular-wave",
+    "title": "等速円運動と正弦波",
+    "category": "波動",
+    "route": "./simulators/circular-wave/",
+    "originalSource": "new-simulator-2026-05-30",
+    "alternateSources": [],
+    "status": "初版作成",
+    "dependencies": [],
+    "physicsModel": "等速円運動の射影、左右切替可能な正弦進行波、同位相の縦波表示",
+    "purpose": "円運動の点のy座標が横波の変位をつくり、同じ位相を縦波としても表せることを確認する。",
+    "lastReviewed": "2026-05-30"
+  },
+  {
+    "id": "air-column-resonance",
+    "title": "気柱の共鳴",
+    "category": "波動",
+    "route": "./simulators/air-column-resonance/",
+    "originalSource": "new-simulator-2026-05-30",
+    "alternateSources": [],
+    "status": "初版作成",
+    "dependencies": [],
+    "physicsModel": "気柱内の縦波、片端閉管・両端開管の定常波、変位の節腹、圧力/密度の節腹",
+    "purpose": "筒内の空気分子を球体として表示し、縦波による分子変位と疎密の発生を可視化する。",
+    "lastReviewed": "2026-05-30"
+  },
+  {
     "id": "light-rgb",
     "title": "光の三原色",
     "category": "波動",
