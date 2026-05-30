@@ -135,9 +135,8 @@
     position: absolute;
     left: 26px;
     bottom: 26px;
-    display: flex;
-    align-items: center;
-    gap: 9px;
+    display: grid;
+    gap: 6px;
     max-width: calc(100% - 52px);
     padding: 8px 10px;
     border: 1px solid rgba(255,255,255,.12);
@@ -147,7 +146,19 @@
     backdrop-filter: blur(10px);
     font-variant-numeric: tabular-nums;
   }
-  .current-swatch {
+  .readout-row {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    min-width: 0;
+  }
+  .readout-row span:last-child {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .current-swatch,
+  .cursor-swatch {
     width: 26px;
     height: 26px;
     flex: 0 0 auto;
@@ -155,6 +166,7 @@
     border-radius: 6px;
     background: rgb(255,255,255);
   }
+  .cursor-swatch { background: rgb(15,23,42); }
   .controls {
     display: grid;
     gap: 12px;
@@ -382,8 +394,14 @@
       <div class="canvas-shell">
         <canvas id="scene" width="900" height="620" aria-label="三原色の重なり"></canvas>
         <div class="rgb-readout">
-          <span class="current-swatch" id="currentSwatch"></span>
-          <span id="rgbFormula">RGB(255, 255, 255)</span>
+          <span class="readout-row">
+            <span class="current-swatch" id="currentSwatch"></span>
+            <span id="rgbFormula">RGB(255, 255, 255)</span>
+          </span>
+          <span class="readout-row">
+            <span class="cursor-swatch" id="cursorSwatch"></span>
+            <span id="cursorFormula">カーソル RGB(-, -, -)</span>
+          </span>
         </div>
       </div>
     </section>
@@ -481,6 +499,8 @@
     mixName: document.querySelector('#mixName'),
     rgbFormula: document.querySelector('#rgbFormula'),
     currentSwatch: document.querySelector('#currentSwatch'),
+    cursorFormula: document.querySelector('#cursorFormula'),
+    cursorSwatch: document.querySelector('#cursorSwatch'),
     nowChip: document.querySelector('#nowChip'),
     targetChip: document.querySelector('#targetChip'),
     missionStep: document.querySelector('#missionStep'),
@@ -576,6 +596,7 @@
   let systemName = 'light';
   let mode = 'venn';
   let missionIndex = 0;
+  let cursorPoint = null;
 
   Object.values(controls).forEach(input => input.addEventListener('input', update));
   els.lightSystem.addEventListener('click', () => setSystem('light'));
@@ -594,6 +615,17 @@
     missionIndex = (missionIndex + 1) % system().missions.length;
     updateMissionText();
     update();
+  });
+  canvas.addEventListener('pointermove', event => {
+    const rect = canvas.getBoundingClientRect();
+    const x = event.clientX - rect.left;
+    const y = event.clientY - rect.top;
+    cursorPoint = x >= 0 && x <= rect.width && y >= 0 && y <= rect.height ? { x, y } : null;
+    draw();
+  });
+  canvas.addEventListener('pointerleave', () => {
+    cursorPoint = null;
+    draw();
   });
   window.addEventListener('resize', draw);
 
@@ -705,15 +737,18 @@
       canvas.height = height;
     }
     ctx.setTransform(scale, 0, 0, scale, 0, 0);
-    return { w: rect.width, h: rect.height };
+    return { w: rect.width, h: rect.height, scale };
   }
   function draw(){
-    const { w, h } = fitCanvas();
+    const { w, h, scale } = fitCanvas();
     const levels = getLevels();
     ctx.clearRect(0, 0, w, h);
     drawGrid(w, h);
     drawVenn(w, h, levels);
     if (mode === 'mission') drawTargetOverlay(w, h);
+    const cursorRgb = cursorPoint ? sampleCanvasColor(cursorPoint.x, cursorPoint.y, scale, w, h) : null;
+    updateCursorReadout(cursorRgb);
+    if (cursorRgb) drawCursorMarker(cursorPoint.x, cursorPoint.y, cursorRgb);
   }
   function drawGrid(w, h){
     const paper = system().background === 'paper';
@@ -819,6 +854,42 @@
     ctx.fillStyle = system().background === 'paper' ? '#1f2937' : '#e5e7eb';
     ctx.font = '700 12px system-ui, sans-serif';
     ctx.fillText('目標 RGB(' + target.join(', ') + ')', x + 80, y + 55);
+  }
+  function sampleCanvasColor(x, y, scale, w, h){
+    const px = Math.max(0, Math.min(canvas.width - 1, Math.round(x * scale)));
+    const py = Math.max(0, Math.min(canvas.height - 1, Math.round(y * scale)));
+    if (x < 0 || y < 0 || x > w || y > h) return null;
+    const data = ctx.getImageData(px, py, 1, 1).data;
+    return [data[0], data[1], data[2]];
+  }
+  function updateCursorReadout(rgb){
+    if (!rgb) {
+      els.cursorFormula.textContent = 'カーソル RGB(-, -, -)';
+      els.cursorSwatch.style.background = 'rgb(15,23,42)';
+      return;
+    }
+    els.cursorFormula.textContent = 'カーソル RGB(' + rgb.join(', ') + ')';
+    els.cursorSwatch.style.background = rgbCss(rgb);
+  }
+  function drawCursorMarker(x, y, rgb){
+    const isLight = (rgb[0] + rgb[1] + rgb[2]) / 3 > 140;
+    ctx.save();
+    ctx.strokeStyle = isLight ? 'rgba(15,23,42,.9)' : 'rgba(255,255,255,.9)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(x, y, 8, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(x - 14, y);
+    ctx.lineTo(x - 4, y);
+    ctx.moveTo(x + 4, y);
+    ctx.lineTo(x + 14, y);
+    ctx.moveTo(x, y - 14);
+    ctx.lineTo(x, y - 4);
+    ctx.moveTo(x, y + 4);
+    ctx.lineTo(x, y + 14);
+    ctx.stroke();
+    ctx.restore();
   }
   function roundedRect(x, y, width, height, radius){
     ctx.moveTo(x + radius, y);
