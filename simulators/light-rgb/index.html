@@ -772,10 +772,6 @@
     label(s.labels[0].key, cx - offset - radius * .56, cy - radius * .42, s.labels[0].text);
     label(s.labels[1].key, cx + offset + radius * .56, cy - radius * .42, s.labels[1].text);
     label(s.labels[2].key, cx, cy + radius * 1.44, s.labels[2].text);
-    ctx.font = '800 14px system-ui, sans-serif';
-    s.overlaps.forEach(item => {
-      label(item.name, cx + offset * item.x, cy + radius * item.y, item.color);
-    });
   }
   function label(text, x, y, color){
     ctx.fillStyle = system().background === 'paper' ? 'rgba(15,23,42,.72)' : 'rgba(15,23,42,.72)';
