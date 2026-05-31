@@ -742,12 +742,7 @@
     maxStepsPerFrame: 8,
     onStep(dt) {
       t += dt * value("timeScale");
-      const s = snapshot();
-      if (activeMode === "two" && twoReachedBoundary(s.two)) {
-        resetTwoMotion();
-        return;
-      }
-      collectTrail(s);
+      collectTrail(snapshot());
     },
     onRender() {
       render();
@@ -804,13 +799,6 @@
     return { one, two, observer: selectedObserver };
   }
 
-  function twoReachedBoundary(two) {
-    return ["A", "B"].some((name) => {
-      const p = two[name];
-      return p.x <= world.min || p.x >= world.max || p.y <= world.min || p.y >= world.max;
-    });
-  }
-
   function collectTrail(s) {
     const push = (arr, point) => {
       arr.push({ ...point, t });
@@ -830,14 +818,6 @@
       collectTrail(snapshot());
     }
     clock.reset();
-    render();
-  }
-
-  function resetTwoMotion() {
-    t = 0;
-    resetOnePartyCamera();
-    trails = makeEmptyTrails();
-    collectTrail(snapshot());
     render();
   }
 
@@ -1766,10 +1746,6 @@
     button.addEventListener("click", () => {
       activeMode = button.dataset.modeOption;
       resetOnePartyCamera();
-      if (activeMode === "two" && twoReachedBoundary(snapshot().two)) {
-        resetTwoMotion();
-        return;
-      }
       render();
     });
   });
@@ -1796,12 +1772,7 @@
   stepButton.addEventListener("click", () => {
     setPlaying(false);
     t += (1 / 30) * value("timeScale");
-    const s = snapshot();
-    if (activeMode === "two" && twoReachedBoundary(s.two)) {
-      resetTwoMotion();
-      return;
-    }
-    collectTrail(s);
+    collectTrail(snapshot());
     render();
   });
 
