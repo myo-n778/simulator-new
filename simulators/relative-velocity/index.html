@@ -1312,14 +1312,23 @@
       viewLabel = "",
       turnFrom = viewSide,
       turnTo = viewSide,
-      turnPhase = 1
+      turnPhase = 1,
+      sizeBase = 78,
+      sizeBias = .62,
+      sizeMin = 20,
+      sizeMax = 78,
+      depthBase = 1,
+      depthBias = .72,
+      depthMin = .16,
+      depthMax = .86,
+      lateralScale = .38
     } = options;
     const status = relativeMotionStatus(distance, distanceRate);
-    const size = clamp(78 / (distance + 0.62), 20, 78);
+    const size = clamp(sizeBase / (distance + sizeBias), sizeMin, sizeMax);
     const horizonY = y + h * 0.42;
     const baseY = y + h - 18;
-    const depthT = clamp(1 / (distance + 0.72), 0.16, 0.86);
-    const targetX = x + w / 2 + (depthOnly ? 0 : clamp(lateral, -0.82, 0.82) * w * 0.38);
+    const depthT = clamp(depthBase / (distance + depthBias), depthMin, depthMax);
+    const targetX = x + w / 2 + (depthOnly ? 0 : clamp(lateral, -0.82, 0.82) * w * lateralScale);
     const targetY = horizonY + (baseY - horizonY) * depthT;
     const normalizedSide = viewSide < 0 ? -1 : 1;
     const turning = depthOnly && turnPhase < 1;
@@ -1593,7 +1602,16 @@
       distanceRate,
       lateral: distance > 0.001 ? rel.x / Math.max(distance, 1) : 0,
       relSpeedText: `相対速度 (${fmt(rel.vx)}, ${fmt(rel.vy)})`,
-      sideText: rel.y >= 0 ? "前方側" : "後方側"
+      sideText: rel.y >= 0 ? "前方側" : "後方側",
+      sizeBase: 220,
+      sizeBias: .35,
+      sizeMin: 10,
+      sizeMax: 98,
+      depthBase: 2.1,
+      depthBias: .68,
+      depthMin: .08,
+      depthMax: .88,
+      lateralScale: .34
     });
 
     const map = (x, y) => {
