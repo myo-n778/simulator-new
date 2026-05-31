@@ -678,6 +678,7 @@
 
   const clamp = (v, min, max) => Math.max(min, Math.min(max, v));
   const world = { min: -5, max: 5, span: 10 };
+  const TWO_RESET_MARGIN = 4;
   const twoStarts = {
     A: { x: -2.6, y: -1.2 },
     B: { x: 2.2, y: 1.4 }
@@ -742,7 +743,12 @@
     maxStepsPerFrame: 8,
     onStep(dt) {
       t += dt * value("timeScale");
-      collectTrail(snapshot());
+      const s = snapshot();
+      if (activeMode === "two" && twoExceededResetLimit(s.two)) {
+        resetTwoAfterLongRun();
+        return;
+      }
+      collectTrail(s);
     },
     onRender() {
       render();
@@ -799,6 +805,15 @@
     return { one, two, observer: selectedObserver };
   }
 
+  function twoExceededResetLimit(two) {
+    const min = world.min - TWO_RESET_MARGIN;
+    const max = world.max + TWO_RESET_MARGIN;
+    return ["A", "B"].some((name) => {
+      const p = two[name];
+      return p.x < min || p.x > max || p.y < min || p.y > max;
+    });
+  }
+
   function collectTrail(s) {
     const push = (arr, point) => {
       arr.push({ ...point, t });
@@ -818,6 +833,14 @@
       collectTrail(snapshot());
     }
     clock.reset();
+    render();
+  }
+
+  function resetTwoAfterLongRun() {
+    t = 0;
+    resetOnePartyCamera();
+    trails = makeEmptyTrails();
+    collectTrail(snapshot());
     render();
   }
 
@@ -1772,7 +1795,12 @@
   stepButton.addEventListener("click", () => {
     setPlaying(false);
     t += (1 / 30) * value("timeScale");
-    collectTrail(snapshot());
+    const s = snapshot();
+    if (activeMode === "two" && twoExceededResetLimit(s.two)) {
+      resetTwoAfterLongRun();
+      return;
+    }
+    collectTrail(s);
     render();
   });
 
