@@ -701,6 +701,14 @@
   let t = 0;
   let selectedObserver = "A";
   let trails = makeEmptyTrails();
+  const onePartyCamera = {
+    previousRelX: null,
+    viewSide: 1,
+    turnFrom: 1,
+    turnTo: 1,
+    turnStartedAt: -Infinity
+  };
+  const TURN_DURATION_MS = 720;
 
   const clock = new PhysicsSimClock.FixedStepClock({
     step: 1 / 60,
@@ -777,12 +785,21 @@
 
   function resetTime(keepTrails = false) {
     t = 0;
+    resetOnePartyCamera();
     if (!keepTrails) {
       trails = makeEmptyTrails();
       collectTrail(snapshot());
     }
     clock.reset();
     render();
+  }
+
+  function resetOnePartyCamera() {
+    onePartyCamera.previousRelX = null;
+    onePartyCamera.viewSide = 1;
+    onePartyCamera.turnFrom = 1;
+    onePartyCamera.turnTo = 1;
+    onePartyCamera.turnStartedAt = -Infinity;
   }
 
   function syncOutputs() {
@@ -909,7 +926,11 @@
   }
 
   function roundRect(ctx, x, y, w, h, r, fill, stroke) {
-    const rr = Math.min(r, w / 2, h / 2);
+    if (w <= 0 || h <= 0) {
+      ctx.beginPath();
+      return;
+    }
+    const rr = Math.max(0, Math.min(r, w / 2, h / 2));
     ctx.beginPath();
     ctx.moveTo(x + rr, y);
     ctx.arcTo(x + w, y, x + w, y + h, rr);
@@ -1039,9 +1060,130 @@
     return { text: "距離ほぼ一定", color: COLORS.muted };
   }
 
+  function fillFpsBackground(ctx, box, viewSide, alpha = 1) {
+    const { x, y, w, h } = box;
+    const sky = ctx.createLinearGradient(0, y, 0, y + h);
+    if (viewSide < 0) {
+      sky.addColorStop(0, "rgba(80, 37, 66, .94)");
+      sky.addColorStop(.48, "rgba(30, 20, 42, .97)");
+      sky.addColorStop(1, "rgba(12, 11, 28, 1)");
+    } else {
+      sky.addColorStop(0, "rgba(20, 45, 66, .92)");
+      sky.addColorStop(.48, "rgba(8, 18, 30, .96)");
+      sky.addColorStop(1, "rgba(5, 12, 20, 1)");
+    }
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = sky;
+    ctx.fillRect(x, y, w, h);
+    ctx.restore();
+  }
+
+  function drawTurnSweep(ctx, box, turnTo, phase) {
+    const { x, y, w, h } = box;
+    const ease = 1 - (1 - phase) ** 3;
+    const sweepX = turnTo > 0 ? x + w * (1 - ease) : x + w * ease;
+    const sweepW = w * (.16 + Math.sin(Math.PI * phase) * .14);
+    const wipe = ctx.createLinearGradient(sweepX - sweepW, 0, sweepX + sweepW, 0);
+    wipe.addColorStop(0, "rgba(237, 247, 255, 0)");
+    wipe.addColorStop(.5, "rgba(237, 247, 255, .22)");
+    wipe.addColorStop(1, "rgba(237, 247, 255, 0)");
+    ctx.fillStyle = wipe;
+    ctx.fillRect(x, y, w, h);
+  }
+
+  function drawTurnCue(ctx, box, turnTo, phase) {
+    const { x, y, w, h } = box;
+    const alpha = Math.sin(Math.PI * phase);
+    if (alpha <= 0.001) return;
+    const cx = x + w / 2;
+    const cy = y + h * .44;
+    const radius = Math.min(w, h) * .23;
+    const start = turnTo > 0 ? Math.PI * .82 : Math.PI * .18;
+    const end = turnTo > 0 ? Math.PI * .18 : Math.PI * .82;
+    const anticlockwise = turnTo > 0;
+    const endX = cx + Math.cos(end) * radius;
+    const endY = cy + Math.sin(end) * radius;
+    const tangent = end + (turnTo > 0 ? -Math.PI / 2 : Math.PI / 2);
+
+    ctx.save();
+    ctx.globalAlpha = alpha * .9;
+    ctx.strokeStyle = "rgba(237, 247, 255, .78)";
+    ctx.fillStyle = "rgba(237, 247, 255, .86)";
+    ctx.lineWidth = 2.8;
+    ctx.setLineDash([8, 6]);
+    ctx.beginPath();
+    ctx.arc(cx, cy, radius, start, end, anticlockwise);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.beginPath();
+    ctx.moveTo(endX, endY);
+    ctx.lineTo(endX - Math.cos(tangent - .52) * 11, endY - Math.sin(tangent - .52) * 11);
+    ctx.lineTo(endX - Math.cos(tangent + .52) * 11, endY - Math.sin(tangent + .52) * 11);
+    ctx.closePath();
+    ctx.fill();
+    ctx.font = "800 12px system-ui, -apple-system, sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    const cueText = "振り返り";
+    const cueY = Math.max(y + 24, cy - radius - 12);
+    const metrics = ctx.measureText(cueText);
+    ctx.fillStyle = "rgba(7, 17, 28, .72)";
+    roundRect(ctx, cx - metrics.width / 2 - 7, cueY - 11, metrics.width + 14, 22, 5, true, false);
+    ctx.fillStyle = "rgba(237, 247, 255, .92)";
+    ctx.fillText(cueText, cx, cueY);
+    ctx.restore();
+  }
+
+  function updateOnePartyCamera(relX) {
+    const previous = onePartyCamera.previousRelX;
+    const fallback = onePartyCamera.viewSide || 1;
+    let nextSide = Math.abs(relX) > 0.04 ? Math.sign(relX) : fallback;
+    const previousSign = previous !== null && Math.abs(previous) > 0.001 ? Math.sign(previous) : fallback;
+    const currentSign = Math.abs(relX) > 0.001 ? Math.sign(relX) : null;
+    const crossedCenter = previous !== null
+      && currentSign !== null
+      && previousSign !== currentSign
+      && Math.abs(previous) < 1.2
+      && Math.abs(relX) < 1.2;
+
+    if (crossedCenter) {
+      nextSide = currentSign;
+      onePartyCamera.turnFrom = previousSign;
+      onePartyCamera.turnTo = currentSign;
+      onePartyCamera.turnStartedAt = performance.now();
+    }
+
+    onePartyCamera.previousRelX = relX;
+    onePartyCamera.viewSide = nextSide;
+
+    const turnPhase = clamp((performance.now() - onePartyCamera.turnStartedAt) / TURN_DURATION_MS, 0, 1);
+    return {
+      viewSide: nextSide,
+      turnFrom: onePartyCamera.turnFrom,
+      turnTo: onePartyCamera.turnTo,
+      turnPhase
+    };
+  }
+
   function drawFpsView(ctx, box, options) {
     const { x, y, w, h } = box;
-    const { other, color, distance, distanceRate, lateral, relSpeedText, sideText, depthOnly = false } = options;
+    if (w <= 2 || h <= 2) return;
+    const {
+      other,
+      color,
+      distance,
+      distanceRate,
+      lateral,
+      relSpeedText,
+      sideText,
+      depthOnly = false,
+      viewSide = 1,
+      viewLabel = "",
+      turnFrom = viewSide,
+      turnTo = viewSide,
+      turnPhase = 1
+    } = options;
     const status = relativeMotionStatus(distance, distanceRate);
     const size = clamp(78 / (distance + 0.62), 20, 78);
     const horizonY = y + h * 0.42;
@@ -1049,17 +1191,21 @@
     const depthT = clamp(1 / (distance + 0.72), 0.16, 0.86);
     const targetX = x + w / 2 + (depthOnly ? 0 : clamp(lateral, -0.82, 0.82) * w * 0.38);
     const targetY = horizonY + (baseY - horizonY) * depthT;
+    const normalizedSide = viewSide < 0 ? -1 : 1;
+    const turning = depthOnly && turnPhase < 1;
+    const easedTurn = turning ? 1 - (1 - turnPhase) ** 3 : 1;
 
     ctx.save();
     roundRect(ctx, x, y, w, h, 7, false, false);
     ctx.clip();
 
-    const sky = ctx.createLinearGradient(0, y, 0, y + h);
-    sky.addColorStop(0, "rgba(20, 45, 66, .92)");
-    sky.addColorStop(.48, "rgba(8, 18, 30, .96)");
-    sky.addColorStop(1, "rgba(5, 12, 20, 1)");
-    ctx.fillStyle = sky;
-    ctx.fillRect(x, y, w, h);
+    if (turning) {
+      fillFpsBackground(ctx, box, turnFrom, 1);
+      fillFpsBackground(ctx, box, normalizedSide, easedTurn);
+      drawTurnSweep(ctx, box, turnTo, turnPhase);
+    } else {
+      fillFpsBackground(ctx, box, normalizedSide, 1);
+    }
 
     ctx.strokeStyle = "rgba(203, 213, 225, .25)";
     ctx.lineWidth = 1;
@@ -1144,6 +1290,12 @@
     ctx.textAlign = "right";
     ctx.fillStyle = COLORS.muted;
     ctx.fillText(sideText, x + w - 12, y + 10);
+    if (viewLabel) {
+      ctx.fillText(viewLabel, x + w - 12, y + 28);
+    }
+    if (turning) {
+      drawTurnCue(ctx, box, turnTo, turnPhase);
+    }
     ctx.restore();
   }
 
@@ -1183,6 +1335,8 @@
     const relV = otherState.v - selfState.v;
     const distance = Math.abs(relX);
     const distanceRate = distance > 0.001 ? (relX * relV) / distance : 0;
+    const viewState = updateOnePartyCamera(relX);
+    const viewLabel = `${viewState.viewSide > 0 ? "+" : "-"}x方向を見ている`;
     const fpsH = h * .58;
     drawFpsView(ctx, {
       x: 12,
@@ -1197,7 +1351,12 @@
       lateral: 0,
       relSpeedText: `奥行き相対速度 ${fmt(Math.abs(relV))} m/s`,
       sideText: "奥 ⇄ 手前",
-      depthOnly: true
+      depthOnly: true,
+      viewSide: viewState.viewSide,
+      viewLabel,
+      turnFrom: viewState.turnFrom,
+      turnTo: viewState.turnTo,
+      turnPhase: viewState.turnPhase
     });
 
     const map = map1D(w, h);
@@ -1415,7 +1574,11 @@
   ids.forEach((id) => {
     ui[id].addEventListener("input", () => {
       syncOutputs();
-      if (["oneXA", "oneXB"].includes(id)) resetTime(false);
+      if (["oneXA", "oneXB"].includes(id)) {
+        resetTime(false);
+        return;
+      }
+      if (["oneVA", "oneVB"].includes(id)) resetOnePartyCamera();
       render();
     });
   });
@@ -1423,6 +1586,7 @@
   observerButtons.forEach((button) => {
     button.addEventListener("click", () => {
       selectedObserver = button.dataset.observerOption;
+      resetOnePartyCamera();
       observerButtons.forEach((item) => {
         item.setAttribute("aria-pressed", String(item.dataset.observerOption === selectedObserver));
       });
