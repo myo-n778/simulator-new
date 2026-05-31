@@ -168,6 +168,8 @@
   .icon-button:focus-visible,
   .small-button:hover,
   .small-button:focus-visible,
+  .mode-option:hover,
+  .mode-option:focus-visible,
   .observer-option:hover,
   .observer-option:focus-visible {
     border-color: var(--cyan);
@@ -185,9 +187,9 @@
     white-space: nowrap;
   }
 
+  .mode-switch,
   .observer-switch {
     display: inline-grid;
-    grid-template-columns: repeat(2, minmax(38px, 1fr));
     gap: 3px;
     padding: 3px;
     border: 1px solid var(--line);
@@ -195,6 +197,15 @@
     background: rgba(7, 17, 28, .58);
   }
 
+  .mode-switch {
+    grid-template-columns: repeat(2, minmax(64px, 1fr));
+  }
+
+  .observer-switch {
+    grid-template-columns: repeat(2, minmax(38px, 1fr));
+  }
+
+  .mode-option,
   .observer-option {
     min-height: 28px;
     border: 1px solid transparent;
@@ -206,6 +217,7 @@
     font-weight: 900;
   }
 
+  .mode-option[aria-pressed="true"],
   .observer-option[aria-pressed="true"] {
     border-color: rgba(53, 217, 238, .62);
     background: rgba(53, 217, 238, .16);
@@ -214,7 +226,7 @@
 
   .control-grid {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: minmax(240px, .75fr) minmax(320px, 1.25fr);
     gap: 10px;
     padding: 12px;
   }
@@ -266,7 +278,7 @@
 
   .readout-strip {
     display: grid;
-    grid-template-columns: repeat(5, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
     gap: 8px;
     padding: 10px;
   }
@@ -300,7 +312,7 @@
   .mode-grid {
     min-width: 0;
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: minmax(0, 1fr);
     gap: 12px;
   }
 
@@ -395,6 +407,10 @@
     border-radius: 50%;
   }
 
+  [hidden] {
+    display: none !important;
+  }
+
   @media (max-width: 1120px) {
     .control-head,
     .control-grid,
@@ -443,7 +459,7 @@
 <script>
   PhysicsSimShell.create({
     title: "相対速度",
-    subtitle: "1次元・2次元を同時に見ながら、第3者視点、当事者視点、上空からの視点を比較",
+    subtitle: "1次元・2次元を切り替えながら、第3者視点、当事者視点、上空からの視点を比較",
     basePath: "../../"
   });
 </script>
@@ -461,6 +477,12 @@
         <button id="resetButton" class="icon-button" type="button" title="時刻を戻す">↺</button>
       </div>
       <div class="toggle-row">
+        <div class="check">モード
+          <div class="mode-switch" role="group" aria-label="表示モード">
+            <button class="mode-option" type="button" data-mode-option="one" aria-pressed="true">1次元</button>
+            <button class="mode-option" type="button" data-mode-option="two" aria-pressed="false">2次元</button>
+          </div>
+        </div>
         <div class="check">当事者
           <div class="observer-switch" role="group" aria-label="当事者">
             <button class="observer-option" type="button" data-observer-option="A" aria-pressed="true">A</button>
@@ -487,7 +509,7 @@
         </div>
       </div>
 
-      <div class="control-group">
+      <div class="control-group" data-mode-control="one">
         <div class="panel-title"><span>1次元モード</span><span class="formula">x軸だけを見る</span></div>
         <div class="range-row">
           <label for="oneXA">A 初期x</label>
@@ -511,7 +533,7 @@
         </div>
       </div>
 
-      <div class="control-group">
+      <div class="control-group" data-mode-control="two" hidden>
         <div class="panel-title"><span>2次元モード</span><span class="formula">x-y平面で見る</span></div>
         <div class="range-row">
           <label for="twoVAx">A vx</label>
@@ -542,26 +564,26 @@
       <div class="stat-label">時刻</div>
       <div id="timeReadout" class="stat-value">0.00 s</div>
     </div>
-    <div class="stat">
+    <div class="stat" data-mode-readout="one">
       <div class="stat-label">1D: vB - vA</div>
       <div id="oneRelReadout" class="stat-value">-1.80 m/s</div>
     </div>
-    <div class="stat">
+    <div class="stat" data-mode-readout="one">
       <div class="stat-label">1D: 当事者から見た相手</div>
       <div id="oneObserverReadout" class="stat-value">B: -1.80 m/s</div>
     </div>
-    <div class="stat">
-      <div class="stat-label">2D: vB - vA</div>
+    <div class="stat" data-mode-readout="two" hidden>
+      <div class="stat-label">2D: vAB = vB - vA</div>
       <div id="twoRelReadout" class="stat-value">(-1.60, 0.70)</div>
     </div>
-    <div class="stat">
-      <div class="stat-label">2D: 相対速度の大きさ</div>
+    <div class="stat" data-mode-readout="two" hidden>
+      <div class="stat-label">2D: |vAB|</div>
       <div id="twoSpeedReadout" class="stat-value">1.75 m/s</div>
     </div>
   </section>
 
-  <section class="mode-grid" aria-label="1次元と2次元の同時表示">
-    <article class="mode-panel">
+  <section class="mode-grid" aria-label="1次元と2次元の切替表示">
+    <article class="mode-panel" data-mode-panel="one">
       <div class="mode-head">
         <div>
           <h2>1次元モード</h2>
@@ -598,7 +620,7 @@
       </div>
     </article>
 
-    <article class="mode-panel">
+    <article class="mode-panel" data-mode-panel="two" hidden>
       <div class="mode-head">
         <div>
           <h2>2次元モード</h2>
@@ -668,6 +690,10 @@
   const ui = Object.fromEntries(ids.map((id) => [id, document.querySelector(`#${id}`)]));
   const out = Object.fromEntries(ids.map((id) => [id, document.querySelector(`#${id}Out`)]));
 
+  const modeButtons = [...document.querySelectorAll("[data-mode-option]")];
+  const modeControls = [...document.querySelectorAll("[data-mode-control]")];
+  const modePanels = [...document.querySelectorAll("[data-mode-panel]")];
+  const modeReadouts = [...document.querySelectorAll("[data-mode-readout]")];
   const observerButtons = [...document.querySelectorAll("[data-observer-option]")];
   const trailToggle = document.querySelector("#trailToggle");
   const gridToggle = document.querySelector("#gridToggle");
@@ -699,6 +725,7 @@
   };
 
   let t = 0;
+  let activeMode = "one";
   let selectedObserver = "A";
   let trails = makeEmptyTrails();
   const onePartyCamera = {
@@ -715,7 +742,12 @@
     maxStepsPerFrame: 8,
     onStep(dt) {
       t += dt * value("timeScale");
-      collectTrail(snapshot());
+      const s = snapshot();
+      if (activeMode === "two" && twoReachedBoundary(s.two)) {
+        resetTwoMotion();
+        return;
+      }
+      collectTrail(s);
     },
     onRender() {
       render();
@@ -756,20 +788,27 @@
 
     const two = {
       A: {
-        x: wrap(twoStarts.A.x + value("twoVAx") * t),
-        y: wrap(twoStarts.A.y + value("twoVAy") * t),
+        x: twoStarts.A.x + value("twoVAx") * t,
+        y: twoStarts.A.y + value("twoVAy") * t,
         vx: value("twoVAx"),
         vy: value("twoVAy")
       },
       B: {
-        x: wrap(twoStarts.B.x + value("twoVBx") * t),
-        y: wrap(twoStarts.B.y + value("twoVBy") * t),
+        x: twoStarts.B.x + value("twoVBx") * t,
+        y: twoStarts.B.y + value("twoVBy") * t,
         vx: value("twoVBx"),
         vy: value("twoVBy")
       }
     };
 
     return { one, two, observer: selectedObserver };
+  }
+
+  function twoReachedBoundary(two) {
+    return ["A", "B"].some((name) => {
+      const p = two[name];
+      return p.x <= world.min || p.x >= world.max || p.y <= world.min || p.y >= world.max;
+    });
   }
 
   function collectTrail(s) {
@@ -794,6 +833,14 @@
     render();
   }
 
+  function resetTwoMotion() {
+    t = 0;
+    resetOnePartyCamera();
+    trails = makeEmptyTrails();
+    collectTrail(snapshot());
+    render();
+  }
+
   function resetOnePartyCamera() {
     onePartyCamera.previousRelX = null;
     onePartyCamera.viewSide = 1;
@@ -806,6 +853,21 @@
     ids.forEach((id) => {
       const digits = id === "timeScale" || id === "zoom" ? 1 : 1;
       out[id].textContent = value(id).toFixed(digits);
+    });
+  }
+
+  function applyModeVisibility() {
+    modeButtons.forEach((button) => {
+      button.setAttribute("aria-pressed", String(button.dataset.modeOption === activeMode));
+    });
+    modeControls.forEach((node) => {
+      node.hidden = node.dataset.modeControl !== activeMode;
+    });
+    modePanels.forEach((node) => {
+      node.hidden = node.dataset.modePanel !== activeMode;
+    });
+    modeReadouts.forEach((node) => {
+      node.hidden = node.dataset.modeReadout !== activeMode;
     });
   }
 
@@ -975,6 +1037,74 @@
     ctx.textBaseline = "middle";
     ctx.fillStyle = "#07111c";
     ctx.fillText(name, x, y);
+    ctx.restore();
+  }
+
+  function drawInitialMarker(ctx, point, color, name) {
+    ctx.save();
+    ctx.strokeStyle = color;
+    ctx.fillStyle = color;
+    ctx.globalAlpha = .82;
+    ctx.lineWidth = 1.6;
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath();
+    ctx.arc(point.x, point.y, 15, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.font = "800 10px system-ui, -apple-system, sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(`${name}0`, point.x, point.y);
+    ctx.restore();
+  }
+
+  function drawInitialPath(ctx, from, to, color) {
+    ctx.save();
+    ctx.strokeStyle = color;
+    ctx.globalAlpha = .34;
+    ctx.lineWidth = 1.4;
+    ctx.setLineDash([5, 5]);
+    ctx.beginPath();
+    ctx.moveTo(from.x, from.y);
+    ctx.lineTo(to.x, to.y);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawVelocityEquation(ctx, box, va, vb) {
+    const { x, y, w, h } = box;
+    const vab = { x: vb.x - va.x, y: vb.y - va.y };
+    const maxSpeed = Math.max(.8, Math.hypot(va.x, va.y), Math.hypot(vb.x, vb.y), Math.hypot(vab.x, vab.y));
+    const scale = Math.min(w * .26, h * .34) / maxSpeed;
+    const origin = { x: x + 36, y: y + h - 28 };
+    const tipA = { x: origin.x + va.x * scale, y: origin.y - va.y * scale };
+    const tipB = { x: origin.x + vb.x * scale, y: origin.y - vb.y * scale };
+
+    ctx.save();
+    ctx.fillStyle = "rgba(8, 17, 28, .84)";
+    ctx.strokeStyle = "rgba(203, 213, 225, .24)";
+    ctx.lineWidth = 1;
+    roundRect(ctx, x, y, w, h, 7, true, true);
+    ctx.font = "800 12px system-ui, -apple-system, sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "top";
+    ctx.fillStyle = COLORS.text;
+    ctx.fillText("vA + vAB = vB", x + w / 2, y + 9);
+
+    ctx.globalAlpha = .9;
+    arrow(ctx, origin.x, origin.y, tipA.x, tipA.y, COLORS.a, 2.2);
+    arrow(ctx, tipA.x, tipA.y, tipB.x, tipB.y, COLORS.rel, 2.2);
+    arrow(ctx, origin.x, origin.y, tipB.x, tipB.y, COLORS.b, 2.2);
+
+    ctx.font = "800 10px system-ui, -apple-system, sans-serif";
+    ctx.textAlign = "left";
+    ctx.textBaseline = "middle";
+    ctx.fillStyle = COLORS.a;
+    ctx.fillText("vA", tipA.x + 4, tipA.y - 6);
+    ctx.fillStyle = COLORS.rel;
+    ctx.fillText("vAB", (tipA.x + tipB.x) / 2 + 4, (tipA.y + tipB.y) / 2 - 6);
+    ctx.fillStyle = COLORS.b;
+    ctx.fillText("vB", tipB.x + 4, tipB.y + 10);
     ctx.restore();
   }
 
@@ -1416,15 +1546,23 @@
     clear(ctx, w, h);
     const map = map2D(w, h);
     drawGrid(ctx, w, h, map);
-    drawTrail2D(ctx, map, trails.twoA, COLORS.a);
-    drawTrail2D(ctx, map, trails.twoB, COLORS.b);
+    const a0 = map(twoStarts.A.x, twoStarts.A.y);
+    const b0 = map(twoStarts.B.x, twoStarts.B.y);
     const a = map(s.two.A.x, s.two.A.y);
     const b = map(s.two.B.x, s.two.B.y);
+    drawInitialPath(ctx, a0, a, COLORS.a);
+    drawInitialPath(ctx, b0, b, COLORS.b);
+    drawInitialMarker(ctx, a0, COLORS.a, "A");
+    drawInitialMarker(ctx, b0, COLORS.b, "B");
+    drawTrail2D(ctx, map, trails.twoA, COLORS.a);
+    drawTrail2D(ctx, map, trails.twoB, COLORS.b);
     drawDisk(ctx, a.x, a.y, COLORS.a, "A");
     drawDisk(ctx, b.x, b.y, COLORS.b, "B");
     arrow(ctx, a.x, a.y, a.x + s.two.A.vx * 34, a.y - s.two.A.vy * 34, COLORS.a);
     arrow(ctx, b.x, b.y, b.x + s.two.B.vx * 34, b.y - s.two.B.vy * 34, COLORS.b);
-    label(ctx, "固定されたx-y座標でAとBの実速度を見る", w / 2, 20, COLORS.text);
+    label(ctx, "vA", a.x + s.two.A.vx * 34, a.y - s.two.A.vy * 34 - 14, COLORS.a);
+    label(ctx, "vB", b.x + s.two.B.vx * 34, b.y - s.two.B.vy * 34 - 14, COLORS.b);
+    label(ctx, "点線の円が初期位置、実体が現在位置", w / 2, 20, COLORS.text);
   }
 
   function drawTwoParty(s) {
@@ -1435,8 +1573,8 @@
     const selfState = s.two[observer];
     const otherState = s.two[other];
     const rel = {
-      x: shortDelta(otherState.x, selfState.x),
-      y: shortDelta(otherState.y, selfState.y),
+      x: otherState.x - selfState.x,
+      y: otherState.y - selfState.y,
       vx: otherState.vx - selfState.vx,
       vy: otherState.vy - selfState.vy
     };
@@ -1470,6 +1608,13 @@
     drawGrid(ctx, w, h, map);
     const center = map(0, 0);
     const p = map(rel.x, rel.y);
+    const relStart = {
+      x: twoStarts[other].x - twoStarts[observer].x,
+      y: twoStarts[other].y - twoStarts[observer].y
+    };
+    const p0 = map(relStart.x, relStart.y);
+    drawInitialPath(ctx, p0, p, COLORS.rel);
+    drawInitialMarker(ctx, p0, COLORS.rel, `${other}`);
     drawDisk(ctx, center.x, center.y, observer === "A" ? COLORS.a : COLORS.b, observer, true);
     drawDisk(ctx, p.x, p.y, other === "A" ? COLORS.a : COLORS.b, other);
     arrow(ctx, p.x, p.y, p.x + rel.vx * 30, p.y - rel.vy * 30, COLORS.rel, 2.6);
@@ -1489,10 +1634,16 @@
     clear(ctx, w, h);
     const map = map2D(w, h);
     drawGrid(ctx, w, h, map);
-    drawTrail2D(ctx, map, trails.twoA, COLORS.a);
-    drawTrail2D(ctx, map, trails.twoB, COLORS.b);
+    const a0 = map(twoStarts.A.x, twoStarts.A.y);
+    const b0 = map(twoStarts.B.x, twoStarts.B.y);
     const a = map(s.two.A.x, s.two.A.y);
     const b = map(s.two.B.x, s.two.B.y);
+    drawInitialPath(ctx, a0, a, COLORS.a);
+    drawInitialPath(ctx, b0, b, COLORS.b);
+    drawInitialMarker(ctx, a0, COLORS.a, "A");
+    drawInitialMarker(ctx, b0, COLORS.b, "B");
+    drawTrail2D(ctx, map, trails.twoA, COLORS.a);
+    drawTrail2D(ctx, map, trails.twoB, COLORS.b);
     drawDisk(ctx, a.x, a.y, COLORS.a, "A");
     drawDisk(ctx, b.x, b.y, COLORS.b, "B");
     ctx.strokeStyle = "rgba(207, 156, 255, .62)";
@@ -1507,16 +1658,22 @@
       x: s.two.B.vx - s.two.A.vx,
       y: s.two.B.vy - s.two.A.vy
     };
-    const insetX = Math.max(108, w - 124);
-    const insetY = 70;
-    ctx.fillStyle = "rgba(8, 17, 28, .78)";
-    ctx.strokeStyle = "rgba(203, 213, 225, .22)";
-    ctx.lineWidth = 1;
-    roundRect(ctx, insetX - 74, insetY - 46, 148, 92, 7, true, true);
-    label(ctx, "速度差ベクトル", insetX, insetY - 26, COLORS.text);
-    arrow(ctx, insetX - 42, insetY + 18, insetX - 42 + dv.x * 30, insetY + 18 - dv.y * 30, COLORS.rel, 2.4);
-    label(ctx, `|Δv|=${fmt(Math.hypot(dv.x, dv.y))}`, insetX, insetY + 38, COLORS.rel);
-    label(ctx, "上空から位置関係と速度差を同時に確認する", w / 2, 20, COLORS.text);
+    arrow(ctx, a.x, a.y, a.x + dv.x * 32, a.y - dv.y * 32, COLORS.rel, 2.5);
+    label(ctx, `vAB=(${fmt(dv.x)}, ${fmt(dv.y)})`, a.x + dv.x * 32, a.y - dv.y * 32 - 14, COLORS.rel);
+    const equationW = Math.min(214, w - 32);
+    drawVelocityEquation(ctx, {
+      x: Math.max(16, w - equationW - 16),
+      y: 34,
+      w: equationW,
+      h: 118
+    }, {
+      x: s.two.A.vx,
+      y: s.two.A.vy
+    }, {
+      x: s.two.B.vx,
+      y: s.two.B.vy
+    });
+    label(ctx, "上空から位置と速度の合成を確認する", w / 2, 20, COLORS.text);
   }
 
   function fmt(v) {
@@ -1551,14 +1708,18 @@
 
   function render() {
     syncOutputs();
+    applyModeVisibility();
     const s = snapshot();
     updateReadouts(s);
-    drawOneThird(s);
-    drawOneParty(s);
-    drawOneTop(s);
-    drawTwoThird(s);
-    drawTwoParty(s);
-    drawTwoTop(s);
+    if (activeMode === "one") {
+      drawOneThird(s);
+      drawOneParty(s);
+      drawOneTop(s);
+    } else {
+      drawTwoThird(s);
+      drawTwoParty(s);
+      drawTwoTop(s);
+    }
   }
 
   function setPlaying(playing) {
@@ -1579,6 +1740,18 @@
         return;
       }
       if (["oneVA", "oneVB"].includes(id)) resetOnePartyCamera();
+      render();
+    });
+  });
+
+  modeButtons.forEach((button) => {
+    button.addEventListener("click", () => {
+      activeMode = button.dataset.modeOption;
+      resetOnePartyCamera();
+      if (activeMode === "two" && twoReachedBoundary(snapshot().two)) {
+        resetTwoMotion();
+        return;
+      }
       render();
     });
   });
@@ -1605,7 +1778,12 @@
   stepButton.addEventListener("click", () => {
     setPlaying(false);
     t += (1 / 30) * value("timeScale");
-    collectTrail(snapshot());
+    const s = snapshot();
+    if (activeMode === "two" && twoReachedBoundary(s.two)) {
+      resetTwoMotion();
+      return;
+    }
+    collectTrail(s);
     render();
   });
 
