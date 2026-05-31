@@ -1041,13 +1041,14 @@
 
   function drawFpsView(ctx, box, options) {
     const { x, y, w, h } = box;
-    const { other, color, distance, distanceRate, lateral, relSpeedText, sideText } = options;
+    const { other, color, distance, distanceRate, lateral, relSpeedText, sideText, depthOnly = false } = options;
     const status = relativeMotionStatus(distance, distanceRate);
     const size = clamp(78 / (distance + 0.62), 20, 78);
-    const targetX = x + w / 2 + clamp(lateral, -0.82, 0.82) * w * 0.38;
-    const targetY = y + h * 0.56 + clamp(distance, 0, 6) * 2.5;
     const horizonY = y + h * 0.42;
     const baseY = y + h - 18;
+    const depthT = clamp(1 / (distance + 0.72), 0.16, 0.86);
+    const targetX = x + w / 2 + (depthOnly ? 0 : clamp(lateral, -0.82, 0.82) * w * 0.38);
+    const targetY = horizonY + (baseY - horizonY) * depthT;
 
     ctx.save();
     roundRect(ctx, x, y, w, h, 7, false, false);
@@ -1092,6 +1093,24 @@
     ctx.lineTo(x + w / 2, y + h * .52 + 18);
     ctx.stroke();
     ctx.setLineDash([]);
+
+    if (depthOnly) {
+      ctx.fillStyle = COLORS.muted;
+      ctx.font = "700 10px system-ui, -apple-system, sans-serif";
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText("奥", x + w / 2, horizonY - 12);
+      ctx.fillText("手前", x + w / 2, baseY + 8);
+      arrow(
+        ctx,
+        x + w / 2 + 28,
+        distanceRate < 0 ? horizonY + 12 : baseY - 8,
+        x + w / 2 + 28,
+        distanceRate < 0 ? baseY - 8 : horizonY + 12,
+        status.color,
+        2.4
+      );
+    }
 
     ctx.fillStyle = "rgba(0, 0, 0, .26)";
     ctx.beginPath();
@@ -1175,9 +1194,10 @@
       color: other === "A" ? COLORS.a : COLORS.b,
       distance,
       distanceRate,
-      lateral: relX / 4,
-      relSpeedText: `相対速度 ${fmt(relV)} m/s`,
-      sideText: relX >= 0 ? "右向き前方" : "左向き後方"
+      lateral: 0,
+      relSpeedText: `奥行き相対速度 ${fmt(Math.abs(relV))} m/s`,
+      sideText: "奥 ⇄ 手前",
+      depthOnly: true
     });
 
     const map = map1D(w, h);
@@ -1203,7 +1223,7 @@
     ctx.stroke();
     ctx.setLineDash([]);
     label(ctx, `相対位置 ${fmt(relX)} m`, (cx + ox) / 2, y + 50, COLORS.green);
-    label(ctx, `${observer}を原点に固定した相対座標`, w / 2, fpsH + 10, COLORS.text);
+    label(ctx, `${observer}固定の数直線表示（読み取り用）`, w / 2, fpsH + 10, COLORS.text);
   }
 
   function drawOneTop(s) {
