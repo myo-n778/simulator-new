@@ -293,6 +293,7 @@
   let animate = false;
   let animationStart = performance.now();
   let frameId = null;
+  let liftProgress = 0;
 
   function state() {
     const liftCm = Number(inputs.liftHeight.value);
@@ -899,14 +900,14 @@
     if (animate) {
       const duration = 5200;
       const t = Math.min(1, (performance.now() - animationStart) / duration);
-      s.visualLiftCm = s.liftCm * (t * t * (3 - 2 * t));
+      liftProgress = t * t * (3 - 2 * t);
       if (t >= 1) {
+        liftProgress = 1;
         animate = false;
         frameId = null;
       }
-    } else {
-      s.visualLiftCm = s.liftCm;
     }
+    s.visualLiftCm = s.liftCm * liftProgress;
     updateReadouts(s);
     const rect = canvas.getBoundingClientRect();
     const w = rect.width;
@@ -936,10 +937,24 @@
     });
   }
 
+  function cancelAnimation() {
+    if (frameId !== null) {
+      cancelAnimationFrame(frameId);
+      frameId = null;
+    }
+    animate = false;
+  }
+
+  function resetToStart() {
+    cancelAnimation();
+    liftProgress = 0;
+    render();
+  }
+
   Object.values(inputs).forEach((el) => {
     if (el instanceof HTMLInputElement || el instanceof HTMLSelectElement) {
-      el.addEventListener("input", render);
-      el.addEventListener("change", render);
+      el.addEventListener("input", resetToStart);
+      el.addEventListener("change", resetToStart);
     }
   });
   inputs.showMulti.addEventListener("click", () => {
@@ -947,12 +962,14 @@
     render();
   });
   inputs.animate.addEventListener("click", () => {
-    animate = !animate;
-    animationStart = performance.now();
-    if (!animate && frameId !== null) {
-      cancelAnimationFrame(frameId);
-      frameId = null;
+    if (animate) {
+      cancelAnimation();
+      render();
+      return;
     }
+    liftProgress = 0;
+    animate = true;
+    animationStart = performance.now();
     render();
     scheduleFrame();
   });
