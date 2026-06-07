@@ -688,7 +688,7 @@
     pulley(left, py, 27, true);
     post3d(left, py + 27, loadY - 8);
     drawLoad(left, loadY + 22, s.objectType, 0.9);
-    arrow(right + 22, y + h - 120, right + 22, y + h - 120 + Math.min(96, s.liftCm * 0.9), colors.ropeActive, `${s.liftCm * 2} cm`, -1);
+    arrow(right + 16, y + h - 142, right + 16, y + h - 142 + Math.min(82, s.liftCm * 0.72), colors.ropeActive, `${s.liftCm * 2} cm`, -1);
     arrow(left - 58, y + h - 94, left - 58, y + h - 94 - Math.min(145, s.liftCm * 1.15), colors.lift, `${s.liftCm} cm`, -1);
     arrow(right + 50, py + 70, right + 50, py + 125, colors.force, fmtN(s.weightN / 2));
     label("支える紐 2本", x + w / 2, y + h - 58, { box: "#f3eefe", color: "#583586", font: "800 12px ui-sans-serif, system-ui" });
