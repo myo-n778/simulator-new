@@ -478,6 +478,10 @@
     ctx.restore();
   }
 
+  function distanceArrowLength(distanceCm) {
+    return Math.max(12, Math.min(132, distanceCm * 0.62));
+  }
+
   function pulley(x, y, r, movable = false) {
     ctx.save();
     ctx.fillStyle = "rgba(18, 30, 45, .18)";
@@ -772,8 +776,12 @@
     ropeArc(px, py, 28, Math.PI, Math.PI * 2, colors.rope, 5);
     drawSling(px - 28, loadY - 28, loadY + 2, !shiromo);
     drawLoad(px - 28, loadY + 34, s.objectType, shiromo ? 0.78 : 0.9);
-    arrow(px + 48, y + h - 120, px + 48, y + h - 120 + Math.min(92, lift * 0.7), colors.ropeActive, `${Math.round(lift)} cm`, -1);
-    arrow(px - 82, y + h - 94, px - 82, y + h - 94 - Math.min(145, lift * 1.15), colors.lift, `${Math.round(lift)} cm`, -1);
+    const liftArrowLen = distanceArrowLength(lift);
+    const fixedPullX = px + 58;
+    const fixedPullTop = y + h - 182;
+    arrow(fixedPullX, fixedPullTop, fixedPullX, fixedPullTop + liftArrowLen, colors.ropeActive, "", 1);
+    label(`引く ${Math.round(lift)} cm`, fixedPullX + 62, fixedPullTop + liftArrowLen / 2, { box: "#eaf3ff", color: "#245f9f", font: "800 12px ui-sans-serif, system-ui" });
+    arrow(px - 82, y + h - 94, px - 82, y + h - 94 - liftArrowLen, colors.lift, `${Math.round(lift)} cm`, -1);
     arrow(px + 78, py + 78, px + 78, py + 138, colors.force, fmtN(s.weightN), -1);
     label("支える紐 1本", x + w / 2, y + h - 58, { box: "#f3eefe", color: "#583586", font: "800 12px ui-sans-serif, system-ui" });
     label(`仕事 ${Math.round(s.weightN * s.liftM)} J`, x + w / 2, y + h - 32, { color: "#7b4800", font: "800 12px ui-sans-serif, system-ui" });
@@ -810,11 +818,13 @@
     drawSling(left, py + movableR, loadY + 2, !shiromo);
     drawLoad(left, loadY + 34, s.objectType, shiromo ? 0.78 : 0.9);
     const pullArrowX = x + w - 44;
-    const pullArrowTop = y + h - 170;
-    const pullArrowBottom = Math.min(y + h - 104, pullArrowTop + Math.max(8, Math.min(74, lift * 0.9)));
+    const liftArrowLen = distanceArrowLength(lift);
+    const pullArrowLen = distanceArrowLength(lift * 2);
+    const pullArrowTop = y + h - 210;
+    const pullArrowBottom = pullArrowTop + pullArrowLen;
     arrow(pullArrowX, pullArrowTop, pullArrowX, pullArrowBottom, colors.ropeActive, "", -1);
-    label(`引く ${Math.round(lift * 2)} cm`, pullArrowX - 42, (pullArrowTop + pullArrowBottom) / 2, { box: "#eaf3ff", color: "#245f9f", font: "800 12px ui-sans-serif, system-ui" });
-    arrow(left - 58, y + h - 94, left - 58, y + h - 94 - Math.min(145, lift * 1.15), colors.lift, `${Math.round(lift)} cm`, -1);
+    label(`引く ${Math.round(lift * 2)} cm`, pullArrowX - 50, (pullArrowTop + pullArrowBottom) / 2, { box: "#eaf3ff", color: "#245f9f", font: "800 12px ui-sans-serif, system-ui" });
+    arrow(left - 58, y + h - 94, left - 58, y + h - 94 - liftArrowLen, colors.lift, `${Math.round(lift)} cm`, -1);
     arrow(right + 56, fixedY + 76, right + 56, fixedY + 130, colors.force, fmtN(s.weightN / 2));
     label(`左右で ${Math.round(lift)} cm + ${Math.round(lift)} cm`, x + w / 2, y + h - 84, { box: "#eaf3ff", color: "#245f9f", font: "800 11px ui-sans-serif, system-ui" });
     label("支える紐 2本", x + w / 2, y + h - 58, { box: "#f3eefe", color: "#583586", font: "800 12px ui-sans-serif, system-ui" });
