@@ -482,6 +482,25 @@
     return Math.max(12, Math.min(132, distanceCm * 0.62));
   }
 
+  function initialGuide(x1, x2, y, color) {
+    line(x1, y, x2, y, color, 1.6, [5, 5]);
+  }
+
+  function initialGuideLegend(x, y) {
+    label("点線 緑: 荷物の最初", x, y, {
+      box: "rgba(255, 255, 255, .82)",
+      color: colors.lift,
+      align: "left",
+      font: "800 10px ui-sans-serif, system-ui"
+    });
+    label("点線 青: 紐の最初", x, y + 20, {
+      box: "rgba(255, 255, 255, .82)",
+      color: colors.ropeActive,
+      align: "left",
+      font: "800 10px ui-sans-serif, system-ui"
+    });
+  }
+
   function pulley(x, y, r, movable = false) {
     ctx.save();
     ctx.fillStyle = "rgba(18, 30, 45, .18)";
@@ -712,9 +731,12 @@
     ctx.textBaseline = "middle";
     if (opts.box) {
       const w = ctx.measureText(text).width + 16;
+      let boxX = x - w / 2;
+      if ((opts.align || "center") === "left") boxX = x - 8;
+      if ((opts.align || "center") === "right") boxX = x - w + 8;
       ctx.fillStyle = opts.box;
       ctx.beginPath();
-      ctx.roundRect(x - w / 2, y - 13, w, 26, 7);
+      ctx.roundRect(boxX, y - 13, w, 26, 7);
       ctx.fill();
       ctx.fillStyle = opts.color || "#182230";
     }
@@ -765,9 +787,15 @@
     const py = top + 46;
     const lift = s.visualLiftCm ?? s.liftCm;
     const shiromo = s.objectType === "shiromo";
+    const startLoadY = y + h - (shiromo ? 140 : 132);
     const loadY = y + h - (shiromo ? 140 : 132) - lift * 0.55;
+    const startObjectY = startLoadY + 34;
+    const startRopeEndY = Math.min(y + h - 92, y + h - 146);
     const freeEndY = Math.min(y + h - 92, y + h - 146 + lift * 0.55);
     beam3d(x + 48, top, x + w - 48);
+    initialGuideLegend(x + 22, y + 48);
+    initialGuide(x + 54, x + w - 54, startObjectY, colors.lift);
+    initialGuide(x + 54, x + w - 54, startRopeEndY, colors.ropeActive);
     drawSuspensionHook(px, top + 4, py - 25);
     ropeLine(px - 28, py, px - 28, loadY - 28, colors.support, 5);
     ropeArc(px, py, 28, Math.PI, Math.PI * 2, colors.rope, 5);
@@ -796,12 +824,18 @@
     const right = left + movableR + fixedR;
     const lift = s.visualLiftCm ?? s.liftCm;
     const shiromo = s.objectType === "shiromo";
+    const startLoadY = y + h - (shiromo ? 140 : 132);
     const loadY = y + h - (shiromo ? 140 : 132) - lift * 0.55;
+    const startObjectY = startLoadY + 34;
     const py = loadY - 40;
     const fixedY = top + 46;
+    const startRopeEndY = Math.min(y + h - 92, y + h - 170);
     const freeEndY = Math.min(y + h - 92, y + h - 170 + lift * 1.1);
     const movedPx = Math.min(90, lift * 0.55);
     beam3d(x + 48, top, x + w - 48);
+    initialGuideLegend(x + 22, y + 48);
+    initialGuide(x + 54, x + w - 54, startObjectY, colors.lift);
+    initialGuide(x + 54, x + w - 54, startRopeEndY, colors.ropeActive);
     drawSuspensionHook(right, top + 4, fixedY - 23);
     ropeLine(left - movableR, top, left - movableR, py, colors.support, 5);
     ropeArc(left, py, movableR, 0, Math.PI, colors.rope, 5);
