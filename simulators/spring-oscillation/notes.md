@@ -45,3 +45,9 @@ Added as a new integrated spring simple-harmonic-motion simulator.
 - Browser responsive checks passed at 600px and 390px widths without horizontal overflow.
 - Browser listing check confirmed the entry page shows 25 cards and the `ばね単振動` card.
 - Browser console error check passed: 0 errors.
+
+## Visual Adjustment 2026-06-07
+
+- Corrected the horizontal drawing so spring force lines connect to the mass on the same centerline.
+- Two-spring horizontal parallel/left-right mode now draws the left and right springs on the same action line instead of offsetting one upward and the other downward.
+- Two-spring horizontal series mode also keeps both spring segments on the same action line.

@@ -870,12 +870,14 @@
   }
 
   function drawHorizontal(ctx, W, H, pxPerM, blockW, blockH, ke) {
-    const cy = H * 0.47;
-    const center = W * 0.52;
+    const cy = H * 0.44;
+    const center = W * 0.5;
     const x = center + state.q * pxPerM;
-    const wallL = Math.max(24, W * 0.08);
+    const wallL = Math.max(32, W * 0.1);
     const wallR = W - wallL;
-    const groundY = cy + blockH * 0.5 + 28;
+    const groundY = cy + blockH * 0.5 + 14;
+    const leftFace = x - blockW / 2;
+    const rightFace = x + blockW / 2;
 
     ctx.strokeStyle = '#34465e';
     ctx.lineWidth = 2;
@@ -885,9 +887,9 @@
     ctx.stroke();
 
     ctx.fillStyle = '#40546e';
-    ctx.fillRect(wallL - 7, cy - 92, 12, 184);
+    ctx.fillRect(wallL - 7, cy - 88, 12, 176);
     if (state.springCount === 'two' && state.connection === 'parallel') {
-      ctx.fillRect(wallR - 5, cy - 92, 12, 184);
+      ctx.fillRect(wallR - 5, cy - 88, 12, 176);
     }
 
     if (el.showTrail.checked && state.trail.length > 1) {
@@ -916,22 +918,27 @@
     ctx.strokeStyle = '#70c7ff';
     ctx.lineWidth = 2.2;
     if (state.springCount === 'one') {
-      drawSpring(ctx, wallL + 5, cy, x - blockW / 2, cy, 12, 13);
+      drawSpring(ctx, wallL + 5, cy, leftFace, cy, 12, 13);
+      drawConnectorDot(ctx, leftFace, cy);
+      labelSpring(ctx, (wallL + leftFace) / 2, cy - 30, 'k1');
     } else if (state.connection === 'parallel') {
-      drawSpring(ctx, wallL + 5, cy - 16, x - blockW / 2, cy - 16, 10, 10);
-      drawSpring(ctx, x + blockW / 2, cy + 16, wallR - 5, cy + 16, 10, 10);
-      labelSpring(ctx, (wallL + x - blockW / 2) / 2, cy - 34, 'k1');
-      labelSpring(ctx, (wallR + x + blockW / 2) / 2, cy + 42, 'k2');
+      drawSpring(ctx, wallL + 5, cy, leftFace, cy, 10, 12);
+      drawSpring(ctx, rightFace, cy, wallR - 5, cy, 10, 12);
+      drawConnectorDot(ctx, leftFace, cy);
+      drawConnectorDot(ctx, rightFace, cy);
+      labelSpring(ctx, (wallL + leftFace) / 2, cy - 30, 'k1');
+      labelSpring(ctx, (wallR + rightFace) / 2, cy - 30, 'k2');
     } else {
-      const joint = wallL + (x - blockW / 2 - wallL) * (state.k2 / (state.k1 + state.k2));
+      const joint = wallL + (leftFace - wallL) * (state.k2 / (state.k1 + state.k2));
       ctx.fillStyle = '#8ee7c8';
       ctx.beginPath();
       ctx.arc(joint, cy, 7, 0, Math.PI * 2);
       ctx.fill();
       drawSpring(ctx, wallL + 5, cy, joint - 8, cy, 8, 10);
-      drawSpring(ctx, joint + 8, cy, x - blockW / 2, cy, 8, 10);
+      drawSpring(ctx, joint + 8, cy, leftFace, cy, 8, 10);
+      drawConnectorDot(ctx, leftFace, cy);
       labelSpring(ctx, (wallL + joint) / 2, cy - 31, 'k1');
-      labelSpring(ctx, (joint + x - blockW / 2) / 2, cy + 38, 'k2');
+      labelSpring(ctx, (joint + leftFace) / 2, cy - 31, 'k2');
     }
 
     drawMass(ctx, x, cy, blockW, blockH);
@@ -1032,6 +1039,18 @@
     ctx.font = '12px system-ui, sans-serif';
     ctx.textAlign = 'center';
     ctx.fillText(text, x, y);
+  }
+
+  function drawConnectorDot(ctx, x, y) {
+    ctx.save();
+    ctx.fillStyle = '#b7e6ff';
+    ctx.strokeStyle = '#06111c';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(x, y, 4.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
   }
 
   function drawMass(ctx, cx, cy, w, h) {
