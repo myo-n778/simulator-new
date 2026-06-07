@@ -232,7 +232,7 @@
           <output id="multiCountOut">3個</output>
         </div>
         <div class="toggle-row">
-          <button class="plain-button" id="animate" type="button" aria-pressed="false">アニメ再生</button>
+          <button class="plain-button" id="animate" type="button" aria-pressed="false">再生</button>
           <button class="plain-button" id="showMulti" type="button" aria-pressed="false">複数を表示</button>
           <button class="plain-button" id="showGuide" type="button" aria-pressed="true">式を表示</button>
         </div>
@@ -332,7 +332,7 @@
     outs.distanceText.textContent = `${guideSupports}倍`;
     outs.formulaBox.style.display = showGuide ? "block" : "none";
     inputs.animate.setAttribute("aria-pressed", String(animate));
-    inputs.animate.textContent = animate ? "アニメ停止" : "アニメ再生";
+    inputs.animate.textContent = animate ? "停止" : "再生";
     inputs.showMulti.setAttribute("aria-pressed", String(showMulti));
     inputs.showGuide.setAttribute("aria-pressed", String(showGuide));
   }
@@ -383,11 +383,16 @@
     arrow(x + side * 20, y2, x + side * 20, y1, colors.ropeActive, labelText, side);
   }
 
-  function drawSling(x, pulleyBottomY, loadTopY) {
+  function drawSling(x, pulleyBottomY, loadTopY, frontLines = true) {
     const ringY = loadTopY - 10;
-    ropeLine(x, pulleyBottomY, x, ringY, "#667483", 3);
-    line(x, ringY, x - 34, loadTopY + 14, "#667483", 2);
-    line(x, ringY, x + 34, loadTopY + 14, "#667483", 2);
+    if (frontLines) {
+      ropeLine(x, pulleyBottomY, x, ringY, "#667483", 3);
+      line(x, ringY, x - 34, loadTopY + 14, "#667483", 2);
+      line(x, ringY, x + 34, loadTopY + 14, "#667483", 2);
+    } else {
+      ropeLine(x, pulleyBottomY, x, loadTopY + 26, "#667483", 3);
+      line(x - 16, loadTopY + 2, x + 16, loadTopY + 2, "rgba(70, 82, 96, .5)", 3);
+    }
     ctx.save();
     ctx.fillStyle = "#ffffff";
     ctx.strokeStyle = "#667483";
@@ -451,6 +456,10 @@
     ctx.lineTo(x2 - head * Math.cos(angle + Math.PI / 6), y2 - head * Math.sin(angle + Math.PI / 6));
     ctx.closePath();
     ctx.fill();
+    if (!label) {
+      ctx.restore();
+      return;
+    }
     ctx.font = "700 12px ui-sans-serif, system-ui";
     ctx.textAlign = labelSide > 0 ? "left" : "right";
     ctx.textBaseline = "middle";
@@ -746,7 +755,8 @@
     const px = x + w * 0.5;
     const py = top + 46;
     const lift = s.visualLiftCm ?? s.liftCm;
-    const loadY = y + h - 132 - lift * 0.55;
+    const shiromo = s.objectType === "shiromo";
+    const loadY = y + h - (shiromo ? 140 : 132) - lift * 0.55;
     const freeEndY = Math.min(y + h - 92, y + h - 146 + lift * 0.55);
     beam3d(x + 48, top, x + w - 48);
     drawSuspensionHook(px, top + 4, py - 25);
@@ -755,8 +765,8 @@
     ropeLine(px + 28, py, px + 28, freeEndY, colors.ropeActive, 5);
     pulley(px, py, 28, false);
     ropeArc(px, py, 28, Math.PI, Math.PI * 2, colors.rope, 5);
-    drawSling(px - 28, loadY - 28, loadY + 2);
-    drawLoad(px - 28, loadY + 34, s.objectType, s.objectType === "shiromo" ? 0.82 : 0.9);
+    drawSling(px - 28, loadY - 28, loadY + 2, !shiromo);
+    drawLoad(px - 28, loadY + 34, s.objectType, shiromo ? 0.78 : 0.9);
     arrow(px + 48, y + h - 120, px + 48, y + h - 120 + Math.min(92, lift * 0.7), colors.ropeActive, `${Math.round(lift)} cm`, -1);
     arrow(px - 82, y + h - 94, px - 82, y + h - 94 - Math.min(145, lift * 1.15), colors.lift, `${Math.round(lift)} cm`, -1);
     arrow(px + 78, py + 78, px + 78, py + 138, colors.force, fmtN(s.weightN), -1);
@@ -773,7 +783,8 @@
     const left = x + w * 0.39;
     const right = left + movableR + fixedR;
     const lift = s.visualLiftCm ?? s.liftCm;
-    const loadY = y + h - 132 - lift * 0.55;
+    const shiromo = s.objectType === "shiromo";
+    const loadY = y + h - (shiromo ? 140 : 132) - lift * 0.55;
     const py = loadY - 40;
     const fixedY = top + 46;
     const freeEndY = Math.min(y + h - 92, y + h - 170 + lift * 1.1);
@@ -791,9 +802,13 @@
     pulley(left, py, movableR, true);
     ropeArc(left, py, movableR, 0, Math.PI, colors.rope, 5);
     ropeArc(right, fixedY, fixedR, Math.PI, Math.PI * 2, colors.rope, 5);
-    drawSling(left, py + movableR, loadY + 2);
-    drawLoad(left, loadY + 34, s.objectType, s.objectType === "shiromo" ? 0.82 : 0.9);
-    arrow(right + 44, y + h - 142, right + 44, y + h - 142 + Math.min(82, lift * 1.44), colors.ropeActive, `引く ${Math.round(lift * 2)} cm`, -1);
+    drawSling(left, py + movableR, loadY + 2, !shiromo);
+    drawLoad(left, loadY + 34, s.objectType, shiromo ? 0.78 : 0.9);
+    const pullArrowX = x + w - 44;
+    const pullArrowTop = y + h - 170;
+    const pullArrowBottom = Math.min(y + h - 104, pullArrowTop + Math.max(8, Math.min(74, lift * 0.9)));
+    arrow(pullArrowX, pullArrowTop, pullArrowX, pullArrowBottom, colors.ropeActive, "", -1);
+    label(`引く ${Math.round(lift * 2)} cm`, pullArrowX - 42, (pullArrowTop + pullArrowBottom) / 2, { box: "#eaf3ff", color: "#245f9f", font: "800 12px ui-sans-serif, system-ui" });
     arrow(left - 58, y + h - 94, left - 58, y + h - 94 - Math.min(145, lift * 1.15), colors.lift, `${Math.round(lift)} cm`, -1);
     arrow(right + 56, fixedY + 76, right + 56, fixedY + 130, colors.force, fmtN(s.weightN / 2));
     label(`左右で ${Math.round(lift)} cm + ${Math.round(lift)} cm`, x + w / 2, y + h - 84, { box: "#eaf3ff", color: "#245f9f", font: "800 11px ui-sans-serif, system-ui" });
@@ -842,9 +857,9 @@
     setCanvasSize();
     const s = state();
     if (animate) {
-      const duration = 2400;
+      const duration = 5200;
       const t = Math.min(1, (performance.now() - animationStart) / duration);
-      s.visualLiftCm = s.liftCm * (1 - Math.pow(1 - t, 3));
+      s.visualLiftCm = s.liftCm * (t * t * (3 - 2 * t));
       if (t >= 1) {
         animate = false;
         frameId = null;
