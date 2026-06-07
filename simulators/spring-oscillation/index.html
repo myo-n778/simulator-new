@@ -9,6 +9,26 @@
   <script src="../../assets/sim-clock.js"></script>
   <style>
     :root {
+      color-scheme: light;
+      --bg: #f3f6fa;
+      --surface: #ffffff;
+      --surface-2: #edf3f8;
+      --surface-3: #f8fbfd;
+      --ink: #172232;
+      --muted: #5f6f82;
+      --line: #d5dee9;
+      --line-strong: #a8b8ca;
+      --accent: #2478b8;
+      --accent-2: #2b9b78;
+      --warn: #b7791f;
+      --red: #c85050;
+      --grid: #dce6f0;
+      --canvas-1: #f8fbff;
+      --canvas-2: #edf4fa;
+      --shadow: 0 14px 34px rgba(26, 43, 64, 0.12);
+    }
+
+    body.theme-dark {
       color-scheme: dark;
       --bg: #080d14;
       --surface: #0f1722;
@@ -43,7 +63,7 @@
 
     .sim-shell-header {
       border-bottom-color: var(--line);
-      background: rgba(8, 13, 20, 0.92);
+      background: color-mix(in srgb, var(--surface) 92%, transparent);
       color: var(--ink);
     }
 
@@ -152,7 +172,7 @@
     .btn {
       padding: 0 14px;
       background: var(--accent);
-      color: #06111c;
+      color: #ffffff;
       border-color: transparent;
     }
 
@@ -182,7 +202,7 @@
 
     .seg-btn.is-active {
       background: var(--accent);
-      color: #06111c;
+      color: #ffffff;
     }
 
     .select {
@@ -218,9 +238,9 @@
 
     .status-item {
       min-width: 0;
-      border: 1px solid rgba(112, 199, 255, 0.16);
+      border: 1px solid color-mix(in srgb, var(--accent) 22%, transparent);
       border-radius: 7px;
-      background: rgba(7, 13, 21, 0.78);
+      background: color-mix(in srgb, var(--surface) 84%, transparent);
       padding: 6px 8px;
       backdrop-filter: blur(8px);
     }
@@ -479,6 +499,10 @@
         <p class="lead">水平・鉛直、ばね1本・2本を同じ画面で切り替えます。鉛直では重力による静的伸びと、つり合い位置まわりの単振動を分けて表示します。</p>
       </div>
       <div class="mode-strip" aria-label="表示モード">
+        <div class="segmented" aria-label="テーマ">
+          <button class="seg-btn is-active" type="button" data-theme="light">標準</button>
+          <button class="seg-btn" type="button" data-theme="dark">ダーク</button>
+        </div>
         <div class="segmented" aria-label="向き">
           <button class="seg-btn is-active" type="button" data-mode="orientation" data-value="horizontal">水平</button>
           <button class="seg-btn" type="button" data-mode="orientation" data-value="vertical">鉛直</button>
@@ -620,6 +644,7 @@
   <script>
 (() => {
   const state = {
+    theme: 'light',
     orientation: 'horizontal',
     springCount: 'one',
     connection: 'parallel',
@@ -663,6 +688,60 @@
   function fmt(value, digits = 2) {
     if (!Number.isFinite(value)) return '--';
     return value.toFixed(digits);
+  }
+
+  function isDark() {
+    return state.theme === 'dark';
+  }
+
+  function scenePalette() {
+    return isDark()
+      ? {
+        bg0: '#0d1622',
+        bg1: '#09111a',
+        grid: 'rgba(126, 154, 186, 0.12)',
+        gridMajor: 'rgba(126, 154, 186, 0.22)',
+        rail: '#3b5069',
+        railLight: '#5d7490',
+        guide: '#7f91a8',
+        guideText: '#c9d7e8',
+        spring: '#70c7ff',
+        springCore: '#d8f4ff',
+        massA: '#7fd0ff',
+        massB: '#2f83bf',
+        massStroke: '#c5ecff',
+        massText: '#06111c',
+        shadow: 'rgba(0, 0, 0, 0.38)',
+        tagBg: 'rgba(7, 13, 21, 0.86)',
+        tagBorder: 'rgba(112, 199, 255, 0.2)',
+        trail: 'rgba(142, 231, 200, 0.46)',
+        connector: '#b7e6ff',
+        connectorStroke: '#07111d',
+        energyBg: 'rgba(7, 13, 21, 0.84)'
+      }
+      : {
+        bg0: '#f9fcff',
+        bg1: '#edf4fa',
+        grid: 'rgba(118, 145, 174, 0.18)',
+        gridMajor: 'rgba(83, 107, 132, 0.28)',
+        rail: '#91a5ba',
+        railLight: '#d8e3ee',
+        guide: '#8294a8',
+        guideText: '#34475c',
+        spring: '#287fbd',
+        springCore: '#8dd8ff',
+        massA: '#67b8e9',
+        massB: '#2675ad',
+        massStroke: '#155b89',
+        massText: '#ffffff',
+        shadow: 'rgba(26, 43, 64, 0.18)',
+        tagBg: 'rgba(255, 255, 255, 0.88)',
+        tagBorder: 'rgba(36, 120, 184, 0.2)',
+        trail: 'rgba(43, 155, 120, 0.46)',
+        connector: '#2478b8',
+        connectorStroke: '#ffffff',
+        energyBg: 'rgba(255, 255, 255, 0.86)'
+      };
   }
 
   function fitCanvas(canvas) {
@@ -773,16 +852,32 @@
   });
 
   function drawGrid(ctx, W, H) {
-    ctx.fillStyle = '#0b121b';
+    const pal = scenePalette();
+    const bg = ctx.createLinearGradient(0, 0, 0, H);
+    bg.addColorStop(0, pal.bg0);
+    bg.addColorStop(1, pal.bg1);
+    ctx.fillStyle = bg;
     ctx.fillRect(0, 0, W, H);
-    ctx.strokeStyle = '#172335';
     ctx.lineWidth = 1;
+    ctx.strokeStyle = pal.grid;
     ctx.beginPath();
     for (let x = 40; x < W; x += 40) {
       ctx.moveTo(x + 0.5, 0);
       ctx.lineTo(x + 0.5, H);
     }
     for (let y = 40; y < H; y += 40) {
+      ctx.moveTo(0, y + 0.5);
+      ctx.lineTo(W, y + 0.5);
+    }
+    ctx.stroke();
+
+    ctx.strokeStyle = pal.gridMajor;
+    ctx.beginPath();
+    for (let x = 80; x < W; x += 160) {
+      ctx.moveTo(x + 0.5, 0);
+      ctx.lineTo(x + 0.5, H);
+    }
+    for (let y = 80; y < H; y += 160) {
       ctx.moveTo(0, y + 0.5);
       ctx.lineTo(W, y + 0.5);
     }
@@ -803,9 +898,12 @@
     ctx.moveTo(x0, y0);
     ctx.lineTo(x0 + ux * lead, y0 + uy * lead);
     const bodyLen = Math.max(2, len - 2 * lead);
-    for (let i = 1; i < turns; i += 1) {
-      const along = lead + bodyLen * (i / turns);
-      const side = i % 2 ? amp : -amp;
+    const segments = Math.max(32, Math.round(turns * 8));
+    for (let i = 0; i <= segments; i += 1) {
+      const p = i / segments;
+      const along = lead + bodyLen * p;
+      const taper = Math.sin(Math.PI * p);
+      const side = Math.sin(p * turns * Math.PI * 2) * amp * taper;
       ctx.lineTo(x0 + ux * along + px * side, y0 + uy * along + py * side);
     }
     ctx.lineTo(x1 - ux * lead, y1 - uy * lead);
@@ -870,6 +968,7 @@
   }
 
   function drawHorizontal(ctx, W, H, pxPerM, blockW, blockH, ke) {
+    const pal = scenePalette();
     const cy = H * 0.44;
     const center = W * 0.5;
     const x = center + state.q * pxPerM;
@@ -879,21 +978,32 @@
     const leftFace = x - blockW / 2;
     const rightFace = x + blockW / 2;
 
-    ctx.strokeStyle = '#34465e';
-    ctx.lineWidth = 2;
+    ctx.save();
+    ctx.shadowColor = pal.shadow;
+    ctx.shadowBlur = 10;
+    ctx.shadowOffsetY = 4;
+    ctx.strokeStyle = pal.rail;
+    ctx.lineWidth = 5;
     ctx.beginPath();
     ctx.moveTo(wallL, groundY);
     ctx.lineTo(wallR, groundY);
     ctx.stroke();
+    ctx.shadowBlur = 0;
+    ctx.strokeStyle = pal.railLight;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(wallL, groundY - 3);
+    ctx.lineTo(wallR, groundY - 3);
+    ctx.stroke();
+    ctx.restore();
 
-    ctx.fillStyle = '#40546e';
-    ctx.fillRect(wallL - 7, cy - 88, 12, 176);
+    drawWall(ctx, wallL, cy - 88, 14, 176, 'left');
     if (state.springCount === 'two' && state.connection === 'parallel') {
-      ctx.fillRect(wallR - 5, cy - 88, 12, 176);
+      drawWall(ctx, wallR - 7, cy - 88, 14, 176, 'right');
     }
 
     if (el.showTrail.checked && state.trail.length > 1) {
-      ctx.strokeStyle = 'rgba(142, 231, 200, 0.42)';
+      ctx.strokeStyle = pal.trail;
       ctx.lineWidth = 2;
       ctx.beginPath();
       state.trail.forEach((p, i) => {
@@ -905,18 +1015,16 @@
     }
 
     ctx.setLineDash([5, 6]);
-    ctx.strokeStyle = '#718096';
+    ctx.strokeStyle = pal.guide;
     ctx.beginPath();
     ctx.moveTo(center, cy - 90);
     ctx.lineTo(center, groundY + 34);
     ctx.stroke();
     ctx.setLineDash([]);
-    ctx.fillStyle = '#aab8c8';
-    ctx.textAlign = 'center';
-    ctx.fillText('q = 0', center, groundY + 50);
+    drawLabelTag(ctx, 'q = 0', center, groundY + 50, 'center');
 
-    ctx.strokeStyle = '#70c7ff';
-    ctx.lineWidth = 2.2;
+    ctx.strokeStyle = pal.spring;
+    ctx.lineWidth = 3;
     if (state.springCount === 'one') {
       drawSpring(ctx, wallL + 5, cy, leftFace, cy, 12, 13);
       drawConnectorDot(ctx, leftFace, cy);
@@ -930,7 +1038,7 @@
       labelSpring(ctx, (wallR + rightFace) / 2, cy - 30, 'k2');
     } else {
       const joint = wallL + (leftFace - wallL) * (state.k2 / (state.k1 + state.k2));
-      ctx.fillStyle = '#8ee7c8';
+      ctx.fillStyle = pal.connector;
       ctx.beginPath();
       ctx.arc(joint, cy, 7, 0, Math.PI * 2);
       ctx.fill();
@@ -945,14 +1053,15 @@
     if (el.showForces.checked) {
       const force = -ke * state.q;
       const arrow = clamp(force * 12, -92, 92);
-      drawArrow(ctx, x, cy - 58, x + arrow, cy - 58, '#ffd166', 'F');
+      drawArrow(ctx, x, cy - 58, x + arrow, cy - 58, isDark() ? '#ffd166' : '#b7791f', 'F');
       const vel = clamp(state.v * 24, -76, 76);
-      drawArrow(ctx, x, cy + 64, x + vel, cy + 64, '#8ee7c8', 'v');
+      drawArrow(ctx, x, cy + 64, x + vel, cy + 64, isDark() ? '#8ee7c8' : '#2b9b78', 'v');
     }
-    if (el.showEnergy.checked) drawEnergyBar(ctx, W - 145, 22, 110, 70);
+    if (el.showEnergy.checked && W >= 520) drawEnergyBar(ctx, W - 145, 22, 110, 70);
   }
 
   function drawVertical(ctx, W, H, pxPerM, blockW, blockH, stretch, ke) {
+    const pal = scenePalette();
     const anchorY = 48;
     const centerX = W * 0.5;
     const naturalLength = Math.max(82, H * 0.23);
@@ -960,35 +1069,42 @@
     const massY = eqY + state.q * pxPerM;
     const topBarW = Math.min(260, W * 0.52);
 
-    ctx.fillStyle = '#40546e';
-    ctx.fillRect(centerX - topBarW / 2, anchorY - 9, topBarW, 12);
+    ctx.save();
+    ctx.shadowColor = pal.shadow;
+    ctx.shadowBlur = 10;
+    ctx.shadowOffsetY = 4;
+    const barGrad = ctx.createLinearGradient(centerX - topBarW / 2, anchorY - 10, centerX + topBarW / 2, anchorY + 8);
+    barGrad.addColorStop(0, pal.railLight);
+    barGrad.addColorStop(0.5, pal.rail);
+    barGrad.addColorStop(1, pal.railLight);
+    ctx.fillStyle = barGrad;
+    ctx.beginPath();
+    ctx.roundRect(centerX - topBarW / 2, anchorY - 10, topBarW, 16, 6);
+    ctx.fill();
+    ctx.restore();
 
     if (el.showNatural.checked) {
       ctx.setLineDash([4, 6]);
-      ctx.strokeStyle = '#4e637d';
+      ctx.strokeStyle = pal.rail;
       ctx.beginPath();
       ctx.moveTo(40, anchorY + naturalLength);
       ctx.lineTo(W - 40, anchorY + naturalLength);
       ctx.stroke();
-      ctx.fillStyle = '#91a2b7';
-      ctx.textAlign = 'left';
-      ctx.fillText('自然長', 48, anchorY + naturalLength - 8);
+      drawLabelTag(ctx, '自然長', 48, anchorY + naturalLength - 8, 'left');
       ctx.setLineDash([]);
     }
 
     ctx.setLineDash([5, 6]);
-    ctx.strokeStyle = '#718096';
+    ctx.strokeStyle = pal.guide;
     ctx.beginPath();
     ctx.moveTo(40, eqY);
     ctx.lineTo(W - 40, eqY);
     ctx.stroke();
     ctx.setLineDash([]);
-    ctx.fillStyle = '#aab8c8';
-    ctx.textAlign = 'left';
-    ctx.fillText('つり合い位置 q = 0', 48, eqY - 9);
+    drawLabelTag(ctx, 'つり合い位置 q = 0', 48, eqY - 9, 'left');
 
-    ctx.strokeStyle = '#70c7ff';
-    ctx.lineWidth = 2.2;
+    ctx.strokeStyle = pal.spring;
+    ctx.lineWidth = 3;
     if (state.springCount === 'one') {
       drawSpring(ctx, centerX, anchorY + 3, centerX, massY - blockH / 2, 13, 13);
       labelSpring(ctx, centerX + 28, (anchorY + massY - blockH / 2) / 2, 'k1');
@@ -1002,7 +1118,7 @@
       const totalLen = massY - blockH / 2 - (anchorY + 3);
       const firstLen = totalLen * (state.k2 / (state.k1 + state.k2));
       const jointY = anchorY + 3 + firstLen;
-      ctx.fillStyle = '#8ee7c8';
+      ctx.fillStyle = pal.connector;
       ctx.beginPath();
       ctx.arc(centerX, jointY, 7, 0, Math.PI * 2);
       ctx.fill();
@@ -1014,7 +1130,7 @@
 
     drawMass(ctx, centerX, massY, blockW, blockH);
     if (el.showTrail.checked && state.trail.length > 1) {
-      ctx.strokeStyle = 'rgba(142, 231, 200, 0.42)';
+      ctx.strokeStyle = pal.trail;
       ctx.lineWidth = 2;
       ctx.beginPath();
       state.trail.forEach((p, i) => {
@@ -1026,25 +1142,72 @@
     }
     if (el.showForces.checked) {
       const restore = clamp((-ke * state.q) * 11, -90, 90);
-      drawArrow(ctx, centerX - 52, massY, centerX - 52, massY + restore, '#ffd166', '復元力');
+      drawArrow(ctx, centerX - 52, massY, centerX - 52, massY + restore, isDark() ? '#ffd166' : '#b7791f', '復元力');
       const vel = clamp(state.v * 22, -80, 80);
-      drawArrow(ctx, centerX + 52, massY, centerX + 52, massY + vel, '#8ee7c8', 'v');
-      drawArrow(ctx, centerX, massY + blockH / 2 + 6, centerX, massY + blockH / 2 + 48, '#ff7d7d', 'mg');
+      drawArrow(ctx, centerX + 52, massY, centerX + 52, massY + vel, isDark() ? '#8ee7c8' : '#2b9b78', 'v');
+      drawArrow(ctx, centerX, massY + blockH / 2 + 6, centerX, massY + blockH / 2 + 48, isDark() ? '#ff7d7d' : '#c85050', 'mg');
     }
-    if (el.showEnergy.checked) drawEnergyBar(ctx, W - 145, 22, 110, 70);
+    if (el.showEnergy.checked && W >= 520) drawEnergyBar(ctx, W - 145, 22, 110, 70);
   }
 
   function labelSpring(ctx, x, y, text) {
-    ctx.fillStyle = '#c9d7e8';
+    drawLabelTag(ctx, text, x, y, 'center');
+  }
+
+  function drawLabelTag(ctx, text, x, y, align = 'center') {
+    const pal = scenePalette();
+    ctx.save();
     ctx.font = '12px system-ui, sans-serif';
-    ctx.textAlign = 'center';
-    ctx.fillText(text, x, y);
+    const width = ctx.measureText(text).width + 14;
+    const height = 22;
+    let bx = x - width / 2;
+    if (align === 'left') bx = x;
+    if (align === 'right') bx = x - width;
+    const by = y - height / 2;
+    ctx.fillStyle = pal.tagBg;
+    ctx.strokeStyle = pal.tagBorder;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.roundRect(bx, by, width, height, 6);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = pal.guideText;
+    ctx.textAlign = align === 'left' ? 'left' : align === 'right' ? 'right' : 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(text, align === 'left' ? bx + 7 : align === 'right' ? bx + width - 7 : bx + width / 2, by + height / 2 + 0.5);
+    ctx.restore();
+  }
+
+  function drawWall(ctx, x, y, w, h, side) {
+    const pal = scenePalette();
+    ctx.save();
+    ctx.shadowColor = pal.shadow;
+    ctx.shadowBlur = 10;
+    ctx.shadowOffsetY = 4;
+    const grad = ctx.createLinearGradient(x, y, x + w, y);
+    grad.addColorStop(0, side === 'right' ? pal.rail : pal.railLight);
+    grad.addColorStop(1, side === 'right' ? pal.railLight : pal.rail);
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.roundRect(x, y, w, h, 5);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.strokeStyle = pal.rail;
+    ctx.lineWidth = 1;
+    for (let yy = y + 16; yy < y + h; yy += 18) {
+      ctx.beginPath();
+      ctx.moveTo(x + 2, yy);
+      ctx.lineTo(x + w - 2, yy - 8);
+      ctx.stroke();
+    }
+    ctx.restore();
   }
 
   function drawConnectorDot(ctx, x, y) {
+    const pal = scenePalette();
     ctx.save();
-    ctx.fillStyle = '#b7e6ff';
-    ctx.strokeStyle = '#06111c';
+    ctx.fillStyle = pal.connector;
+    ctx.strokeStyle = pal.connectorStroke;
     ctx.lineWidth = 1.5;
     ctx.beginPath();
     ctx.arc(x, y, 4.5, 0, Math.PI * 2);
@@ -1054,39 +1217,56 @@
   }
 
   function drawMass(ctx, cx, cy, w, h) {
-    ctx.fillStyle = 'rgba(112, 199, 255, 0.88)';
-    ctx.strokeStyle = '#b7e6ff';
+    const pal = scenePalette();
+    ctx.save();
+    ctx.shadowColor = pal.shadow;
+    ctx.shadowBlur = 14;
+    ctx.shadowOffsetY = 5;
+    const grad = ctx.createLinearGradient(cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2);
+    grad.addColorStop(0, pal.massA);
+    grad.addColorStop(1, pal.massB);
+    ctx.fillStyle = grad;
+    ctx.strokeStyle = pal.massStroke;
     ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.roundRect(cx - w / 2, cy - h / 2, w, h, 8);
     ctx.fill();
+    ctx.shadowBlur = 0;
     ctx.stroke();
-    ctx.fillStyle = '#06111c';
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.36)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(cx - w / 2 + 10, cy - h / 2 + 10);
+    ctx.lineTo(cx + w / 2 - 10, cy - h / 2 + 10);
+    ctx.stroke();
+    ctx.fillStyle = pal.massText;
     ctx.font = 'bold 13px system-ui, sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText('m', cx, cy);
     ctx.textBaseline = 'alphabetic';
+    ctx.restore();
   }
 
   function drawEnergyBar(ctx, x, y, w, h) {
+    const pal = scenePalette();
     const kinetic = 0.5 * state.mass * state.v * state.v;
     const potential = 0.5 * kEff() * state.q * state.q;
     const total = Math.max(kinetic + potential, 1e-6);
     const kh = h * kinetic / total;
     const ph = h * potential / total;
-    ctx.fillStyle = 'rgba(7, 13, 21, 0.82)';
-    ctx.strokeStyle = '#243346';
+    ctx.fillStyle = pal.energyBg;
+    ctx.strokeStyle = isDark() ? '#243346' : '#cbd8e5';
     ctx.lineWidth = 1;
     ctx.beginPath();
     ctx.roundRect(x, y, w, h + 22, 7);
     ctx.fill();
     ctx.stroke();
-    ctx.fillStyle = '#8ee7c8';
+    ctx.fillStyle = isDark() ? '#8ee7c8' : '#2b9b78';
     ctx.fillRect(x + 12, y + h - kh, 32, kh);
-    ctx.fillStyle = '#ffd166';
+    ctx.fillStyle = isDark() ? '#ffd166' : '#d29b2a';
     ctx.fillRect(x + 56, y + h - ph, 32, ph);
-    ctx.fillStyle = '#aab8c8';
+    ctx.fillStyle = isDark() ? '#aab8c8' : '#52657a';
     ctx.font = '11px system-ui, sans-serif';
     ctx.textAlign = 'center';
     ctx.fillText('K', x + 28, y + h + 15);
@@ -1094,12 +1274,13 @@
   }
 
   function drawGraph(canvas, valueKey, color, rangeEl, unit) {
+    const pal = scenePalette();
     const ctx = ctxFor(canvas);
     const W = canvas._cssW || canvas.clientWidth;
     const H = canvas._cssH || canvas.clientHeight;
-    ctx.fillStyle = '#0b121b';
+    ctx.fillStyle = pal.bg0;
     ctx.fillRect(0, 0, W, H);
-    ctx.strokeStyle = '#172335';
+    ctx.strokeStyle = pal.grid;
     ctx.lineWidth = 1;
     ctx.beginPath();
     for (let i = 1; i < 4; i += 1) {
@@ -1138,7 +1319,7 @@
 
     if (valueKey !== 'e') {
       const y0 = yOf(0);
-      ctx.strokeStyle = '#4e637d';
+      ctx.strokeStyle = pal.gridMajor;
       ctx.setLineDash([4, 5]);
       ctx.beginPath();
       ctx.moveTo(0, y0);
@@ -1205,9 +1386,9 @@
   function render() {
     updateReadouts();
     drawScene();
-    drawGraph(el.qGraph, 'q', '#70c7ff', el.qRange, 'm');
-    drawGraph(el.vGraph, 'v', '#8ee7c8', el.vRange, 'm/s');
-    drawGraph(el.eGraph, 'e', '#ffd166', el.eRange, 'J');
+    drawGraph(el.qGraph, 'q', isDark() ? '#70c7ff' : '#2478b8', el.qRange, 'm');
+    drawGraph(el.vGraph, 'v', isDark() ? '#8ee7c8' : '#2b9b78', el.vRange, 'm/s');
+    drawGraph(el.eGraph, 'e', isDark() ? '#ffd166' : '#b7791f', el.eRange, 'J');
   }
 
   function setRunning(next) {
@@ -1242,8 +1423,20 @@
     resetMotion();
   }
 
+  function setTheme(theme) {
+    state.theme = theme;
+    document.body.classList.toggle('theme-dark', theme === 'dark');
+    document.querySelectorAll('[data-theme]').forEach((button) => {
+      button.classList.toggle('is-active', button.dataset.theme === theme);
+    });
+    render();
+  }
+
   document.querySelectorAll('[data-mode]').forEach((button) => {
     button.addEventListener('click', () => setMode(button.dataset.mode, button.dataset.value));
+  });
+  document.querySelectorAll('[data-theme]').forEach((button) => {
+    button.addEventListener('click', () => setTheme(button.dataset.theme));
   });
 
   syncPair('mass', 'massNumber', 'mass');

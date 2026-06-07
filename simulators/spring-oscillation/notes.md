@@ -51,3 +51,10 @@ Added as a new integrated spring simple-harmonic-motion simulator.
 - Corrected the horizontal drawing so spring force lines connect to the mass on the same centerline.
 - Two-spring horizontal parallel/left-right mode now draws the left and right springs on the same action line instead of offsetting one upward and the other downward.
 - Two-spring horizontal series mode also keeps both spring segments on the same action line.
+
+## Visual Restyle 2026-06-07
+
+- Added a `標準` / `ダーク` theme switch and made the standard light schematic the default view.
+- Replaced the sharp zigzag spring drawing with smoother coil-like strokes.
+- Restyled the mass, wall, rail, labels, grid, and graph backgrounds to look more like a physics apparatus diagram.
+- Hid the scene energy mini-panel on narrow screens to avoid covering the spring and mass drawing.
