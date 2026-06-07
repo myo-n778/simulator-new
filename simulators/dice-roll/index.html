@@ -1197,22 +1197,26 @@
       ctx.fill();
       ctx.restore();
 
-      const dotRadius = (face === 1 ? 12.6 : 10.2) * radiusScale;
+      ctx.save();
+      drawRoundPolygon(quad, 18 * radiusScale);
+      ctx.clip();
+
+      const dotRadius = (face === 1 ? 9.4 : 7.6) * radiusScale;
       dotPositions(face).forEach(([u, v]) => {
         const p = pointInQuad(quad, u, v);
-        const recess = ctx.createRadialGradient(p.x - dotRadius * .08, p.y - dotRadius * .10, 1, p.x, p.y, dotRadius * 1.05);
+        const recess = ctx.createRadialGradient(p.x, p.y, 1, p.x, p.y, dotRadius * 1.08);
         ctx.beginPath();
         if (face === 1) {
-          recess.addColorStop(0, "#d51d2a");
-          recess.addColorStop(.58, "#a60f1a");
+          recess.addColorStop(0, "#c71925");
+          recess.addColorStop(.72, "#9c1019");
           recess.addColorStop(1, "#4a050b");
         } else {
-          recess.addColorStop(0, "#263241");
-          recess.addColorStop(.58, "#0b1119");
+          recess.addColorStop(0, "#1d2734");
+          recess.addColorStop(.72, "#080d14");
           recess.addColorStop(1, "#010306");
         }
-        ctx.arc(p.x, p.y, dotRadius * 1.16, 0, Math.PI * 2);
-        ctx.fillStyle = "rgba(5, 10, 16, .24)";
+        ctx.arc(p.x, p.y, dotRadius * 1.18, 0, Math.PI * 2);
+        ctx.fillStyle = "rgba(4, 9, 14, .18)";
         ctx.fill();
 
         ctx.beginPath();
@@ -1220,16 +1224,17 @@
         ctx.fillStyle = recess;
         ctx.fill();
 
-        ctx.lineWidth = Math.max(1, 1.1 * radiusScale);
-        ctx.strokeStyle = "rgba(0,0,0,.52)";
+        ctx.lineWidth = Math.max(1, .95 * radiusScale);
+        ctx.strokeStyle = "rgba(0,0,0,.62)";
         ctx.stroke();
 
         ctx.beginPath();
-        ctx.arc(p.x - dotRadius * .06, p.y - dotRadius * .10, dotRadius * .92, Math.PI * 1.02, Math.PI * 1.82);
-        ctx.strokeStyle = "rgba(255,255,255,.16)";
-        ctx.lineWidth = Math.max(1, .8 * radiusScale);
+        ctx.arc(p.x - dotRadius * .03, p.y - dotRadius * .08, dotRadius * .86, Math.PI * 1.08, Math.PI * 1.76);
+        ctx.strokeStyle = "rgba(255,255,255,.08)";
+        ctx.lineWidth = Math.max(1, .55 * radiusScale);
         ctx.stroke();
       });
+      ctx.restore();
     }
 
     function drawCubeEdges(front, top, right, radiusScale = 1) {
