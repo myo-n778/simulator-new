@@ -160,9 +160,22 @@ const $ = (id)=>document.getElementById(id);
 const canvas = $('view');
 const ctx = canvas.getContext('2d');
 const lane = { boards: 40, length: 18.29, spotY: 4.57, pinY: 18.29, headBoard: 20 };
+const pinDeck = { frontY: 17.18, rowGap: 0.32 };
+const pinLayout = [
+  { id: 1, board: 20.0, row: 0 },
+  { id: 2, board: 18.8, row: 1 },
+  { id: 3, board: 21.2, row: 1 },
+  { id: 4, board: 17.6, row: 2 },
+  { id: 5, board: 20.0, row: 2 },
+  { id: 6, board: 22.4, row: 2 },
+  { id: 7, board: 16.4, row: 3 },
+  { id: 8, board: 18.8, row: 3 },
+  { id: 9, board: 21.2, row: 3 },
+  { id: 10, board: 23.6, row: 3 }
+];
 const state = {
   standing: 20,
-  handOffset: 0,
+  handOffset: 3.2,
   bodyHeight: 158,
   armLength: 58,
   angle: 0,
@@ -217,17 +230,17 @@ function pathBoardAt(y, angleOverride = state.angle, releaseOverride = releaseBo
 }
 function targetSpotForHead(){
   const release = releaseBoard();
-  const desiredAtSpot = release + (lane.headBoard - release - curveAt(lane.pinY)) * (lane.spotY / lane.pinY);
+  const desiredAtSpot = release + (lane.headBoard - release - curveAt(pinDeck.frontY)) * (lane.spotY / pinDeck.frontY);
   return clamp(desiredAtSpot, 0, 40);
 }
 function requiredAngleToHead(){
   const release = releaseBoard();
-  const lateral = lane.headBoard - release - curveAt(lane.pinY);
-  return Math.atan(lateral / (lane.pinY * 2.35)) * 180 / Math.PI;
+  const lateral = lane.headBoard - release - curveAt(pinDeck.frontY);
+  return Math.atan(lateral / (pinDeck.frontY * 2.35)) * 180 / Math.PI;
 }
 function compute(){
   const release = releaseBoard();
-  const pinBoard = pathBoardAt(lane.pinY);
+  const pinBoard = pathBoardAt(pinDeck.frontY);
   const spotBoard = pathBoardAt(lane.spotY);
   const targetSpot = targetSpotForHead();
   const gutterAt = sampleGutter();
@@ -237,7 +250,8 @@ function compute(){
   const curve = curveAt(lane.pinY);
   const required = requiredAngleToHead();
   const miss = pinBoard - lane.headBoard;
-  return {release,pinBoard,spotBoard,targetSpot,gutterAt,p,ke,curve,required,miss};
+  const pinHits = computePinHits(pinBoard, gutterAt);
+  return {release,pinBoard,spotBoard,targetSpot,gutterAt,p,ke,curve,required,miss,pinHits};
 }
 function sampleGutter(){
   for(let i=0;i<=120;i++){
@@ -246,6 +260,33 @@ function sampleGutter(){
     if(x < 0 || x > lane.boards) return {y,x};
   }
   return null;
+}
+
+function computePinHits(pinBoard, gutterAt){
+  if(gutterAt) return new Set();
+  const hits = new Set();
+  for(const pin of pinLayout){
+    const y = pinDeck.frontY + pin.row * pinDeck.rowGap;
+    const ballBoard = pathBoardAt(y);
+    const lateral = Math.abs(ballBoard - pin.board);
+    const threshold = pin.row === 0 ? 1.15 : 0.82;
+    if(lateral <= threshold) hits.add(pin.id);
+  }
+  if(hits.has(1)){
+    if(pinBoard < 20) {
+      [2,4,5,8].forEach(id=>hits.add(id));
+    } else if(pinBoard > 20) {
+      [3,5,6,9].forEach(id=>hits.add(id));
+    } else {
+      [2,3,5].forEach(id=>hits.add(id));
+    }
+  }
+  for(const id of [...hits]){
+    if(id === 2) [4,7,8].forEach(next=>hits.add(next));
+    if(id === 3) [6,9,10].forEach(next=>hits.add(next));
+    if(id === 5) [8,9].forEach(next=>hits.add(next));
+  }
+  return hits;
 }
 
 function project(board, y){
@@ -379,18 +420,17 @@ function drawSpots(){
 }
 
 function drawPins(){
-  const pins = [
-    [20,0],[18.8,.78],[21.2,.78],[17.6,1.56],[20,1.56],[22.4,1.56],
-    [16.4,2.34],[18.8,2.34],[21.2,2.34],[23.6,2.34]
-  ];
-  pins.forEach((pin,idx)=>{
-    const board = pin[0], back = pin[1];
-    const p = project(board, lane.pinY - back * .34);
-    const dist = Math.abs(metrics.pinBoard - board) + back * .34;
-    const hit = state.pinOn && dist < (idx === 0 ? 1.05 : .72);
+  const impactT = clamp((state.progress - 0.9) / 0.1, 0, 1);
+  [...pinLayout].reverse().forEach((pin)=>{
+    const y = pinDeck.frontY + pin.row * pinDeck.rowGap;
+    const p = project(pin.board, y);
+    const hit = state.pinOn && metrics.pinHits.has(pin.id);
     const s = p.scale * 2.7 + 0.12;
+    const fall = hit ? impactT : 0;
+    const side = pin.board >= metrics.pinBoard ? 1 : -1;
     ctx.save();
-    ctx.translate(p.x,p.y);
+    ctx.translate(p.x + side * 20 * fall * s, p.y + 12 * fall * s);
+    ctx.rotate(side * fall * 1.25);
     ctx.fillStyle = 'rgba(0,0,0,.23)';
     ctx.beginPath();
     ctx.ellipse(0, 13*s, 8*s, 3*s, 0,0,Math.PI*2);
@@ -399,6 +439,10 @@ function drawPins(){
     roundPin(0,0,7*s,24*s);
     ctx.fillStyle = hit ? '#ff6b64' : '#c93131';
     ctx.fillRect(-5*s,-1*s,10*s,4*s);
+    ctx.fillStyle = 'rgba(8,14,20,.75)';
+    ctx.font = `${Math.max(9, 8*s)}px system-ui, sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.fillText(String(pin.id), 0, -18*s);
     ctx.restore();
   });
 }
@@ -442,7 +486,7 @@ function drawTrajectory(){
   drawPolyline(visible, 'rgba(255,255,255,.65)', 1.2);
 }
 function drawTargetLine(){
-  drawPolyline([{x:metrics.release,y:0},{x:metrics.targetSpot,y:lane.spotY},{x:lane.headBoard,y:lane.pinY}], '#ff9d43', 2.5, [7,6]);
+  drawPolyline([{x:metrics.release,y:0},{x:metrics.targetSpot,y:lane.spotY},{x:lane.headBoard,y:pinDeck.frontY}], '#ff9d43', 2.5, [7,6]);
 }
 function drawGhostLine(){
   const release = state.standing;
@@ -472,18 +516,21 @@ function drawBowler(){
   const p = project(state.standing, -0.15);
   const scale = 0.72 + (state.bodyHeight - 145) / 90;
   const arm = 1 + (state.armLength - 58) / 85;
+  const throwPhase = clamp(state.progress / 0.14, 0, 1);
   if(bowlerImage.complete && bowlerImage.naturalWidth){
     const imgW = 250 * scale;
     const imgH = 360 * scale;
-    const x = p.x - imgW * 0.58 + state.handOffset * 4;
-    const y = p.y - imgH + 92;
+    const x = p.x - imgW * 0.58 + state.handOffset * 4 + throwPhase * 18;
+    const y = p.y - imgH + 92 - throwPhase * 16;
     ctx.save();
     ctx.globalAlpha = 0.98;
     ctx.fillStyle = 'rgba(0,0,0,.28)';
     ctx.beginPath();
     ctx.ellipse(p.x - 18, p.y + 84, 78 * scale, 18 * scale, 0, 0, Math.PI * 2);
     ctx.fill();
-    ctx.drawImage(bowlerImage, x, y, imgW, imgH);
+    ctx.translate(x + imgW * 0.52, y + imgH * 0.72);
+    ctx.rotate(-0.08 * throwPhase);
+    ctx.drawImage(bowlerImage, -imgW * 0.52, -imgH * 0.72, imgW, imgH);
     ctx.restore();
     return;
   }
@@ -551,8 +598,8 @@ function drawOverlays(){
     ctx.fill();
     textBox('ガター', p.x + 12, p.y - 22, '#ff6b64');
   }
-  const head = project(20,lane.pinY);
-  textBox('1番ピン', head.x + 12, head.y - 30, '#ff9d43');
+  const head = project(20,pinDeck.frontY);
+  textBox('1番ピン（手前）', head.x + 12, head.y - 30, '#ff9d43');
   const spot = project(metrics.spotBoard,lane.spotY);
   textBox('通過 ' + boardLabel(metrics.spotBoard), spot.x + 10, spot.y - 28, '#31d8c1');
 }
@@ -620,6 +667,8 @@ function hookControls(){
     draw();
   };
   $('pocket').onclick = ()=>{
+    state.spinOn = false;
+    state.spin = 0;
     state.angle = Number(requiredAngleToHead().toFixed(1));
     state.progress = 0;
     syncControls();
