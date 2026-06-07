@@ -847,24 +847,23 @@
           <div class="control">
             <div class="number-line">
               <label for="targetRolls">目標回数</label>
-              <input type="number" id="targetRollsNumber" min="10" max="100000" step="10" value="1000">
+              <input type="number" id="targetRollsNumber" min="1" max="100000" step="1" value="1000">
             </div>
             <span class="value" id="targetRollsValue">1,000回</span>
-            <input type="range" id="targetRolls" min="10" max="100000" step="10" value="1000">
+            <input type="range" id="targetRolls" min="1" max="10000" step="1" value="1000">
           </div>
           <div class="select-row">
-            <label for="speedPreset">プリセット</label>
-            <select id="speedPreset">
-              <option value="100">ゆっくり</option>
-              <option value="500" selected>標準</option>
-              <option value="1500">高速</option>
-              <option value="5000">超高速</option>
+            <label for="targetPreset">回数プリセット</label>
+            <select id="targetPreset">
+              <option value="">入力値</option>
+              <option value="50">50回</option>
+              <option value="100">100回</option>
+              <option value="500">500回</option>
+              <option value="1000" selected>1000回</option>
+              <option value="5000">5000回</option>
+              <option value="10000">10000回</option>
             </select>
           </div>
-          <label class="toggle">
-            <span>開始時に1回だけ見せてから高速記録</span>
-            <input type="checkbox" id="firstThrow" checked>
-          </label>
           <label class="toggle">
             <span>理論値 16.7% の目安線</span>
             <input type="checkbox" id="showTheory" checked>
@@ -945,8 +944,7 @@
       rollRate: document.getElementById("rollRate"),
       targetRolls: document.getElementById("targetRolls"),
       targetRollsNumber: document.getElementById("targetRollsNumber"),
-      speedPreset: document.getElementById("speedPreset"),
-      firstThrow: document.getElementById("firstThrow"),
+      targetPreset: document.getElementById("targetPreset"),
       showTheory: document.getElementById("showTheory")
     };
 
@@ -980,7 +978,9 @@
     let renderAccumulator = 0;
     let visualSpin = { x: -32, y: -38, z: -6 };
     let visualTime = 0;
-    let firstThrowPending = false;
+    let phase = "idle";
+    let phaseTime = 0;
+    const rollAnimationSeconds = 1;
 
     const faceRotations = {
       1: { x: 0, y: 0, z: 0 },
@@ -1001,7 +1001,7 @@
     }
 
     function getTargetRolls() {
-      return Math.max(10, Math.min(100000, Number(controls.targetRolls.value) || 1000));
+      return Math.max(1, Math.min(100000, Number(controls.targetRollsNumber.value || controls.targetRolls.value) || 1000));
     }
 
     function createBars() {
@@ -1040,24 +1040,36 @@
       return rollable;
     }
 
-    function setRunning(next) {
-      if (next && total >= getTargetRolls()) {
-        running = false;
-        controls.toggleRun.dataset.running = "false";
-        controls.toggleRun.textContent = "開始";
-        readouts.runState.textContent = "完了";
-        dieWrap.classList.remove("rolling");
-        updateReadouts();
-        return;
-      }
-      running = next;
+    function updateRunUi() {
       controls.toggleRun.dataset.running = String(running);
       controls.toggleRun.textContent = running ? "停止" : "開始";
-      readouts.runState.textContent = running ? "記録中" : total >= getTargetRolls() ? "完了" : "待機中";
-      dieWrap.classList.toggle("rolling", running);
-      if (running && controls.firstThrow.checked && total === 0) {
-        firstThrowPending = true;
+      dieWrap.classList.toggle("rolling", phase === "intro" || phase === "outro");
+      const labels = {
+        idle: "待機中",
+        intro: "転がし中",
+        recording: "集計中",
+        outro: "最後の一振り",
+        complete: "完了"
+      };
+      readouts.runState.textContent = labels[phase] || "待機中";
+    }
+
+    function startRun() {
+      if (phase === "intro" || phase === "outro") {
+        running = false;
+        phase = total >= getTargetRolls() ? "complete" : "idle";
+        updateRunUi();
+        return;
       }
+      counts.fill(0);
+      total = 0;
+      lastFace = null;
+      pendingRolls = 0;
+      phase = "intro";
+      phaseTime = 0;
+      running = true;
+      updateReadouts();
+      updateRunUi();
     }
 
     function reset() {
@@ -1065,10 +1077,12 @@
       total = 0;
       lastFace = null;
       pendingRolls = 0;
-      firstThrowPending = false;
+      phase = "idle";
+      phaseTime = 0;
+      running = false;
       visualSpin = { x: -32, y: -38, z: -6 };
       dieWrap.style.transform = "rotateX(-32deg) rotateY(-38deg) rotateZ(-6deg)";
-      setRunning(false);
+      updateRunUi();
       updateReadouts();
     }
 
@@ -1084,9 +1098,8 @@
       controls.targetRollsNumber.value = String(target);
       readouts.targetRollsValue.textContent = `${formatNumber(target)}回`;
       readouts.targetRollsText.textContent = formatNumber(target);
-      if (total >= target) {
-        setRunning(false);
-      }
+      const presetValues = [...controls.targetPreset.options].map((option) => option.value);
+      controls.targetPreset.value = presetValues.includes(String(target)) ? String(target) : "";
       updateReadouts();
     }
 
@@ -1190,8 +1203,13 @@
         ctx.beginPath();
         ctx.arc(p.x, p.y, dotRadius, 0, Math.PI * 2);
         const dot = ctx.createRadialGradient(p.x - dotRadius * .35, p.y - dotRadius * .35, 1, p.x, p.y, dotRadius);
-        dot.addColorStop(0, "#425469");
-        dot.addColorStop(1, "#07111b");
+        if (face === 1) {
+          dot.addColorStop(0, "#ff9a9a");
+          dot.addColorStop(1, "#c1121f");
+        } else {
+          dot.addColorStop(0, "#425469");
+          dot.addColorStop(1, "#07111b");
+        }
         ctx.fillStyle = dot;
         ctx.fill();
         ctx.strokeStyle = "rgba(255,255,255,.12)";
@@ -1217,10 +1235,11 @@
       const height = rect.height;
       diceCtx.clearRect(0, 0, width, height);
 
-      const bounce = running ? Math.sin(visualTime * 11) * 24 : 0;
-      const sway = running ? Math.sin(visualTime * 7) * 13 : 0;
-      const spin = running ? visualTime * 5.8 : 0;
-      const face = running ? ((Math.floor(visualTime * 18) % 6) + 1) : (lastFace || 1);
+      const rollingVisual = phase === "intro" || phase === "outro";
+      const bounce = rollingVisual ? Math.sin(visualTime * 15) * 30 : 0;
+      const sway = rollingVisual ? Math.sin(visualTime * 9) * 42 : 0;
+      const spin = rollingVisual ? visualTime * 9.5 : 0;
+      const face = rollingVisual ? ((Math.floor(visualTime * 22) % 6) + 1) : (lastFace || 1);
       const [topFace, rightFace] = sideFaces(face);
 
       const cx = width / 2 + sway;
@@ -1228,7 +1247,7 @@
       const size = Math.min(width, height) * .38;
       const depthX = size * (.38 + Math.sin(spin) * .04);
       const depthY = size * (.26 + Math.cos(spin * .7) * .03);
-      const tilt = running ? Math.sin(spin) * .08 : 0;
+      const tilt = rollingVisual ? Math.sin(spin) * .16 : 0;
 
       const front = [
         { x: cx - size * .52, y: cy - size * .50 + tilt * size },
@@ -1262,7 +1281,7 @@
       drawFace(right, rightFace, "#cbdce8", scale);
       drawFace(front, face, "#f7fbfe", scale);
 
-      if (running) {
+      if (rollingVisual) {
         diceCtx.save();
         diceCtx.globalAlpha = .18;
         diceCtx.strokeStyle = "#45d8f5";
@@ -1337,20 +1356,35 @@
 
     function tick(dt) {
       if (running) {
-        if (firstThrowPending) {
+        phaseTime += dt;
+        if (phase === "intro" && phaseTime >= rollAnimationSeconds) {
           rollDie();
-          firstThrowPending = false;
-        } else {
+          phaseTime = 0;
+          phase = total >= getTargetRolls() ? "complete" : "recording";
+          running = phase !== "complete";
+          updateRunUi();
+        } else if (phase === "recording") {
           pendingRolls += Number(controls.rollRate.value) * dt;
           const amount = Math.floor(pendingRolls);
           if (amount > 0) {
-            const rolled = rollMany(Math.min(amount, 25000));
+            const reserveForFinalRoll = Math.max(0, getTargetRolls() - 1);
+            const allowed = Math.max(0, reserveForFinalRoll - total);
+            const rolled = rollMany(Math.min(amount, 25000, allowed));
             pendingRolls = rolled < amount ? 0 : pendingRolls - amount;
           }
-        }
-        if (total >= getTargetRolls()) {
-          setRunning(false);
+          if (total >= Math.max(0, getTargetRolls() - 1)) {
+            phase = "outro";
+            phaseTime = 0;
+            pendingRolls = 0;
+            updateRunUi();
+          }
+        } else if (phase === "outro" && phaseTime >= rollAnimationSeconds) {
+          rollDie();
+          phase = "complete";
+          phaseTime = 0;
+          running = false;
           pendingRolls = 0;
+          updateRunUi();
         }
       }
       updateDie(dt);
@@ -1361,31 +1395,30 @@
       }
     }
 
-    controls.toggleRun.addEventListener("click", () => setRunning(!running));
+    controls.toggleRun.addEventListener("click", startRun);
     controls.rollOnce.addEventListener("click", () => {
       rollDie();
-      setRunning(false);
+      phase = total >= getTargetRolls() ? "complete" : "idle";
+      running = false;
+      updateRunUi();
       updateReadouts();
     });
     controls.reset.addEventListener("click", reset);
-    controls.rollRate.addEventListener("input", () => {
-      controls.speedPreset.value = [...controls.speedPreset.options].some((option) => option.value === controls.rollRate.value)
-        ? controls.rollRate.value
-        : "";
-      updateRateText();
-    });
-    controls.speedPreset.addEventListener("change", () => {
-      if (!controls.speedPreset.value) return;
-      controls.rollRate.value = controls.speedPreset.value;
-      updateRateText();
+    controls.rollRate.addEventListener("input", updateRateText);
+    controls.targetPreset.addEventListener("change", () => {
+      if (!controls.targetPreset.value) return;
+      controls.targetRolls.value = controls.targetPreset.value;
+      controls.targetRollsNumber.value = controls.targetPreset.value;
+      updateTargetText();
     });
     controls.targetRolls.addEventListener("input", () => {
       controls.targetRollsNumber.value = controls.targetRolls.value;
       updateTargetText();
     });
     function syncTargetFromNumber() {
-      const next = Math.max(10, Math.min(100000, Number(controls.targetRollsNumber.value) || 1000));
-      controls.targetRolls.value = String(Math.round(next / 10) * 10);
+      const next = Math.max(1, Math.min(100000, Number(controls.targetRollsNumber.value) || 1));
+      controls.targetRollsNumber.value = String(Math.round(next));
+      controls.targetRolls.value = String(Math.min(10000, Math.round(next)));
       updateTargetText();
     }
     controls.targetRollsNumber.addEventListener("input", syncTargetFromNumber);
