@@ -285,6 +285,9 @@
     support: "#8b4dc2",
     rope: "#b9853a"
   };
+  const shiromoImage = new Image();
+  shiromoImage.src = "assets/shiromo.png?v=20260607";
+  shiromoImage.addEventListener("load", render);
   let showMulti = false;
   let showGuide = true;
   let animate = false;
@@ -536,7 +539,9 @@
     ctx.beginPath();
     ctx.ellipse(7, 34, 46, 11, 0, 0, Math.PI * 2);
     ctx.fill();
-    if (type === "crate") {
+    if (type === "shiromo" && shiromoImage.complete && shiromoImage.naturalWidth > 0) {
+      ctx.drawImage(shiromoImage, -52, -48, 104, 95);
+    } else if (type === "crate") {
       const front = ctx.createLinearGradient(0, -24, 0, 24);
       front.addColorStop(0, "#c9904d");
       front.addColorStop(1, "#8f5e2f");
