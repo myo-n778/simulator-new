@@ -805,6 +805,26 @@
     return -maxFriction * Math.sign(springViscous);
   }
 
+  function motionAmplitudeEstimate() {
+    const w = omega0();
+    return Math.max(0.08, Math.abs(state.q0), w > 0 ? Math.abs(state.v0 / w) : 0);
+  }
+
+  function forcePixelScale(limitPx = 88) {
+    const ke = kEff();
+    const amp = motionAmplitudeEstimate();
+    const gravityForce = state.mass * state.gravity;
+    const maxSpring = state.orientation === 'vertical'
+      ? gravityForce + ke * amp
+      : ke * amp + state.friction * state.mass * state.gravity;
+    const maxForce = Math.max(1, gravityForce, maxSpring, ke * amp);
+    return limitPx / maxForce;
+  }
+
+  function forceLabel(name, force, digits = 1) {
+    return `${name} ${fmt(Math.abs(force), digits)} N`;
+  }
+
   function energy() {
     return 0.5 * state.mass * state.v * state.v + 0.5 * kEff() * state.q * state.q;
   }
@@ -976,8 +996,10 @@
       ctx.restore();
     }
     const isVertical = Math.abs(dy) >= Math.abs(dx);
-    const tagX = side === 'left' ? fromX - 12 : fromX + 12;
-    const tagY = isVertical ? fromY + lift : fromY - 22 - lift;
+    const midX = (fromX + toX) / 2;
+    const midY = (fromY + toY) / 2;
+    const tagX = side === 'left' ? midX - 12 : midX + 12;
+    const tagY = isVertical ? midY + lift : midY - 22 - lift;
     drawLabelTag(ctx, label, tagX, tagY, side === 'left' ? 'right' : 'left');
   }
 
@@ -1103,18 +1125,20 @@
     drawMass(ctx, x, cy, blockW, blockH);
     if (el.showForces.checked) {
       const force = -ke * state.q;
-      const arrow = clamp(force * 12, -92, 92);
+      const fScale = forcePixelScale(88);
+      const arrow = clamp(force * fScale, -92, 92);
       const forceX = force < 0 ? leftFace : rightFace;
-      drawForceArrow(ctx, forceX, cy, forceX + arrow, cy, isDark() ? '#ffd166' : '#b7791f', '復元力', force < 0 ? 'left' : 'right');
+      drawForceArrow(ctx, forceX, cy, forceX + arrow, cy, isDark() ? '#ffd166' : '#b7791f', forceLabel('復元力', force), force < 0 ? 'left' : 'right');
       const vel = clamp(state.v * 24, -76, 76);
       drawForceArrow(ctx, x, cy + blockH / 2 + 22, x + vel, cy + blockH / 2 + 22, isDark() ? '#8ee7c8' : '#2b9b78', 'v', vel < 0 ? 'left' : 'right');
-      const net = clamp((force + frictionForce(state.q, state.v) - state.damping * state.v) * 12, -92, 92);
+      const netForce = force + frictionForce(state.q, state.v) - state.damping * state.v;
+      const net = clamp(netForce * fScale, -92, 92);
       const netX = net < 0 ? leftFace - 8 : rightFace + 8;
-      drawForceArrow(ctx, netX, cy, netX + net, cy, isDark() ? '#f7b267' : '#a65f1c', '合力', net < 0 ? 'left' : 'right', 24);
+      drawForceArrow(ctx, netX, cy, netX + net, cy, isDark() ? '#f7b267' : '#a65f1c', forceLabel('合力', netForce), net < 0 ? 'left' : 'right', 24);
       if (state.friction > 0) {
         const friction = frictionForce(state.q, state.v);
-        const frictionArrow = clamp(friction * 12, -82, 82);
-        drawForceArrow(ctx, x, groundY + 26, x + frictionArrow, groundY + 26, isDark() ? '#ff9f7d' : '#c86b46', '摩擦', frictionArrow < 0 ? 'left' : 'right');
+        const frictionArrow = clamp(friction * fScale, -82, 82);
+        drawForceArrow(ctx, x, groundY + 26, x + frictionArrow, groundY + 26, isDark() ? '#ff9f7d' : '#c86b46', forceLabel('摩擦', friction), frictionArrow < 0 ? 'left' : 'right');
       }
     }
     drawLabelTag(ctx, `床 μ=${fmt(state.friction, 2)}`, wallR - 18, groundY + 26, 'right');
@@ -1231,7 +1255,7 @@
       const dampingForce = -state.damping * state.v;
       const combinedSpringForce = -(gravityForce + ke * state.q);
       const resultantForce = combinedSpringForce + gravityForce + dampingForce;
-      const forceScale = 5;
+      const forceScale = forcePixelScale(88);
       const restore = clamp(combinedSpringForce * forceScale, -96, 96);
       const forceOffset = isSandwich ? 68 : 52;
       const springColor = isDark() ? '#ffd166' : '#b7791f';
@@ -1240,18 +1264,18 @@
         const bottomSpringForce = combinedSpringForce * (state.k2 / ke);
         const topRestore = clamp(topSpringForce * forceScale, -82, 82);
         const bottomRestore = clamp(bottomSpringForce * forceScale, -82, 82);
-        drawForceArrow(ctx, centerX - forceOffset, massY - blockH / 2, centerX - forceOffset, massY - blockH / 2 + topRestore, springColor, '上ばね', 'left');
-        drawForceArrow(ctx, centerX - forceOffset, massY + blockH / 2, centerX - forceOffset, massY + blockH / 2 + bottomRestore, springColor, '下ばね', 'left');
+        drawForceArrow(ctx, centerX - forceOffset, massY - blockH / 2, centerX - forceOffset, massY - blockH / 2 + topRestore, springColor, forceLabel('上ばね', topSpringForce), 'left');
+        drawForceArrow(ctx, centerX - forceOffset, massY + blockH / 2, centerX - forceOffset, massY + blockH / 2 + bottomRestore, springColor, forceLabel('下ばね', bottomSpringForce), 'left');
       } else {
-        drawForceArrow(ctx, centerX - forceOffset, massY - blockH / 2, centerX - forceOffset, massY - blockH / 2 + restore, springColor, '復元力', 'left');
+        drawForceArrow(ctx, centerX - forceOffset, massY - blockH / 2, centerX - forceOffset, massY - blockH / 2 + restore, springColor, forceLabel('ばね力', combinedSpringForce), 'left');
       }
       const vel = clamp(state.v * 22, -80, 80);
       drawForceArrow(ctx, centerX + forceOffset, massY, centerX + forceOffset, massY + vel, isDark() ? '#8ee7c8' : '#2b9b78', 'v', 'right');
       const mgX = centerX + (isSandwich ? 38 : 28);
       const mg = clamp(gravityForce * forceScale, 0, 96);
-      drawForceArrow(ctx, mgX, massY, mgX, massY + mg, isDark() ? '#ff7d7d' : '#c85050', 'mg', 'right');
+      drawForceArrow(ctx, mgX, massY, mgX, massY + mg, isDark() ? '#ff7d7d' : '#c85050', forceLabel('mg', gravityForce), 'right');
       const net = clamp(resultantForce * forceScale, -96, 96);
-      drawForceArrow(ctx, centerX + forceOffset + 28, massY, centerX + forceOffset + 28, massY + net, isDark() ? '#f7b267' : '#a65f1c', '合力', 'right');
+      drawForceArrow(ctx, centerX + forceOffset + 28, massY, centerX + forceOffset + 28, massY + net, isDark() ? '#f7b267' : '#a65f1c', forceLabel('合力', resultantForce), 'right');
     }
     if (el.showEnergy.checked && W >= 520) drawEnergyBar(ctx, W - 145, 22, 110, 70);
   }
