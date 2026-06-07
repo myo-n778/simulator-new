@@ -27,8 +27,8 @@ http://127.0.0.1:8765/
 
 - 入口ページ: `index.html`
 - シミュレータ一覧: `data/simulators.json`
-- メインルート: 25件
-- 共通ヘッダー適用: 25件
-- 共通時計適用: 21件
+- メインルート: 30件
+- 共通ヘッダー適用: 30件
+- 共通時計適用: 25件
 
-`function-graph`、`rod-tension`、`center-of-mass-disk`、`light-rgb` はイベント駆動のため、共通時計は使っていません。
+`function-graph`、`rod-tension`、`center-of-mass-disk`、`light-rgb`、`pulley-work` はイベント駆動のため、共通時計は使っていません。

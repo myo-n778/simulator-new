@@ -1,0 +1,671 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ボウリング理屈シミュレータ</title>
+<link rel="stylesheet" href="../../assets/common-sim.css">
+<script src="../../assets/sim-shell.js"></script>
+<script src="../../assets/sim-clock.js"></script>
+<style>
+  :root{
+    --bg:#081017;
+    --panel:#101923;
+    --panel2:#0b141d;
+    --line:#1d2b39;
+    --ink:#eaf1f7;
+    --mut:#9eb0bf;
+    --lane:#c78a45;
+    --lane2:#e1b06c;
+    --teal:#31d8c1;
+    --orange:#ff9d43;
+    --red:#ff6b64;
+    --blue:#68a8ff;
+    --ok:#7ddd81;
+  }
+  html,body{margin:0;background:var(--bg);color:var(--ink);font-family:system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans JP","Hiragino Kaku Gothic ProN",sans-serif;}
+  .wrap{max-width:1220px;margin:0 auto;padding:12px;}
+  .top{display:flex;justify-content:space-between;gap:12px;align-items:flex-end;margin-bottom:10px;}
+  h1{font-size:20px;line-height:1.2;margin:0;font-weight:800;letter-spacing:0;}
+  .sub{font-size:12px;color:var(--mut);line-height:1.45;margin-top:4px;}
+  .quick-actions{display:grid;grid-template-columns:112px 84px 112px;gap:8px;align-items:center;flex:0 0 auto;}
+  .layout{display:grid;grid-template-columns:minmax(520px,1fr) 360px;gap:12px;align-items:start;}
+  .stage,.panel,.meter{background:var(--panel);border:1px solid var(--line);border-radius:8px;box-shadow:0 18px 38px rgba(0,0,0,.28);}
+  .stage{padding:10px;}
+  canvas{display:block;width:100%;height:640px;background:linear-gradient(#111d28,#071018);border-radius:6px;}
+  .panel{padding:12px;display:grid;gap:10px;}
+  .section-title{font-size:12px;color:#c9d7e4;font-weight:800;letter-spacing:0;margin:2px 0 0;}
+  .controls{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+  .ctrl{background:var(--panel2);border:1px solid #152434;border-radius:8px;padding:8px;display:grid;gap:5px;min-width:0;}
+  label{font-size:11px;color:var(--mut);display:flex;justify-content:space-between;gap:8px;line-height:1.2;}
+  label b{color:var(--ink);font-weight:700;white-space:nowrap;}
+  input[type=range]{width:100%;accent-color:var(--teal);}
+  select,input[type=number]{background:#0d1822;border:1px solid #203244;color:var(--ink);border-radius:6px;padding:5px 7px;font-size:12px;}
+  .buttons{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;}
+  button{background:#0c1721;border:1px solid #223447;color:var(--ink);border-radius:8px;padding:9px 10px;font-size:12px;font-weight:700;cursor:pointer;}
+  button:hover{border-color:#3d5a73;}
+  button.primary{background:#10332f;border-color:#1e6d62;color:#dbfffa;}
+  .quick-actions button{min-height:42px;font-size:13px;}
+  .quick-actions .primary{background:#0e6b61;border-color:#35d8c4;color:#f0fffc;box-shadow:0 0 0 1px rgba(49,216,193,.25),0 10px 24px rgba(0,0,0,.3);}
+  .toggles{display:grid;grid-template-columns:1fr 1fr;gap:6px;}
+  .toggle{display:flex;align-items:center;gap:6px;background:var(--panel2);border:1px solid #152434;border-radius:8px;padding:8px;font-size:12px;color:#dce8f2;}
+  .readouts{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:10px;}
+  .meter{padding:10px;min-height:58px;}
+  .meter .name{font-size:11px;color:var(--mut);line-height:1.2;}
+  .meter .value{font-size:18px;font-weight:800;line-height:1.35;margin-top:3px;}
+  .meter .hint{font-size:11px;color:#8ea1b1;line-height:1.25;}
+  .legend{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;color:var(--mut);font-size:11px;}
+  .chip{display:inline-flex;align-items:center;gap:5px;background:#0b141d;border:1px solid #152434;border-radius:999px;padding:4px 7px;}
+  .sw{width:10px;height:10px;border-radius:50%;background:var(--teal);}
+  .summary{background:#0b141d;border:1px solid #152434;border-radius:8px;padding:10px;color:#cdd9e3;font-size:12px;line-height:1.5;}
+  .summary b{color:#fff;}
+  @media (max-width:980px){
+    .top{align-items:stretch;flex-direction:column;}
+    .quick-actions{grid-template-columns:1fr 1fr 1fr;}
+    .layout{grid-template-columns:1fr;}
+    canvas{height:560px;}
+    .readouts{grid-template-columns:repeat(2,1fr);}
+  }
+  @media (max-width:560px){
+    .wrap{padding:8px;}
+    .controls{grid-template-columns:1fr;}
+    .toggles,.buttons{grid-template-columns:1fr;}
+    .quick-actions{position:sticky;top:8px;z-index:5;}
+    .readouts{grid-template-columns:1fr;}
+    canvas{height:500px;}
+  }
+</style>
+</head>
+<body>
+<script>
+  PhysicsSimShell.create({
+    title: 'ボウリング理屈シミュレータ',
+    subtitle: '立ち位置・手元のズレ・角度・重さ・速さ・スピンで、通す場所と1番ピンへの当たり方を見る',
+    basePath: '../../'
+  });
+</script>
+<div class="wrap">
+  <div class="top">
+    <div>
+      <h1>ボウリング理屈シミュレータ</h1>
+      <div class="sub">「まっすぐ投げたつもり」でも、手元が中心から右へズレたり、体の向きが斜めになると、ボールは別の板目を通ります。</div>
+    </div>
+    <div class="quick-actions">
+      <button class="primary" id="playTop">投げる</button>
+      <button id="resetTop">戻す</button>
+      <button id="pocketTop">1番ピン狙い</button>
+    </div>
+  </div>
+
+  <div class="layout">
+    <div>
+      <div class="stage">
+        <canvas id="view" width="980" height="760" aria-label="疑似3Dボウリングレーン"></canvas>
+        <div class="legend">
+          <span class="chip"><span class="sw" style="background:var(--teal)"></span>実際の軌道</span>
+          <span class="chip"><span class="sw" style="background:var(--orange)"></span>1番ピンへ向かう目安ライン</span>
+          <span class="chip"><span class="sw" style="background:var(--blue)"></span>スパット通過点</span>
+          <span class="chip"><span class="sw" style="background:var(--red)"></span>ガター・外れ</span>
+        </div>
+      </div>
+
+      <div class="readouts">
+        <div class="meter"><div class="name">1番ピン位置での板目</div><div class="value" id="impactBoard">--</div><div class="hint" id="impactHint">--</div></div>
+        <div class="meter"><div class="name">通すべきスパット</div><div class="value" id="spotTarget">--</div><div class="hint">ファウルラインから約4.6 m</div></div>
+        <div class="meter"><div class="name">運動量 / 運動エネルギー</div><div class="value" id="energy">--</div><div class="hint">重さと速さの効き方</div></div>
+        <div class="meter"><div class="name">曲がり量</div><div class="value" id="curve">--</div><div class="hint">スピン・速さ・重さで変化</div></div>
+      </div>
+    </div>
+
+    <aside class="panel">
+      <div class="section-title">投げ手と構え</div>
+      <div class="controls">
+        <div class="ctrl"><label>立ち位置 <b><span id="standingVal"></span> board</b></label><input id="standing" type="range" min="8" max="32" step="0.1"></div>
+        <div class="ctrl"><label>手元の左右ズレ <b><span id="handVal"></span> board</b></label><input id="handOffset" type="range" min="-7" max="7" step="0.1"></div>
+        <div class="ctrl"><label>身長 <b><span id="heightVal"></span> cm</b></label><input id="bodyHeight" type="range" min="145" max="180" step="1"></div>
+        <div class="ctrl"><label>腕の長さ <b><span id="armVal"></span> cm</b></label><input id="armLength" type="range" min="48" max="72" step="1"></div>
+      </div>
+
+      <div class="section-title">投球</div>
+      <div class="controls">
+        <div class="ctrl"><label>投げ出し角度 <b><span id="angleVal"></span> deg</b></label><input id="angle" type="range" min="-8" max="8" step="0.1"></div>
+        <div class="ctrl"><label>球速 <b><span id="speedVal"></span> km/h</b></label><input id="speed" type="range" min="12" max="34" step="0.5"></div>
+        <div class="ctrl"><label>ボール重量 <b><span id="massVal"></span> kg</b></label><input id="mass" type="range" min="3.6" max="7.3" step="0.1"></div>
+        <div class="ctrl"><label>スピン量 <b><span id="spinVal"></span> rpm</b></label><input id="spin" type="range" min="-450" max="450" step="10"></div>
+        <div class="ctrl"><label>再生倍率 <b><span id="playbackVal"></span> x</b></label><input id="playback" type="range" min="0.25" max="4" step="0.25"></div>
+      </div>
+
+      <div class="section-title">表示</div>
+      <div class="toggles">
+        <label class="toggle"><input id="spinOn" type="checkbox">スピンを反映</label>
+        <label class="toggle"><input id="targetOn" type="checkbox" checked>目安ライン</label>
+        <label class="toggle"><input id="ghostOn" type="checkbox" checked>ずれ比較</label>
+        <label class="toggle"><input id="pinOn" type="checkbox" checked>ピン判定</label>
+      </div>
+
+      <div class="buttons">
+        <button class="primary" id="play">投げる</button>
+        <button id="reset">戻す</button>
+        <button id="pocket">1番ピン狙い</button>
+      </div>
+
+      <div class="summary" id="summary"></div>
+    </aside>
+  </div>
+</div>
+
+<script>
+'use strict';
+const $ = (id)=>document.getElementById(id);
+const canvas = $('view');
+const ctx = canvas.getContext('2d');
+const lane = { boards: 40, length: 18.29, spotY: 4.57, pinY: 18.29, headBoard: 20 };
+const state = {
+  standing: 20,
+  handOffset: 0,
+  bodyHeight: 158,
+  armLength: 58,
+  angle: 0,
+  speed: 24,
+  mass: 5.4,
+  spin: 0,
+  playback: 1,
+  spinOn: false,
+  targetOn: true,
+  ghostOn: true,
+  pinOn: true,
+  progress: 0,
+  playing: false
+};
+const defaults = {...state};
+const ids = ['standing','handOffset','bodyHeight','armLength','angle','speed','mass','spin','playback'];
+const toggles = ['spinOn','targetOn','ghostOn','pinOn'];
+let dpr = 1;
+let metrics = null;
+let clock = null;
+const bowlerImage = new Image();
+bowlerImage.src = 'assets/bowler.png';
+bowlerImage.onload = () => draw();
+
+function fitCanvas(){
+  const rect = canvas.getBoundingClientRect();
+  dpr = Math.max(1, Math.min(2.5, window.devicePixelRatio || 1));
+  canvas.width = Math.round(rect.width * dpr);
+  canvas.height = Math.round(rect.height * dpr);
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  draw();
+}
+
+function clamp(v,min,max){ return Math.max(min, Math.min(max, v)); }
+function lerp(a,b,t){ return a + (b-a)*t; }
+function boardLabel(x){ return x.toFixed(1); }
+function speedMs(){ return state.speed / 3.6; }
+function releaseBoard(){
+  return clamp(state.standing + state.handOffset * 0.78, -2, 42);
+}
+function curveAt(y){
+  if(!state.spinOn) return 0;
+  const v = speedMs();
+  const spin = state.spin / 450;
+  const massFactor = 5.4 / state.mass;
+  const speedFactor = Math.pow(6.7 / v, 1.35);
+  const t = y / lane.length;
+  return spin * massFactor * speedFactor * 5.2 * t * t;
+}
+function pathBoardAt(y, angleOverride = state.angle, releaseOverride = releaseBoard()){
+  return releaseOverride + Math.tan(angleOverride * Math.PI / 180) * y * 2.35 + curveAt(y);
+}
+function targetSpotForHead(){
+  const release = releaseBoard();
+  const desiredAtSpot = release + (lane.headBoard - release - curveAt(lane.pinY)) * (lane.spotY / lane.pinY);
+  return clamp(desiredAtSpot, 0, 40);
+}
+function requiredAngleToHead(){
+  const release = releaseBoard();
+  const lateral = lane.headBoard - release - curveAt(lane.pinY);
+  return Math.atan(lateral / (lane.pinY * 2.35)) * 180 / Math.PI;
+}
+function compute(){
+  const release = releaseBoard();
+  const pinBoard = pathBoardAt(lane.pinY);
+  const spotBoard = pathBoardAt(lane.spotY);
+  const targetSpot = targetSpotForHead();
+  const gutterAt = sampleGutter();
+  const v = speedMs();
+  const p = state.mass * v;
+  const ke = 0.5 * state.mass * v * v;
+  const curve = curveAt(lane.pinY);
+  const required = requiredAngleToHead();
+  const miss = pinBoard - lane.headBoard;
+  return {release,pinBoard,spotBoard,targetSpot,gutterAt,p,ke,curve,required,miss};
+}
+function sampleGutter(){
+  for(let i=0;i<=120;i++){
+    const y = lane.length * i / 120;
+    const x = pathBoardAt(y);
+    if(x < 0 || x > lane.boards) return {y,x};
+  }
+  return null;
+}
+
+function project(board, y){
+  const w = canvas.clientWidth;
+  const h = canvas.clientHeight;
+  const topY = 42;
+  const bottomY = h - 68;
+  const t = y / lane.length;
+  const centerX = w * 0.5;
+  const halfBottom = Math.min(w * 0.42, 390);
+  const halfTop = Math.max(72, halfBottom * 0.21);
+  const py = lerp(bottomY, topY, t);
+  const half = lerp(halfBottom, halfTop, Math.pow(t, .78));
+  const x = centerX + ((board - 20) / 20) * half;
+  return {x,y:py,half,centerX,scale:lerp(1.15,.24,t),t};
+}
+
+function draw(){
+  const w = canvas.clientWidth;
+  const h = canvas.clientHeight;
+  ctx.clearRect(0,0,w,h);
+  metrics = compute();
+  drawBackground(w,h);
+  drawLane(w,h);
+  drawPins();
+  drawSpots();
+  if(state.targetOn) drawTargetLine();
+  if(state.ghostOn) drawGhostLine();
+  drawTrajectory();
+  drawBall();
+  drawBowler();
+  drawOverlays();
+  updateReadouts();
+}
+
+function drawBackground(w,h){
+  const g = ctx.createLinearGradient(0,0,0,h);
+  g.addColorStop(0,'#12202c');
+  g.addColorStop(.48,'#09131d');
+  g.addColorStop(1,'#061018');
+  ctx.fillStyle = g;
+  ctx.fillRect(0,0,w,h);
+  ctx.fillStyle = 'rgba(255,255,255,.04)';
+  ctx.fillRect(0, h-116, w, 116);
+}
+
+function drawLane(){
+  const nearL = project(0,0), nearR = project(40,0), farL = project(0,lane.length), farR = project(40,lane.length);
+  const laneGrad = ctx.createLinearGradient(0,farL.y,0,nearL.y);
+  laneGrad.addColorStop(0,'#e0af6b');
+  laneGrad.addColorStop(.35,'#c78642');
+  laneGrad.addColorStop(1,'#e6bd7b');
+  ctx.beginPath();
+  ctx.moveTo(farL.x,farL.y);
+  ctx.lineTo(farR.x,farR.y);
+  ctx.lineTo(nearR.x,nearR.y);
+  ctx.lineTo(nearL.x,nearL.y);
+  ctx.closePath();
+  ctx.fillStyle = laneGrad;
+  ctx.fill();
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = 'rgba(64,35,13,.65)';
+  ctx.stroke();
+
+  drawGutter(nearL, farL, -1);
+  drawGutter(nearR, farR, 1);
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo(farL.x,farL.y);
+  ctx.lineTo(farR.x,farR.y);
+  ctx.lineTo(nearR.x,nearR.y);
+  ctx.lineTo(nearL.x,nearL.y);
+  ctx.closePath();
+  ctx.clip();
+  for(let b=5;b<40;b+=5){
+    const a = project(b,0), z = project(b,lane.length);
+    ctx.beginPath();
+    ctx.moveTo(a.x,a.y);
+    ctx.lineTo(z.x,z.y);
+    ctx.strokeStyle = b === 20 ? 'rgba(255,255,255,.32)' : 'rgba(80,44,18,.28)';
+    ctx.lineWidth = b === 20 ? 1.8 : 1;
+    ctx.stroke();
+  }
+  for(let y=2;y<lane.length;y+=2){
+    const l = project(0,y), r = project(40,y);
+    ctx.beginPath();
+    ctx.moveTo(l.x,l.y);
+    ctx.lineTo(r.x,r.y);
+    ctx.strokeStyle = 'rgba(255,255,255,.08)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function drawGutter(near, far, side){
+  const offNear = 34 * side;
+  const offFar = 8 * side;
+  ctx.beginPath();
+  ctx.moveTo(far.x,far.y);
+  ctx.lineTo(far.x + offFar, far.y + 2);
+  ctx.lineTo(near.x + offNear, near.y + 18);
+  ctx.lineTo(near.x,near.y);
+  ctx.closePath();
+  const grad = ctx.createLinearGradient(near.x,near.y,near.x + offNear,near.y);
+  grad.addColorStop(0,'#51300f');
+  grad.addColorStop(1,'#141b20');
+  ctx.fillStyle = grad;
+  ctx.fill();
+}
+
+function drawSpots(){
+  const boards = [5,10,15,20,25,30,35];
+  boards.forEach((b,i)=>{
+    const p = project(b,lane.spotY);
+    ctx.beginPath();
+    ctx.moveTo(p.x, p.y - 9*p.scale);
+    ctx.lineTo(p.x - 8*p.scale, p.y + 8*p.scale);
+    ctx.lineTo(p.x + 8*p.scale, p.y + 8*p.scale);
+    ctx.closePath();
+    ctx.fillStyle = b === 20 ? 'rgba(58,216,193,.82)' : 'rgba(42,88,112,.66)';
+    ctx.fill();
+  });
+  const target = project(metrics.targetSpot, lane.spotY);
+  ctx.beginPath();
+  ctx.arc(target.x,target.y,12*target.scale,0,Math.PI*2);
+  ctx.strokeStyle = '#68a8ff';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+}
+
+function drawPins(){
+  const pins = [
+    [20,0],[18.8,.78],[21.2,.78],[17.6,1.56],[20,1.56],[22.4,1.56],
+    [16.4,2.34],[18.8,2.34],[21.2,2.34],[23.6,2.34]
+  ];
+  pins.forEach((pin,idx)=>{
+    const board = pin[0], back = pin[1];
+    const p = project(board, lane.pinY - back * .34);
+    const dist = Math.abs(metrics.pinBoard - board) + back * .34;
+    const hit = state.pinOn && dist < (idx === 0 ? 1.05 : .72);
+    const s = p.scale * 2.7 + 0.12;
+    ctx.save();
+    ctx.translate(p.x,p.y);
+    ctx.fillStyle = 'rgba(0,0,0,.23)';
+    ctx.beginPath();
+    ctx.ellipse(0, 13*s, 8*s, 3*s, 0,0,Math.PI*2);
+    ctx.fill();
+    ctx.fillStyle = hit ? '#ffd9d2' : '#fff7ec';
+    roundPin(0,0,7*s,24*s);
+    ctx.fillStyle = hit ? '#ff6b64' : '#c93131';
+    ctx.fillRect(-5*s,-1*s,10*s,4*s);
+    ctx.restore();
+  });
+}
+function roundPin(x,y,w,h){
+  ctx.beginPath();
+  ctx.moveTo(x, y-h*.48);
+  ctx.bezierCurveTo(x+w*.55,y-h*.38,x+w*.45,y-h*.05,x+w*.28,y+h*.12);
+  ctx.bezierCurveTo(x+w*.7,y+h*.36,x+w*.28,y+h*.54,x,y+h*.52);
+  ctx.bezierCurveTo(x-w*.28,y+h*.54,x-w*.7,y+h*.36,x-w*.28,y+h*.12);
+  ctx.bezierCurveTo(x-w*.45,y-h*.05,x-w*.55,y-h*.38,x,y-h*.48);
+  ctx.fill();
+}
+
+function drawPolyline(points, color, width, dash){
+  ctx.save();
+  if(dash) ctx.setLineDash(dash);
+  ctx.beginPath();
+  points.forEach((pt,i)=>{
+    const p = project(pt.x,pt.y);
+    if(i===0) ctx.moveTo(p.x,p.y); else ctx.lineTo(p.x,p.y);
+  });
+  ctx.strokeStyle = color;
+  ctx.lineWidth = width;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.stroke();
+  ctx.restore();
+}
+function trajectoryPoints(angle = state.angle, release = releaseBoard()){
+  const pts = [];
+  for(let i=0;i<=110;i++){
+    const y = lane.length * i / 110;
+    pts.push({x:pathBoardAt(y, angle, release), y});
+  }
+  return pts;
+}
+function drawTrajectory(){
+  const pts = trajectoryPoints();
+  const visible = metrics.gutterAt ? pts.filter(pt=>pt.y <= metrics.gutterAt.y) : pts;
+  drawPolyline(visible, '#31d8c1', 4);
+  drawPolyline(visible, 'rgba(255,255,255,.65)', 1.2);
+}
+function drawTargetLine(){
+  drawPolyline([{x:metrics.release,y:0},{x:metrics.targetSpot,y:lane.spotY},{x:lane.headBoard,y:lane.pinY}], '#ff9d43', 2.5, [7,6]);
+}
+function drawGhostLine(){
+  const release = state.standing;
+  const pts = trajectoryPoints(0, release);
+  drawPolyline(pts, 'rgba(255,255,255,.28)', 2, [4,7]);
+}
+function drawBall(){
+  const y = lane.length * clamp(state.progress,0,1);
+  const gutterLimit = metrics.gutterAt ? metrics.gutterAt.y : lane.length;
+  const drawY = Math.min(y, gutterLimit);
+  const p = project(pathBoardAt(drawY), drawY);
+  const r = 15 * p.scale + 4;
+  const grad = ctx.createRadialGradient(p.x-r*.35,p.y-r*.4,2,p.x,p.y,r);
+  grad.addColorStop(0,'#b5fff4');
+  grad.addColorStop(.35,'#25b7a7');
+  grad.addColorStop(1,'#063c43');
+  ctx.beginPath();
+  ctx.arc(p.x,p.y,r,0,Math.PI*2);
+  ctx.fillStyle = grad;
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,.5)';
+  ctx.lineWidth = 1.2;
+  ctx.stroke();
+}
+
+function drawBowler(){
+  const p = project(state.standing, -0.15);
+  const scale = 0.72 + (state.bodyHeight - 145) / 90;
+  const arm = 1 + (state.armLength - 58) / 85;
+  if(bowlerImage.complete && bowlerImage.naturalWidth){
+    const imgW = 250 * scale;
+    const imgH = 360 * scale;
+    const x = p.x - imgW * 0.58 + state.handOffset * 4;
+    const y = p.y - imgH + 92;
+    ctx.save();
+    ctx.globalAlpha = 0.98;
+    ctx.fillStyle = 'rgba(0,0,0,.28)';
+    ctx.beginPath();
+    ctx.ellipse(p.x - 18, p.y + 84, 78 * scale, 18 * scale, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.drawImage(bowlerImage, x, y, imgW, imgH);
+    ctx.restore();
+    return;
+  }
+  ctx.save();
+  ctx.translate(p.x, p.y + 36);
+  ctx.scale(scale, scale);
+  ctx.fillStyle = 'rgba(0,0,0,.28)';
+  ctx.beginPath();
+  ctx.ellipse(0,36,54,12,0,0,Math.PI*2);
+  ctx.fill();
+  ctx.strokeStyle = '#d8c3ae';
+  ctx.lineWidth = 8;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(-14,2);
+  ctx.lineTo(-20,50);
+  ctx.moveTo(14,2);
+  ctx.lineTo(20,50);
+  ctx.stroke();
+  ctx.strokeStyle = '#455362';
+  ctx.lineWidth = 10;
+  ctx.beginPath();
+  ctx.moveTo(-10,50);
+  ctx.lineTo(-24,86);
+  ctx.moveTo(12,50);
+  ctx.lineTo(26,86);
+  ctx.stroke();
+  ctx.fillStyle = '#24384b';
+  ctx.beginPath();
+  ctx.roundRect(-28,-42,56,58,14);
+  ctx.fill();
+  ctx.fillStyle = '#8fb8c8';
+  ctx.fillRect(-22,-14,44,8);
+  ctx.fillStyle = '#d9c0a7';
+  ctx.beginPath();
+  ctx.arc(0,-66,16,0,Math.PI*2);
+  ctx.fill();
+  ctx.fillStyle = '#2d2321';
+  ctx.beginPath();
+  ctx.arc(0,-72,18,Math.PI*.95,Math.PI*2.05);
+  ctx.fill();
+  ctx.strokeStyle = '#d8c3ae';
+  ctx.lineWidth = 7;
+  ctx.beginPath();
+  ctx.moveTo(-22,-24);
+  ctx.lineTo(-42,-2);
+  ctx.moveTo(22,-24);
+  ctx.lineTo(22 + state.handOffset * 7, 22 * arm);
+  ctx.stroke();
+  const handX = 22 + state.handOffset * 7;
+  const handY = 22 * arm;
+  ctx.fillStyle = '#31d8c1';
+  ctx.beginPath();
+  ctx.arc(handX, handY+6, 11, 0, Math.PI*2);
+  ctx.fill();
+  ctx.restore();
+}
+
+function drawOverlays(){
+  if(metrics.gutterAt){
+    const p = project(clamp(metrics.gutterAt.x,0,40), metrics.gutterAt.y);
+    ctx.fillStyle = '#ff6b64';
+    ctx.beginPath();
+    ctx.arc(p.x,p.y,9,0,Math.PI*2);
+    ctx.fill();
+    textBox('ガター', p.x + 12, p.y - 22, '#ff6b64');
+  }
+  const head = project(20,lane.pinY);
+  textBox('1番ピン', head.x + 12, head.y - 30, '#ff9d43');
+  const spot = project(metrics.spotBoard,lane.spotY);
+  textBox('通過 ' + boardLabel(metrics.spotBoard), spot.x + 10, spot.y - 28, '#31d8c1');
+}
+function textBox(text,x,y,color){
+  ctx.font = '12px system-ui, sans-serif';
+  const m = ctx.measureText(text).width;
+  ctx.fillStyle = 'rgba(5,12,18,.76)';
+  ctx.fillRect(x-6,y-15,m+12,22);
+  ctx.strokeStyle = color;
+  ctx.strokeRect(x-6,y-15,m+12,22);
+  ctx.fillStyle = '#eef7ff';
+  ctx.fillText(text,x,y);
+}
+
+function updateReadouts(){
+  const impact = metrics.gutterAt ? 'ガター' : boardLabel(metrics.pinBoard);
+  $('impactBoard').textContent = impact;
+  const missAbs = Math.abs(metrics.miss);
+  $('impactHint').textContent = metrics.gutterAt ? `${metrics.gutterAt.y.toFixed(1)} m付近で外れ` :
+    missAbs < .7 ? '1番ピン付近' : `${metrics.miss > 0 ? '右' : '左'}へ ${missAbs.toFixed(1)} board`;
+  $('spotTarget').textContent = boardLabel(metrics.targetSpot);
+  $('energy').textContent = `${metrics.p.toFixed(1)} Ns / ${metrics.ke.toFixed(0)} J`;
+  $('curve').textContent = `${metrics.curve.toFixed(1)} board`;
+  const realTime = lane.length / speedMs();
+  $('summary').innerHTML =
+    `現在の投げ方では、リリース位置は <b>${boardLabel(metrics.release)} board</b>、スパット付近は <b>${boardLabel(metrics.spotBoard)} board</b> を通ります。` +
+    ` 1番ピンへ合わせるなら、投げ出し角度はおよそ <b>${metrics.required.toFixed(1)} deg</b>、またはスパット <b>${boardLabel(metrics.targetSpot)} board</b> が目安です。` +
+    ` レーン距離はファウルラインから1番ピンまで <b>${lane.length.toFixed(2)} m</b>、現在の球速なら実時間で約 <b>${realTime.toFixed(2)} s</b> です。`;
+}
+
+function syncControls(){
+  ids.forEach(id=>{
+    $(id).value = state[id];
+    const label = $(id + 'Val');
+    if(label) label.textContent = Number(state[id]).toFixed(id === 'mass' || id === 'angle' || id === 'standing' || id === 'handOffset' || id === 'playback' ? 1 : 0);
+  });
+  toggles.forEach(id=>$(id).checked = state[id]);
+}
+function hookControls(){
+  ids.forEach(id=>{
+    $(id).addEventListener('input', e=>{
+      state[id] = Number(e.target.value);
+      state.progress = 0;
+      syncControls();
+      draw();
+    });
+  });
+  toggles.forEach(id=>{
+    $(id).addEventListener('change', e=>{
+      state[id] = e.target.checked;
+      state.progress = 0;
+      draw();
+    });
+  });
+  $('play').onclick = ()=>{
+    state.playing = !state.playing;
+    updatePlayLabels();
+  };
+  $('reset').onclick = ()=>{
+    Object.assign(state, defaults);
+    state.progress = 0;
+    state.playing = false;
+    updatePlayLabels();
+    syncControls();
+    draw();
+  };
+  $('pocket').onclick = ()=>{
+    state.angle = Number(requiredAngleToHead().toFixed(1));
+    state.progress = 0;
+    syncControls();
+    draw();
+  };
+  $('playTop').onclick = ()=>$('play').click();
+  $('resetTop').onclick = ()=>$('reset').click();
+  $('pocketTop').onclick = ()=>$('pocket').click();
+}
+
+function updatePlayLabels(){
+  const label = state.playing ? '停止' : '投げる';
+  $('play').textContent = label;
+  $('playTop').textContent = label;
+}
+
+function tick(dt){
+  if(state.playing){
+    const dur = lane.length / speedMs();
+    state.progress += (dt * state.playback) / dur;
+    if(state.progress >= 1){
+      state.progress = 1;
+      state.playing = false;
+      updatePlayLabels();
+    }
+    draw();
+  }
+}
+
+hookControls();
+syncControls();
+updatePlayLabels();
+fitCanvas();
+window.addEventListener('resize', fitCanvas);
+if(window.PhysicsSimClock && PhysicsSimClock.FixedStepClock){
+  clock = new PhysicsSimClock.FixedStepClock({step:1/60, onStep:tick});
+  clock.start();
+}else{
+  let last = performance.now();
+  function loop(now){
+    tick(Math.min(.05,(now-last)/1000));
+    last = now;
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
+}
+</script>
+</body>
+</html>

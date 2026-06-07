@@ -1,0 +1,1049 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>サイコロ出目シミュレーター</title>
+  <link rel="stylesheet" href="../../assets/common-sim.css">
+  <script src="../../assets/sim-shell.js"></script>
+  <script src="../../assets/sim-clock.js"></script>
+  <style>
+    :root {
+      --bg: #071018;
+      --panel: #0e1a25;
+      --panel-2: #142535;
+      --ink: #edf8ff;
+      --muted: #9fb4c9;
+      --line: #2b4358;
+      --line-soft: rgba(199, 222, 240, .18);
+      --cyan: #45d8f5;
+      --blue: #72a8ff;
+      --amber: #ffc65b;
+      --green: #7ee5a6;
+      --red: #ff7c91;
+      --shadow: rgba(0, 0, 0, .38);
+      --radius: 8px;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      margin: 0;
+      min-height: 100%;
+      background:
+        radial-gradient(circle at 18% 10%, rgba(69, 216, 245, .13), transparent 31%),
+        radial-gradient(circle at 84% 18%, rgba(255, 198, 91, .1), transparent 28%),
+        linear-gradient(180deg, #0d1a27 0%, var(--bg) 48%, #050a10 100%);
+      color: var(--ink);
+      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Hiragino Kaku Gothic ProN", Meiryo, sans-serif;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    button,
+    input,
+    select {
+      font: inherit;
+    }
+
+    .wrap {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 360px;
+      gap: 12px;
+      width: min(1460px, calc(100% - 24px));
+      margin: 14px auto 24px;
+      align-items: start;
+    }
+
+    .stage-panel,
+    .control-panel {
+      min-width: 0;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: linear-gradient(180deg, rgba(18, 35, 50, .98), rgba(8, 18, 29, .98));
+      box-shadow: 0 18px 46px var(--shadow);
+    }
+
+    .panel-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      min-height: 56px;
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    h1,
+    h2,
+    h3 {
+      margin: 0;
+      letter-spacing: 0;
+    }
+
+    h1 {
+      font-size: 19px;
+      line-height: 1.25;
+    }
+
+    .panel-note {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 650;
+      white-space: nowrap;
+    }
+
+    .sim-grid {
+      display: grid;
+      grid-template-columns: minmax(280px, .86fr) minmax(360px, 1.14fr);
+      gap: 12px;
+      padding: 12px;
+    }
+
+    .dice-stage,
+    .chart-panel {
+      min-width: 0;
+      border: 1px solid var(--line-soft);
+      border-radius: var(--radius);
+      background: rgba(8, 18, 29, .72);
+    }
+
+    .dice-stage {
+      position: relative;
+      display: grid;
+      min-height: 610px;
+      overflow: hidden;
+      place-items: center;
+      background:
+        linear-gradient(rgba(148, 163, 184, .045) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(148, 163, 184, .045) 1px, transparent 1px),
+        radial-gradient(circle at 50% 34%, rgba(69, 216, 245, .14), transparent 34%),
+        radial-gradient(circle at 76% 64%, rgba(255, 198, 91, .12), transparent 28%),
+        #07111b;
+      background-size: 28px 28px, 28px 28px, auto, auto, auto;
+      perspective: 980px;
+    }
+
+    .table-ellipse {
+      position: absolute;
+      width: min(74%, 420px);
+      height: 86px;
+      bottom: 112px;
+      border: 1px solid rgba(109, 181, 218, .22);
+      border-radius: 50%;
+      background: radial-gradient(ellipse, rgba(69, 216, 245, .18), rgba(6, 14, 22, .08) 58%, transparent 72%);
+      box-shadow: 0 24px 70px rgba(0, 0, 0, .38);
+      transform: rotateX(66deg);
+    }
+
+    .throw-lane {
+      position: absolute;
+      inset: 9%;
+      border: 1px solid rgba(166, 199, 226, .08);
+      border-radius: 8px;
+      transform: rotateX(56deg) translateY(20px);
+      transform-origin: 50% 65%;
+    }
+
+    .die-wrap {
+      position: relative;
+      width: 154px;
+      height: 154px;
+      transform-style: preserve-3d;
+      transition: transform .18s linear;
+      filter: drop-shadow(0 34px 34px rgba(0, 0, 0, .42));
+    }
+
+    .die-wrap.rolling {
+      animation: hop .54s linear infinite;
+    }
+
+    @keyframes hop {
+      0%, 100% { translate: 0 18px; }
+      46% { translate: 0 -74px; }
+    }
+
+    .die {
+      position: absolute;
+      inset: 0;
+      transform-style: preserve-3d;
+    }
+
+    .face {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      grid-template: repeat(3, 1fr) / repeat(3, 1fr);
+      gap: 18px;
+      padding: 22px;
+      border: 1px solid rgba(255, 255, 255, .72);
+      border-radius: 24px;
+      background:
+        radial-gradient(circle at 28% 18%, rgba(255, 255, 255, .98), rgba(235, 244, 250, .98) 44%, rgba(198, 215, 228, .98));
+      box-shadow:
+        inset 0 16px 22px rgba(255, 255, 255, .72),
+        inset 0 -18px 28px rgba(31, 55, 72, .2);
+    }
+
+    .face::before {
+      content: "";
+      position: absolute;
+      inset: 6px;
+      border-radius: 18px;
+      border: 1px solid rgba(255, 255, 255, .46);
+      pointer-events: none;
+    }
+
+    .dot {
+      width: 23px;
+      height: 23px;
+      align-self: center;
+      justify-self: center;
+      border-radius: 50%;
+      background: radial-gradient(circle at 34% 28%, #34465a, #07111b 72%);
+      box-shadow: inset 0 2px 3px rgba(255, 255, 255, .18);
+    }
+
+    .front { transform: translateZ(77px); }
+    .back { transform: rotateY(180deg) translateZ(77px); }
+    .right { transform: rotateY(90deg) translateZ(77px); }
+    .left { transform: rotateY(-90deg) translateZ(77px); }
+    .top { transform: rotateX(90deg) translateZ(77px); }
+    .bottom { transform: rotateX(-90deg) translateZ(77px); }
+
+    .p1 { grid-area: 2 / 2; }
+    .p2a { grid-area: 1 / 1; }
+    .p2b { grid-area: 3 / 3; }
+    .p3a { grid-area: 1 / 1; }
+    .p3b { grid-area: 2 / 2; }
+    .p3c { grid-area: 3 / 3; }
+    .p4a { grid-area: 1 / 1; }
+    .p4b { grid-area: 1 / 3; }
+    .p4c { grid-area: 3 / 1; }
+    .p4d { grid-area: 3 / 3; }
+    .p5a { grid-area: 1 / 1; }
+    .p5b { grid-area: 1 / 3; }
+    .p5c { grid-area: 2 / 2; }
+    .p5d { grid-area: 3 / 1; }
+    .p5e { grid-area: 3 / 3; }
+    .p6a { grid-area: 1 / 1; }
+    .p6b { grid-area: 1 / 3; }
+    .p6c { grid-area: 2 / 1; }
+    .p6d { grid-area: 2 / 3; }
+    .p6e { grid-area: 3 / 1; }
+    .p6f { grid-area: 3 / 3; }
+
+    .result-badge {
+      position: absolute;
+      right: 18px;
+      bottom: 18px;
+      min-width: 118px;
+      border: 1px solid rgba(69, 216, 245, .42);
+      border-radius: 8px;
+      background: rgba(5, 13, 21, .72);
+      padding: 10px 12px;
+      text-align: right;
+    }
+
+    .result-badge span {
+      display: block;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 800;
+    }
+
+    .result-badge strong {
+      display: block;
+      color: var(--amber);
+      font-size: 34px;
+      font-variant-numeric: tabular-nums;
+      line-height: 1;
+    }
+
+    .chart-panel {
+      display: grid;
+      grid-template-rows: auto 1fr;
+      min-height: 610px;
+      padding: 12px;
+    }
+
+    .chart-head {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+
+    .mini-stat {
+      min-width: 0;
+      border: 1px solid var(--line-soft);
+      border-radius: 7px;
+      background: rgba(19, 36, 52, .72);
+      padding: 8px 9px;
+    }
+
+    .mini-stat span {
+      display: block;
+      overflow: hidden;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 750;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .mini-stat strong {
+      display: block;
+      margin-top: 2px;
+      color: var(--ink);
+      font-size: 15px;
+      font-variant-numeric: tabular-nums;
+      font-weight: 850;
+      white-space: nowrap;
+    }
+
+    .bars {
+      display: grid;
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+      gap: 10px;
+      align-items: end;
+      min-height: 420px;
+      border: 1px solid rgba(199, 222, 240, .13);
+      border-radius: 8px;
+      background:
+        linear-gradient(rgba(199, 222, 240, .07) 1px, transparent 1px),
+        linear-gradient(180deg, rgba(255, 255, 255, .025), transparent);
+      background-size: 100% 20%;
+      padding: 16px 14px 12px;
+    }
+
+    .bar-cell {
+      display: grid;
+      grid-template-rows: 26px minmax(220px, 1fr) 52px;
+      gap: 8px;
+      min-width: 0;
+      height: 100%;
+      text-align: center;
+    }
+
+    .bar-count {
+      color: #dcefff;
+      font-size: 12px;
+      font-variant-numeric: tabular-nums;
+      font-weight: 850;
+      white-space: nowrap;
+    }
+
+    .bar-track {
+      position: relative;
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      min-height: 240px;
+      overflow: hidden;
+      border: 1px solid rgba(199, 222, 240, .1);
+      border-radius: 7px;
+      background: rgba(5, 13, 21, .36);
+    }
+
+    .bar-track::before {
+      content: "";
+      position: absolute;
+      right: 0;
+      bottom: 66.7%;
+      left: 0;
+      border-top: 1px dashed rgba(255, 198, 91, .48);
+      opacity: 0;
+      transition: opacity .16s ease;
+    }
+
+    .bars.show-theory .bar-track::before {
+      opacity: 1;
+    }
+
+    .bar {
+      width: min(70%, 46px);
+      min-height: 2px;
+      border-radius: 7px 7px 0 0;
+      background: linear-gradient(180deg, var(--bar-top), var(--bar-bottom));
+      box-shadow: 0 0 26px var(--bar-glow);
+      transition: height .12s ease-out;
+    }
+
+    .bar-cell.hot .bar-track {
+      border-color: rgba(255, 198, 91, .38);
+    }
+
+    .face-label {
+      display: grid;
+      gap: 2px;
+      color: #dcefff;
+      font-weight: 850;
+    }
+
+    .face-label span {
+      color: var(--muted);
+      font-size: 11px;
+      font-variant-numeric: tabular-nums;
+      font-weight: 750;
+    }
+
+    .control-panel {
+      position: sticky;
+      top: 72px;
+    }
+
+    .controls {
+      display: grid;
+      gap: 12px;
+      padding: 12px;
+    }
+
+    .button-row {
+      display: grid;
+      grid-template-columns: 1fr 42px 42px;
+      gap: 8px;
+    }
+
+    .main-button,
+    .icon-button,
+    .small-button,
+    select {
+      min-height: 40px;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      color: var(--ink);
+    }
+
+    .main-button,
+    .icon-button,
+    .small-button {
+      cursor: pointer;
+    }
+
+    .main-button {
+      background: linear-gradient(180deg, #1d79df, #175aa8);
+      border-color: rgba(113, 168, 255, .55);
+      font-size: 14px;
+      font-weight: 850;
+    }
+
+    .main-button[data-running="true"] {
+      background: linear-gradient(180deg, #15945a, #0f7044);
+      border-color: rgba(126, 229, 166, .55);
+    }
+
+    .icon-button,
+    .small-button,
+    select {
+      background: var(--panel-2);
+      font-weight: 850;
+    }
+
+    .icon-button:hover,
+    .icon-button:focus-visible,
+    .small-button:hover,
+    .small-button:focus-visible,
+    select:focus-visible {
+      border-color: rgba(69, 216, 245, .58);
+      outline: none;
+    }
+
+    .control-group {
+      display: grid;
+      gap: 10px;
+      border: 1px solid var(--line-soft);
+      border-radius: var(--radius);
+      background: rgba(8, 18, 29, .62);
+      padding: 11px;
+    }
+
+    .group-title {
+      color: #d8edff;
+      font-size: 13px;
+      font-weight: 850;
+    }
+
+    .control {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 8px 10px;
+      align-items: center;
+    }
+
+    .control label {
+      min-width: 0;
+      color: #d7e7f7;
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    .value {
+      color: var(--muted);
+      font-size: 12px;
+      font-variant-numeric: tabular-nums;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+
+    .control input[type="range"] {
+      grid-column: 1 / -1;
+      width: 100%;
+      accent-color: var(--cyan);
+    }
+
+    .select-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 142px;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .toggle {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      min-height: 38px;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: var(--panel-2);
+      color: #d7e7f7;
+      padding: 6px 8px 6px 10px;
+      font-size: 12px;
+      font-weight: 800;
+      cursor: pointer;
+    }
+
+    .toggle input {
+      width: 17px;
+      height: 17px;
+      accent-color: var(--cyan);
+    }
+
+    .readout-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .status-strip {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 8px;
+      padding: 0 12px 12px;
+    }
+
+    .stat {
+      min-width: 0;
+      border: 1px solid var(--line-soft);
+      border-radius: 7px;
+      background: rgba(11, 24, 37, .78);
+      padding: 8px 9px;
+    }
+
+    .stat-label {
+      overflow: hidden;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 750;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .stat-value {
+      margin-top: 2px;
+      color: var(--ink);
+      font-size: 15px;
+      font-variant-numeric: tabular-nums;
+      font-weight: 850;
+      white-space: nowrap;
+    }
+
+    @media (max-width: 1120px) {
+      .wrap,
+      .sim-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .control-panel {
+        position: static;
+      }
+
+      .dice-stage,
+      .chart-panel {
+        min-height: 520px;
+      }
+    }
+
+    @media (max-width: 640px) {
+      .wrap {
+        width: min(100% - 14px, 560px);
+        margin-top: 8px;
+      }
+
+      .panel-head {
+        align-items: flex-start;
+        flex-direction: column;
+        gap: 4px;
+      }
+
+      .panel-note {
+        white-space: normal;
+      }
+
+      .sim-grid {
+        padding: 8px;
+      }
+
+      .dice-stage,
+      .chart-panel {
+        min-height: 440px;
+      }
+
+      .die-wrap {
+        width: 116px;
+        height: 116px;
+      }
+
+      .front { transform: translateZ(58px); }
+      .back { transform: rotateY(180deg) translateZ(58px); }
+      .right { transform: rotateY(90deg) translateZ(58px); }
+      .left { transform: rotateY(-90deg) translateZ(58px); }
+      .top { transform: rotateX(90deg) translateZ(58px); }
+      .bottom { transform: rotateX(-90deg) translateZ(58px); }
+
+      .face {
+        gap: 12px;
+        padding: 18px;
+        border-radius: 18px;
+      }
+
+      .dot {
+        width: 17px;
+        height: 17px;
+      }
+
+      .chart-head,
+      .status-strip,
+      .readout-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .bars {
+        gap: 5px;
+        padding-inline: 7px;
+      }
+
+      .bar-cell {
+        grid-template-rows: 24px minmax(190px, 1fr) 48px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <section class="stage-panel" aria-label="サイコロの出目と棒グラフ">
+      <div class="panel-head">
+        <div>
+          <h1>サイコロ出目シミュレーター</h1>
+        </div>
+        <div class="panel-note">振った結果を高速に記録し、1〜6の分布を観察します</div>
+      </div>
+
+      <div class="sim-grid">
+        <section class="dice-stage" aria-label="3D風サイコロ表示">
+          <div class="throw-lane"></div>
+          <div class="table-ellipse"></div>
+          <div class="die-wrap" id="dieWrap" aria-hidden="true">
+            <div class="die" id="die">
+              <div class="face front" data-face="1"><i class="dot p1"></i></div>
+              <div class="face right" data-face="2"><i class="dot p2a"></i><i class="dot p2b"></i></div>
+              <div class="face top" data-face="3"><i class="dot p3a"></i><i class="dot p3b"></i><i class="dot p3c"></i></div>
+              <div class="face bottom" data-face="4"><i class="dot p4a"></i><i class="dot p4b"></i><i class="dot p4c"></i><i class="dot p4d"></i></div>
+              <div class="face left" data-face="5"><i class="dot p5a"></i><i class="dot p5b"></i><i class="dot p5c"></i><i class="dot p5d"></i><i class="dot p5e"></i></div>
+              <div class="face back" data-face="6"><i class="dot p6a"></i><i class="dot p6b"></i><i class="dot p6c"></i><i class="dot p6d"></i><i class="dot p6e"></i><i class="dot p6f"></i></div>
+            </div>
+          </div>
+          <div class="result-badge">
+            <span>直近の出目</span>
+            <strong id="lastFace">-</strong>
+          </div>
+        </section>
+
+        <section class="chart-panel" aria-label="出目ごとの棒グラフ">
+          <div class="chart-head">
+            <div class="mini-stat">
+              <span>総試行</span>
+              <strong id="totalRolls">0</strong>
+            </div>
+            <div class="mini-stat">
+              <span>最多</span>
+              <strong id="peakFace">未記録</strong>
+            </div>
+            <div class="mini-stat">
+              <span>平均との差</span>
+              <strong id="spread">0個</strong>
+            </div>
+          </div>
+          <div class="bars" id="bars"></div>
+        </section>
+      </div>
+
+      <div class="status-strip" aria-live="polite">
+        <div class="stat">
+          <div class="stat-label">記録速度</div>
+          <div class="stat-value" id="rollRateText">500回/秒</div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">平均出目</div>
+          <div class="stat-value" id="averageFace">未記録</div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">1〜3</div>
+          <div class="stat-value" id="lowShare">0%</div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">4〜6</div>
+          <div class="stat-value" id="highShare">0%</div>
+        </div>
+      </div>
+    </section>
+
+    <aside class="control-panel" aria-label="操作パネル">
+      <div class="panel-head">
+        <h2 class="group-title">操作</h2>
+        <div class="panel-note" id="runState">待機中</div>
+      </div>
+      <div class="controls">
+        <div class="button-row">
+          <button type="button" class="main-button" id="toggleRun" data-running="false">開始</button>
+          <button type="button" class="icon-button" id="rollOnce" title="1回だけ振る">+1</button>
+          <button type="button" class="icon-button" id="reset" title="リセット">↺</button>
+        </div>
+
+        <section class="control-group">
+          <h3 class="group-title">記録条件</h3>
+          <div class="control">
+            <label for="rollRate">記録速度</label>
+            <span class="value" id="rollRateValue">500回/秒</span>
+            <input type="range" id="rollRate" min="10" max="5000" step="10" value="500">
+          </div>
+          <div class="select-row">
+            <label for="speedPreset">プリセット</label>
+            <select id="speedPreset">
+              <option value="100">ゆっくり</option>
+              <option value="500" selected>標準</option>
+              <option value="1500">高速</option>
+              <option value="5000">超高速</option>
+            </select>
+          </div>
+          <label class="toggle">
+            <span>開始時に1回だけ見せてから高速記録</span>
+            <input type="checkbox" id="firstThrow" checked>
+          </label>
+          <label class="toggle">
+            <span>理論値 16.7% の目安線</span>
+            <input type="checkbox" id="showTheory" checked>
+          </label>
+        </section>
+
+        <section class="control-group">
+          <h3 class="group-title">現在の分布</h3>
+          <div class="readout-grid">
+            <div class="mini-stat">
+              <span>1の割合</span>
+              <strong id="face1Share">0%</strong>
+            </div>
+            <div class="mini-stat">
+              <span>6の割合</span>
+              <strong id="face6Share">0%</strong>
+            </div>
+            <div class="mini-stat">
+              <span>最大回数</span>
+              <strong id="maxCount">0</strong>
+            </div>
+            <div class="mini-stat">
+              <span>最小回数</span>
+              <strong id="minCount">0</strong>
+            </div>
+          </div>
+        </section>
+
+        <section class="control-group">
+          <h3 class="group-title">奇数・偶数</h3>
+          <div class="readout-grid">
+            <div class="mini-stat">
+              <span>奇数回数</span>
+              <strong id="oddCount">0</strong>
+            </div>
+            <div class="mini-stat">
+              <span>偶数回数</span>
+              <strong id="evenCount">0</strong>
+            </div>
+            <div class="mini-stat">
+              <span>奇数割合</span>
+              <strong id="oddShare">0%</strong>
+            </div>
+            <div class="mini-stat">
+              <span>偶数割合</span>
+              <strong id="evenShare">0%</strong>
+            </div>
+          </div>
+        </section>
+      </div>
+    </aside>
+  </main>
+
+  <script>
+    PhysicsSimShell.create({
+      title: "サイコロ出目シミュレーター",
+      subtitle: "高速にサイコロを振り、1〜6の出目の分布を棒グラフで観察する"
+    });
+
+    const dieWrap = document.getElementById("dieWrap");
+    const barsEl = document.getElementById("bars");
+    const counts = [0, 0, 0, 0, 0, 0];
+    const colors = [
+      ["#45d8f5", "#147da4", "rgba(69, 216, 245, .38)"],
+      ["#72a8ff", "#285eb8", "rgba(114, 168, 255, .36)"],
+      ["#7ee5a6", "#209362", "rgba(126, 229, 166, .34)"],
+      ["#ffc65b", "#be7f18", "rgba(255, 198, 91, .38)"],
+      ["#ff9a69", "#bd5433", "rgba(255, 154, 105, .34)"],
+      ["#ff7c91", "#b93b58", "rgba(255, 124, 145, .36)"]
+    ];
+
+    const controls = {
+      toggleRun: document.getElementById("toggleRun"),
+      rollOnce: document.getElementById("rollOnce"),
+      reset: document.getElementById("reset"),
+      rollRate: document.getElementById("rollRate"),
+      speedPreset: document.getElementById("speedPreset"),
+      firstThrow: document.getElementById("firstThrow"),
+      showTheory: document.getElementById("showTheory")
+    };
+
+    const readouts = {
+      runState: document.getElementById("runState"),
+      lastFace: document.getElementById("lastFace"),
+      totalRolls: document.getElementById("totalRolls"),
+      peakFace: document.getElementById("peakFace"),
+      spread: document.getElementById("spread"),
+      rollRateText: document.getElementById("rollRateText"),
+      rollRateValue: document.getElementById("rollRateValue"),
+      averageFace: document.getElementById("averageFace"),
+      lowShare: document.getElementById("lowShare"),
+      highShare: document.getElementById("highShare"),
+      face1Share: document.getElementById("face1Share"),
+      face6Share: document.getElementById("face6Share"),
+      maxCount: document.getElementById("maxCount"),
+      minCount: document.getElementById("minCount"),
+      oddCount: document.getElementById("oddCount"),
+      evenCount: document.getElementById("evenCount"),
+      oddShare: document.getElementById("oddShare"),
+      evenShare: document.getElementById("evenShare")
+    };
+
+    let running = false;
+    let total = 0;
+    let lastFace = null;
+    let pendingRolls = 0;
+    let renderAccumulator = 0;
+    let visualSpin = { x: -18, y: 28, z: 0 };
+    let firstThrowPending = false;
+
+    const faceRotations = {
+      1: { x: 0, y: 0, z: 0 },
+      2: { x: 0, y: -90, z: 0 },
+      3: { x: -90, y: 0, z: 0 },
+      4: { x: 90, y: 0, z: 0 },
+      5: { x: 0, y: 90, z: 0 },
+      6: { x: 0, y: 180, z: 0 }
+    };
+
+    function formatNumber(value) {
+      return Math.round(value).toLocaleString("ja-JP");
+    }
+
+    function percent(value, denom = total) {
+      if (denom <= 0) return "0%";
+      return `${(value / denom * 100).toFixed(1)}%`;
+    }
+
+    function createBars() {
+      barsEl.innerHTML = "";
+      for (let i = 0; i < 6; i += 1) {
+        const cell = document.createElement("div");
+        cell.className = "bar-cell";
+        cell.style.setProperty("--bar-top", colors[i][0]);
+        cell.style.setProperty("--bar-bottom", colors[i][1]);
+        cell.style.setProperty("--bar-glow", colors[i][2]);
+        cell.innerHTML = `
+          <div class="bar-count" id="count${i + 1}">0</div>
+          <div class="bar-track">
+            <div class="bar" id="bar${i + 1}" style="height: 2px"></div>
+          </div>
+          <div class="face-label">${i + 1}<span id="share${i + 1}">0%</span></div>
+        `;
+        barsEl.append(cell);
+      }
+    }
+
+    function rollDie() {
+      const face = Math.floor(Math.random() * 6) + 1;
+      counts[face - 1] += 1;
+      total += 1;
+      lastFace = face;
+      return face;
+    }
+
+    function rollMany(amount) {
+      for (let i = 0; i < amount; i += 1) {
+        rollDie();
+      }
+    }
+
+    function setRunning(next) {
+      running = next;
+      controls.toggleRun.dataset.running = String(running);
+      controls.toggleRun.textContent = running ? "停止" : "開始";
+      readouts.runState.textContent = running ? "記録中" : "待機中";
+      dieWrap.classList.toggle("rolling", running);
+      if (running && controls.firstThrow.checked && total === 0) {
+        firstThrowPending = true;
+      }
+    }
+
+    function reset() {
+      counts.fill(0);
+      total = 0;
+      lastFace = null;
+      pendingRolls = 0;
+      firstThrowPending = false;
+      visualSpin = { x: -18, y: 28, z: 0 };
+      dieWrap.style.transform = "rotateX(-18deg) rotateY(28deg) rotateZ(0deg)";
+      setRunning(false);
+      updateReadouts();
+    }
+
+    function updateRateText() {
+      const rate = Number(controls.rollRate.value);
+      readouts.rollRateValue.textContent = `${formatNumber(rate)}回/秒`;
+      readouts.rollRateText.textContent = `${formatNumber(rate)}回/秒`;
+    }
+
+    function updateDie(dt) {
+      if (running) {
+        visualSpin.x += 720 * dt;
+        visualSpin.y += 1040 * dt;
+        visualSpin.z += 410 * dt;
+        dieWrap.style.transform = `rotateX(${visualSpin.x}deg) rotateY(${visualSpin.y}deg) rotateZ(${visualSpin.z}deg)`;
+        return;
+      }
+      if (lastFace) {
+        const r = faceRotations[lastFace];
+        dieWrap.style.transform = `rotateX(${r.x - 14}deg) rotateY(${r.y + 24}deg) rotateZ(${r.z}deg)`;
+      }
+    }
+
+    function updateReadouts() {
+      const max = Math.max(...counts);
+      const min = Math.min(...counts);
+      const expected = total / 6;
+      const spread = total > 0 ? Math.max(...counts.map((count) => Math.abs(count - expected))) : 0;
+      const weighted = counts.reduce((sum, count, index) => sum + count * (index + 1), 0);
+      const peakIndex = counts.indexOf(max);
+      const low = counts[0] + counts[1] + counts[2];
+      const high = counts[3] + counts[4] + counts[5];
+      const odd = counts[0] + counts[2] + counts[4];
+      const even = counts[1] + counts[3] + counts[5];
+
+      readouts.lastFace.textContent = lastFace ?? "-";
+      readouts.totalRolls.textContent = formatNumber(total);
+      readouts.peakFace.textContent = total > 0 ? `${peakIndex + 1}が最多` : "未記録";
+      readouts.spread.textContent = `${formatNumber(spread)}個`;
+      readouts.averageFace.textContent = total > 0 ? (weighted / total).toFixed(2) : "未記録";
+      readouts.lowShare.textContent = percent(low);
+      readouts.highShare.textContent = percent(high);
+      readouts.face1Share.textContent = percent(counts[0]);
+      readouts.face6Share.textContent = percent(counts[5]);
+      readouts.maxCount.textContent = formatNumber(max);
+      readouts.minCount.textContent = formatNumber(min);
+      readouts.oddCount.textContent = formatNumber(odd);
+      readouts.evenCount.textContent = formatNumber(even);
+      readouts.oddShare.textContent = percent(odd);
+      readouts.evenShare.textContent = percent(even);
+
+      counts.forEach((count, index) => {
+        const bar = document.getElementById(`bar${index + 1}`);
+        const countEl = document.getElementById(`count${index + 1}`);
+        const shareEl = document.getElementById(`share${index + 1}`);
+        const cell = bar.closest(".bar-cell");
+        const height = total > 0 ? Math.max(2, Math.min(100, count / total / 0.25 * 100)) : 2;
+        bar.style.height = `${height}%`;
+        countEl.textContent = formatNumber(count);
+        shareEl.textContent = percent(count);
+        cell.classList.toggle("hot", total > 0 && count === max);
+      });
+    }
+
+    function tick(dt) {
+      if (running) {
+        if (firstThrowPending) {
+          rollDie();
+          firstThrowPending = false;
+        } else {
+          pendingRolls += Number(controls.rollRate.value) * dt;
+          const amount = Math.floor(pendingRolls);
+          if (amount > 0) {
+            rollMany(Math.min(amount, 25000));
+            pendingRolls -= amount;
+          }
+        }
+      }
+      updateDie(dt);
+      renderAccumulator += dt;
+      if (renderAccumulator >= 1 / 30 || !running) {
+        updateReadouts();
+        renderAccumulator = 0;
+      }
+    }
+
+    controls.toggleRun.addEventListener("click", () => setRunning(!running));
+    controls.rollOnce.addEventListener("click", () => {
+      rollDie();
+      setRunning(false);
+      updateReadouts();
+    });
+    controls.reset.addEventListener("click", reset);
+    controls.rollRate.addEventListener("input", () => {
+      controls.speedPreset.value = [...controls.speedPreset.options].some((option) => option.value === controls.rollRate.value)
+        ? controls.rollRate.value
+        : "";
+      updateRateText();
+    });
+    controls.speedPreset.addEventListener("change", () => {
+      if (!controls.speedPreset.value) return;
+      controls.rollRate.value = controls.speedPreset.value;
+      updateRateText();
+    });
+    controls.showTheory.addEventListener("change", () => {
+      barsEl.classList.toggle("show-theory", controls.showTheory.checked);
+    });
+
+    createBars();
+    barsEl.classList.toggle("show-theory", controls.showTheory.checked);
+    updateRateText();
+    reset();
+
+    const clock = new PhysicsSimClock.FixedStepClock({
+      step: 1 / 60,
+      onStep: tick
+    });
+    clock.start();
+  </script>
+</body>
+</html>

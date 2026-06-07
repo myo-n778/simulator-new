@@ -1,0 +1,776 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>定滑車・動滑車の仕事シミュレーター</title>
+<link rel="stylesheet" href="../../assets/common-sim.css">
+<script src="../../assets/sim-shell.js"></script>
+<style>
+  :root {
+    --bg: #f5f7fa;
+    --surface: #ffffff;
+    --ink: #182230;
+    --muted: #5c6b7d;
+    --line: #d8e0ea;
+    --rail: #768391;
+    --rope: #b9853a;
+    --rope-active: #2f77c8;
+    --load: #6b7480;
+    --accent: #2367bd;
+    --lift: #1e8a5a;
+    --force: #c43e33;
+    --support: #8b4dc2;
+    --work: #b56a00;
+    --radius: 8px;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    width: 100%;
+    overflow-x: hidden;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: ui-sans-serif, system-ui, -apple-system, "Hiragino Kaku Gothic ProN", Meiryo, sans-serif;
+    font-size: 14px;
+    line-height: 1.5;
+  }
+  .wrap {
+    width: min(1240px, 100%);
+    margin: 16px auto 28px;
+    padding: 0 12px;
+  }
+  h1 {
+    margin: 0 0 10px;
+    font-size: 20px;
+    line-height: 1.25;
+    letter-spacing: 0;
+  }
+  .layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(300px, 360px);
+    gap: 12px;
+    align-items: start;
+  }
+  .layout > * { min-width: 0; }
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 12px;
+    box-shadow: 0 8px 20px rgba(31, 42, 55, .06);
+  }
+  .panel-title {
+    margin: 0 0 8px;
+    color: #283546;
+    font-size: 13px;
+    font-weight: 800;
+  }
+  canvas {
+    display: block;
+    width: 100%;
+    height: min(62vh, 610px);
+    min-height: 450px;
+    border: 1px solid #dce4ee;
+    border-radius: var(--radius);
+    background: linear-gradient(#fbfdff, #eef4f8);
+  }
+  .controls {
+    display: grid;
+    gap: 10px;
+  }
+  .control {
+    display: grid;
+    grid-template-columns: 116px 1fr 66px;
+    gap: 8px;
+    align-items: center;
+  }
+  .control label {
+    color: #2a3747;
+    font-size: 12px;
+    font-weight: 800;
+  }
+  input, select, button { font: inherit; min-width: 0; }
+  input[type="range"] { width: 100%; }
+  select, .plain-button {
+    min-height: 34px;
+    border: 1px solid var(--line);
+    border-radius: 7px;
+    background: #f9fbfd;
+    color: var(--ink);
+    font-size: 12px;
+    font-weight: 700;
+  }
+  output {
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+  }
+  .toggle-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+  .plain-button {
+    cursor: pointer;
+  }
+  .plain-button[aria-pressed="true"] {
+    border-color: var(--accent);
+    background: #e8f1ff;
+    color: #17467f;
+  }
+  .readouts {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 7px;
+    margin-top: 10px;
+  }
+  .readout {
+    min-height: 50px;
+    border: 1px solid #e0e7ef;
+    border-radius: 7px;
+    padding: 7px 8px;
+    background: #fbfdff;
+  }
+  .readout .label {
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 800;
+  }
+  .readout .value {
+    margin-top: 2px;
+    color: #142033;
+    font-size: 16px;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+  }
+  .legend {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px 10px;
+    margin-top: 10px;
+    color: var(--muted);
+    font-size: 12px;
+  }
+  .legend span {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+  }
+  .swatch {
+    width: 18px;
+    height: 4px;
+    border-radius: 999px;
+    background: currentColor;
+    flex: 0 0 auto;
+  }
+  .formula {
+    margin-top: 10px;
+    border-left: 4px solid var(--accent);
+    padding: 8px 10px;
+    background: #f4f8fe;
+    color: #253243;
+    font-size: 12px;
+  }
+  .formula strong {
+    color: #10243e;
+  }
+  @media (max-width: 860px) {
+    .layout { grid-template-columns: 1fr; }
+    canvas { min-height: 520px; height: 70vh; }
+  }
+  @media (max-width: 560px) {
+    .wrap { padding: 0 8px; }
+    .control { grid-template-columns: 96px 1fr 56px; gap: 6px; }
+    .readouts, .legend { grid-template-columns: 1fr; }
+    canvas { min-height: 560px; }
+  }
+</style>
+</head>
+<body>
+<main class="wrap">
+  <h1>定滑車・動滑車の仕事シミュレーター</h1>
+  <div class="layout">
+    <section class="panel" aria-label="滑車の比較図">
+      <p class="panel-title">同じ高さまで持ち上げたときの比較</p>
+      <canvas id="scene" width="1200" height="650"></canvas>
+      <div class="legend" aria-label="凡例">
+        <span style="color: var(--rope-active)"><i class="swatch"></i>引いた紐の距離</span>
+        <span style="color: var(--lift)"><i class="swatch"></i>物体の上昇距離</span>
+        <span style="color: var(--force)"><i class="swatch"></i>必要な力</span>
+        <span style="color: var(--support)"><i class="swatch"></i>物体を支える紐</span>
+      </div>
+    </section>
+    <aside class="panel" aria-label="操作と数値">
+      <p class="panel-title">条件</p>
+      <div class="controls">
+        <div class="control">
+          <label for="liftHeight">上げる高さ</label>
+          <input id="liftHeight" type="range" min="10" max="180" step="5" value="80">
+          <output id="liftHeightOut">80 cm</output>
+        </div>
+        <div class="control">
+          <label for="mass">質量</label>
+          <input id="mass" type="range" min="1" max="60" step="1" value="20">
+          <output id="massOut">20 kg</output>
+        </div>
+        <div class="control">
+          <label for="objectType">物体</label>
+          <select id="objectType">
+            <option value="crate">木箱</option>
+            <option value="weight">実験用おもり</option>
+            <option value="books">本の束</option>
+            <option value="piano">重い荷物</option>
+            <option value="shiromo">モルカー（シロモ）</option>
+          </select>
+          <output></output>
+        </div>
+        <div class="control">
+          <label for="multiCount">複数動滑車</label>
+          <input id="multiCount" type="range" min="2" max="4" step="1" value="3">
+          <output id="multiCountOut">3個</output>
+        </div>
+        <div class="toggle-row">
+          <button class="plain-button" id="showMulti" type="button" aria-pressed="true">複数を表示</button>
+          <button class="plain-button" id="showGuide" type="button" aria-pressed="true">式を表示</button>
+        </div>
+      </div>
+      <div class="readouts" aria-label="代表値">
+        <div class="readout"><div class="label">物体の重さ</div><div class="value" id="weightRead">196 N</div></div>
+        <div class="readout"><div class="label">定滑車の力</div><div class="value" id="fixedRead">196 N</div></div>
+        <div class="readout"><div class="label">動滑車1つの力</div><div class="value" id="singleRead">98 N</div></div>
+        <div class="readout"><div class="label">複数動滑車の力</div><div class="value" id="multiRead">33 N</div></div>
+      </div>
+      <div class="formula" id="formulaBox">
+        <strong>理想条件：</strong>
+        支える紐が <span id="supportText">6</span> 本なら、必要な力は重さの <span id="ratioText">1/6</span>。
+        そのかわり、同じ高さまで上げるには紐を <span id="distanceText">6倍</span> 引きます。
+      </div>
+    </aside>
+  </div>
+</main>
+<script>
+(() => {
+  const canvas = document.getElementById("scene");
+  const ctx = canvas.getContext("2d");
+  const dpr = Math.max(1, window.devicePixelRatio || 1);
+  const inputs = {
+    liftHeight: document.getElementById("liftHeight"),
+    mass: document.getElementById("mass"),
+    objectType: document.getElementById("objectType"),
+    multiCount: document.getElementById("multiCount"),
+    showMulti: document.getElementById("showMulti"),
+    showGuide: document.getElementById("showGuide")
+  };
+  const outs = {
+    liftHeight: document.getElementById("liftHeightOut"),
+    mass: document.getElementById("massOut"),
+    multiCount: document.getElementById("multiCountOut"),
+    weight: document.getElementById("weightRead"),
+    fixed: document.getElementById("fixedRead"),
+    single: document.getElementById("singleRead"),
+    multi: document.getElementById("multiRead"),
+    supportText: document.getElementById("supportText"),
+    ratioText: document.getElementById("ratioText"),
+    distanceText: document.getElementById("distanceText"),
+    formulaBox: document.getElementById("formulaBox")
+  };
+  const colors = {
+    ropeActive: "#2f77c8",
+    lift: "#1e8a5a",
+    force: "#c43e33",
+    support: "#8b4dc2",
+    rope: "#b9853a"
+  };
+  let showMulti = true;
+  let showGuide = true;
+
+  function state() {
+    const liftCm = Number(inputs.liftHeight.value);
+    const massKg = Number(inputs.mass.value);
+    const multiMovable = Number(inputs.multiCount.value);
+    const weightN = massKg * 9.8;
+    return {
+      liftCm,
+      liftM: liftCm / 100,
+      massKg,
+      weightN,
+      objectType: inputs.objectType.value,
+      multiMovable,
+      multiSupports: multiMovable * 2
+    };
+  }
+
+  function setCanvasSize() {
+    const rect = canvas.getBoundingClientRect();
+    canvas.width = Math.max(1, Math.round(rect.width * dpr));
+    canvas.height = Math.max(1, Math.round(rect.height * dpr));
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+
+  function fmtN(value) {
+    return `${Math.round(value)} N`;
+  }
+
+  function updateReadouts(s) {
+    outs.liftHeight.textContent = `${s.liftCm} cm`;
+    outs.mass.textContent = `${s.massKg} kg`;
+    outs.multiCount.textContent = `${s.multiMovable}個`;
+    outs.weight.textContent = fmtN(s.weightN);
+    outs.fixed.textContent = fmtN(s.weightN);
+    outs.single.textContent = fmtN(s.weightN / 2);
+    outs.multi.textContent = fmtN(s.weightN / s.multiSupports);
+    outs.supportText.textContent = s.multiSupports;
+    outs.ratioText.textContent = `1/${s.multiSupports}`;
+    outs.distanceText.textContent = `${s.multiSupports}倍`;
+    outs.formulaBox.style.display = showGuide ? "block" : "none";
+    inputs.showMulti.setAttribute("aria-pressed", String(showMulti));
+    inputs.showGuide.setAttribute("aria-pressed", String(showGuide));
+  }
+
+  function line(x1, y1, x2, y2, color, width = 3, dash = []) {
+    ctx.save();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = width;
+    ctx.lineCap = "round";
+    ctx.setLineDash(dash);
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function ropeLine(x1, y1, x2, y2, color, width = 5) {
+    line(x1 + 2, y1 + 3, x2 + 2, y2 + 3, "rgba(47, 36, 22, .18)", width + 2);
+    line(x1, y1, x2, y2, color, width);
+    line(x1 - 1, y1 - 1, x2 - 1, y2 - 1, "rgba(255, 255, 255, .35)", Math.max(1, width * .28));
+  }
+
+  function beam3d(x1, y, x2, depth = 10) {
+    const grad = ctx.createLinearGradient(0, y - 8, 0, y + depth);
+    grad.addColorStop(0, "#9aa6b5");
+    grad.addColorStop(.45, "#6f7d8d");
+    grad.addColorStop(1, "#465362");
+    ctx.save();
+    ctx.fillStyle = "rgba(20, 31, 45, .12)";
+    ctx.beginPath();
+    ctx.roundRect(x1 + 5, y + depth, x2 - x1, 8, 5);
+    ctx.fill();
+    ctx.fillStyle = grad;
+    ctx.strokeStyle = "#516071";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.roundRect(x1, y - 5, x2 - x1, 12, 6);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = "#c7d0da";
+    ctx.fillRect(x1 + 6, y - 3, Math.max(10, x2 - x1 - 12), 2);
+    ctx.restore();
+  }
+
+  function post3d(x, y1, y2) {
+    const grad = ctx.createLinearGradient(x - 6, 0, x + 8, 0);
+    grad.addColorStop(0, "#d1d8e1");
+    grad.addColorStop(.45, "#758294");
+    grad.addColorStop(1, "#3f4c5b");
+    ctx.save();
+    ctx.fillStyle = "rgba(18, 29, 43, .12)";
+    ctx.fillRect(x + 6, y1 + 8, 7, y2 - y1);
+    ctx.fillStyle = grad;
+    ctx.strokeStyle = "#526173";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.roundRect(x - 5, y1, 12, y2 - y1, 6);
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function arrow(x1, y1, x2, y2, color, label, labelSide = 1) {
+    line(x1, y1, x2, y2, color, 4);
+    const angle = Math.atan2(y2 - y1, x2 - x1);
+    const head = 10;
+    ctx.save();
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.moveTo(x2, y2);
+    ctx.lineTo(x2 - head * Math.cos(angle - Math.PI / 6), y2 - head * Math.sin(angle - Math.PI / 6));
+    ctx.lineTo(x2 - head * Math.cos(angle + Math.PI / 6), y2 - head * Math.sin(angle + Math.PI / 6));
+    ctx.closePath();
+    ctx.fill();
+    ctx.font = "700 12px ui-sans-serif, system-ui";
+    ctx.textAlign = labelSide > 0 ? "left" : "right";
+    ctx.textBaseline = "middle";
+    const tx = x2 + 8 * labelSide;
+    const labelWidth = ctx.measureText(label).width;
+    const boxX = labelSide > 0 ? tx - 4 : tx - labelWidth - 4;
+    ctx.fillStyle = "rgba(255, 255, 255, .86)";
+    ctx.beginPath();
+    ctx.roundRect(boxX, y2 - 10, labelWidth + 8, 20, 5);
+    ctx.fill();
+    ctx.fillStyle = color;
+    ctx.fillText(label, tx, y2);
+    ctx.restore();
+  }
+
+  function pulley(x, y, r, movable = false) {
+    ctx.save();
+    ctx.fillStyle = "rgba(18, 30, 45, .18)";
+    ctx.beginPath();
+    ctx.ellipse(x + 8, y + r * .62, r * 1.05, r * .26, 0, 0, Math.PI * 2);
+    ctx.fill();
+    const rim = ctx.createRadialGradient(x - r * .25, y - r * .28, r * .15, x, y, r * 1.1);
+    rim.addColorStop(0, "#ffffff");
+    rim.addColorStop(.45, movable ? "#dfeaff" : "#edf2f7");
+    rim.addColorStop(1, "#7d8a9b");
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = "#526174";
+    ctx.fillStyle = rim;
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    const groove = ctx.createRadialGradient(x, y, r * .2, x, y, r * .75);
+    groove.addColorStop(0, "#f8fbff");
+    groove.addColorStop(.75, "#bac5d1");
+    groove.addColorStop(1, "#718091");
+    ctx.fillStyle = groove;
+    ctx.strokeStyle = "#738295";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(x, y, r * 0.55, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = "#465365";
+    ctx.strokeStyle = "#eef3f8";
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(x, y, Math.max(4, r * .15), 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = "rgba(255, 255, 255, .48)";
+    ctx.beginPath();
+    ctx.ellipse(x - r * .28, y - r * .32, r * .22, r * .1, -0.45, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function drawSuspensionHook(x, y1, y2) {
+    post3d(x, y1, y2);
+    ctx.save();
+    ctx.strokeStyle = "#4f5d6e";
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(x, y2 + 4, 8, Math.PI * .15, Math.PI * .9);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawLoad(x, y, type, scale = 1) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.scale(scale, scale);
+    ctx.fillStyle = "rgba(18, 30, 45, .18)";
+    ctx.beginPath();
+    ctx.ellipse(7, 34, 46, 11, 0, 0, Math.PI * 2);
+    ctx.fill();
+    if (type === "crate") {
+      const front = ctx.createLinearGradient(0, -24, 0, 24);
+      front.addColorStop(0, "#c9904d");
+      front.addColorStop(1, "#8f5e2f");
+      ctx.fillStyle = "#936334";
+      ctx.beginPath();
+      ctx.moveTo(34, -24);
+      ctx.lineTo(44, -31);
+      ctx.lineTo(44, 17);
+      ctx.lineTo(34, 24);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = "#d19a5a";
+      ctx.beginPath();
+      ctx.moveTo(-34, -24);
+      ctx.lineTo(-24, -31);
+      ctx.lineTo(44, -31);
+      ctx.lineTo(34, -24);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = front;
+      ctx.strokeStyle = "#704922";
+      ctx.lineWidth = 2;
+      ctx.fillRect(-34, -24, 68, 48);
+      ctx.strokeRect(-34, -24, 68, 48);
+      line(-34, -24, 34, 24, "#7c552f", 2);
+      line(34, -24, -34, 24, "#7c552f", 2);
+    } else if (type === "weight") {
+      const metal = ctx.createLinearGradient(0, -26, 0, 24);
+      metal.addColorStop(0, "#768293");
+      metal.addColorStop(.45, "#4e5966");
+      metal.addColorStop(1, "#2f3741");
+      ctx.fillStyle = metal;
+      ctx.strokeStyle = "#2f3741";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.roundRect(-32, -18, 64, 42, 8);
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = "rgba(255, 255, 255, .22)";
+      ctx.fillRect(-22, -13, 16, 32);
+      ctx.beginPath();
+      ctx.arc(0, -18, 14, Math.PI, 0);
+      ctx.stroke();
+    } else if (type === "books") {
+      const colors = ["#3b77b6", "#d65f45", "#4f9a66", "#e0b34c"];
+      colors.forEach((color, i) => {
+        ctx.fillStyle = color;
+        ctx.fillRect(-34 + i * 3, -24 + i * 11, 68 - i * 4, 10);
+      });
+      ctx.strokeStyle = "#273241";
+      ctx.strokeRect(-34, -24, 68, 44);
+      ctx.fillStyle = "rgba(255, 255, 255, .34)";
+      ctx.fillRect(-26, -21, 46, 3);
+    } else if (type === "piano") {
+      const piano = ctx.createLinearGradient(0, -25, 0, 24);
+      piano.addColorStop(0, "#505968");
+      piano.addColorStop(.5, "#303742");
+      piano.addColorStop(1, "#171c24");
+      ctx.fillStyle = piano;
+      ctx.fillRect(-38, -25, 76, 43);
+      ctx.fillStyle = "#232a34";
+      ctx.beginPath();
+      ctx.moveTo(38, -25);
+      ctx.lineTo(48, -32);
+      ctx.lineTo(48, 10);
+      ctx.lineTo(38, 18);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = "#f6f7f9";
+      for (let i = 0; i < 7; i++) ctx.fillRect(-30 + i * 8, 6, 6, 10);
+      ctx.fillStyle = "#202630";
+      ctx.beginPath();
+      ctx.arc(-25, 23, 5, 0, Math.PI * 2);
+      ctx.arc(25, 23, 5, 0, Math.PI * 2);
+      ctx.fill();
+    } else {
+      const body = ctx.createLinearGradient(0, -24, 0, 24);
+      body.addColorStop(0, "#ffffff");
+      body.addColorStop(.55, "#f4f1e9");
+      body.addColorStop(1, "#d6d1c5");
+      ctx.fillStyle = body;
+      ctx.strokeStyle = "#596473";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.roundRect(-42, -22, 84, 42, 18);
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = "#d8d2c6";
+      ctx.beginPath();
+      ctx.ellipse(16, 2, 28, 20, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#f2d7c6";
+      ctx.beginPath();
+      ctx.arc(-20, -24, 9, 0, Math.PI * 2);
+      ctx.arc(22, -24, 9, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#2d343d";
+      ctx.beginPath();
+      ctx.arc(-14, -4, 3, 0, Math.PI * 2);
+      ctx.arc(16, -4, 3, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#f5c5cc";
+      ctx.beginPath();
+      ctx.arc(1, 6, 4, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#303742";
+      ctx.beginPath();
+      ctx.arc(-25, 21, 6, 0, Math.PI * 2);
+      ctx.arc(25, 21, 6, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "rgba(255, 255, 255, .45)";
+      ctx.beginPath();
+      ctx.ellipse(-15, -15, 20, 6, -.2, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#425063";
+      ctx.font = "700 10px ui-sans-serif, system-ui";
+      ctx.textAlign = "center";
+      ctx.fillText("SHIROMO", 0, 33);
+    }
+    ctx.restore();
+  }
+
+  function label(text, x, y, opts = {}) {
+    ctx.save();
+    ctx.font = opts.font || "800 14px ui-sans-serif, system-ui";
+    ctx.fillStyle = opts.color || "#182230";
+    ctx.textAlign = opts.align || "center";
+    ctx.textBaseline = "middle";
+    if (opts.box) {
+      const w = ctx.measureText(text).width + 16;
+      ctx.fillStyle = opts.box;
+      ctx.beginPath();
+      ctx.roundRect(x - w / 2, y - 13, w, 26, 7);
+      ctx.fill();
+      ctx.fillStyle = opts.color || "#182230";
+    }
+    ctx.fillText(text, x, y);
+    ctx.restore();
+  }
+
+  function panelFrame(x, y, w, h, title) {
+    ctx.save();
+    const bg = ctx.createLinearGradient(0, y, 0, y + h);
+    bg.addColorStop(0, "#fbfdff");
+    bg.addColorStop(.55, "#f5f8fb");
+    bg.addColorStop(1, "#e8eef4");
+    ctx.fillStyle = "rgba(18, 30, 45, .12)";
+    ctx.beginPath();
+    ctx.roundRect(x + 5, y + 7, w, h, 10);
+    ctx.fill();
+    ctx.fillStyle = bg;
+    ctx.strokeStyle = "#d7e0ea";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.roundRect(x, y, w, h, 10);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = "rgba(93, 111, 129, .08)";
+    ctx.beginPath();
+    ctx.moveTo(x + 18, y + h - 98);
+    ctx.lineTo(x + w - 18, y + h - 126);
+    ctx.lineTo(x + w - 18, y + h - 44);
+    ctx.lineTo(x + 18, y + h - 20);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = "rgba(93, 111, 129, .12)";
+    ctx.lineWidth = 1;
+    for (let i = 0; i < 5; i++) {
+      const yy = y + h - 104 + i * 18;
+      line(x + 24, yy, x + w - 24, yy - 20, "rgba(93, 111, 129, .12)", 1);
+    }
+    label(title, x + w / 2, y + 24, { font: "800 16px ui-sans-serif, system-ui" });
+    ctx.restore();
+  }
+
+  function drawFixed(area, s) {
+    const { x, y, w, h } = area;
+    panelFrame(x, y, w, h, "定滑車");
+    const top = y + 70;
+    const px = x + w * 0.5;
+    const py = top + 46;
+    const loadY = y + h - 116 - s.liftCm * 0.55;
+    beam3d(x + 48, top, x + w - 48);
+    drawSuspensionHook(px, top + 4, py - 25);
+    pulley(px, py, 28, false);
+    ropeLine(px - 28, py, px - 28, loadY - 28, colors.support, 5);
+    ropeLine(px + 28, py, px + 28, y + h - 82 + s.liftCm * 0.55, colors.ropeActive, 5);
+    post3d(px - 28, loadY - 28, loadY - 8);
+    drawLoad(px - 28, loadY + 22, s.objectType, 0.9);
+    arrow(px + 48, y + h - 120, px + 48, y + h - 120 + Math.min(92, s.liftCm * 0.7), colors.ropeActive, `${s.liftCm} cm`, -1);
+    arrow(px - 82, y + h - 94, px - 82, y + h - 94 - Math.min(145, s.liftCm * 1.15), colors.lift, `${s.liftCm} cm`, -1);
+    arrow(px + 78, py + 78, px + 78, py + 138, colors.force, fmtN(s.weightN), -1);
+    label("支える紐 1本", x + w / 2, y + h - 58, { box: "#f3eefe", color: "#583586", font: "800 12px ui-sans-serif, system-ui" });
+    label(`仕事 ${Math.round(s.weightN * s.liftM)} J`, x + w / 2, y + h - 32, { color: "#7b4800", font: "800 12px ui-sans-serif, system-ui" });
+  }
+
+  function drawSingleMovable(area, s) {
+    const { x, y, w, h } = area;
+    panelFrame(x, y, w, h, "動滑車1つ");
+    const top = y + 70;
+    const left = x + w * 0.36;
+    const right = x + w * 0.64;
+    const loadY = y + h - 118 - s.liftCm * 0.55;
+    const py = loadY - 40;
+    beam3d(x + 48, top, x + w - 48);
+    ropeLine(left, top, left, py, colors.support, 5);
+    ropeLine(left, py, right, py, colors.rope, 5);
+    ropeLine(right, py, right, y + h - 82 + s.liftCm * 1.1, colors.ropeActive, 5);
+    pulley(left, py, 27, true);
+    post3d(left, py + 27, loadY - 8);
+    drawLoad(left, loadY + 22, s.objectType, 0.9);
+    arrow(right + 22, y + h - 120, right + 22, y + h - 120 + Math.min(96, s.liftCm * 0.9), colors.ropeActive, `${s.liftCm * 2} cm`, -1);
+    arrow(left - 58, y + h - 94, left - 58, y + h - 94 - Math.min(145, s.liftCm * 1.15), colors.lift, `${s.liftCm} cm`, -1);
+    arrow(right + 50, py + 70, right + 50, py + 125, colors.force, fmtN(s.weightN / 2));
+    label("支える紐 2本", x + w / 2, y + h - 58, { box: "#f3eefe", color: "#583586", font: "800 12px ui-sans-serif, system-ui" });
+    label(`仕事 ${Math.round((s.weightN / 2) * s.liftM * 2)} J`, x + w / 2, y + h - 32, { color: "#7b4800", font: "800 12px ui-sans-serif, system-ui" });
+  }
+
+  function drawMultiple(area, s) {
+    const { x, y, w, h } = area;
+    panelFrame(x, y, w, h, `複数動滑車 ${s.multiMovable}個`);
+    const top = y + 70;
+    const bottom = y + h - 150 - s.liftCm * 0.44;
+    const columns = s.multiSupports;
+    const left = x + 54;
+    const right = x + w - 54;
+    beam3d(x + 42, top, x + w - 42);
+    for (let i = 0; i < s.multiMovable; i++) {
+      const t = s.multiMovable === 1 ? 0.5 : i / (s.multiMovable - 1);
+      drawSuspensionHook(left + (right - left) * t, top + 4, top + 20);
+      pulley(left + (right - left) * t, top + 40, 21, false);
+      pulley(left + (right - left) * t, bottom, 21, true);
+    }
+    for (let i = 0; i < columns; i++) {
+      const t = columns === 1 ? 0.5 : i / (columns - 1);
+      const rx = left + (right - left) * t;
+      const color = i === columns - 1 ? colors.ropeActive : colors.support;
+      ropeLine(rx, top + 40, rx, bottom, color, 4);
+    }
+    beam3d(left, bottom + 22, right, 7);
+    post3d((left + right) / 2, bottom + 25, bottom + 45);
+    drawLoad((left + right) / 2, bottom + 76, s.objectType, 0.86);
+    const pullDistance = s.liftCm * s.multiSupports;
+    arrow(right + 18, y + h - 122, right + 18, y + h - 122 + Math.min(98, pullDistance * 0.18), colors.ropeActive, `${pullDistance} cm`, -1);
+    arrow(left - 24, y + h - 96, left - 24, y + h - 96 - Math.min(145, s.liftCm * 1.15), colors.lift, `${s.liftCm} cm`, -1);
+    arrow(right + 34, bottom + 70, right + 34, bottom + 120, colors.force, fmtN(s.weightN / s.multiSupports), -1);
+    label(`支える紐 ${s.multiSupports}本`, x + w / 2, y + h - 58, { box: "#f3eefe", color: "#583586", font: "800 12px ui-sans-serif, system-ui" });
+    label(`仕事 ${Math.round((s.weightN / s.multiSupports) * s.liftM * s.multiSupports)} J`, x + w / 2, y + h - 32, { color: "#7b4800", font: "800 12px ui-sans-serif, system-ui" });
+  }
+
+  function render() {
+    setCanvasSize();
+    const s = state();
+    updateReadouts(s);
+    const rect = canvas.getBoundingClientRect();
+    const w = rect.width;
+    const h = rect.height;
+    ctx.clearRect(0, 0, w, h);
+    ctx.fillStyle = "#eef4f8";
+    ctx.fillRect(0, 0, w, h);
+    ctx.save();
+    const gap = 12;
+    const count = showMulti ? 3 : 2;
+    const panelW = (w - gap * (count + 1)) / count;
+    const panelH = h - 24;
+    const baseY = 12;
+    drawFixed({ x: gap, y: baseY, w: panelW, h: panelH }, s);
+    drawSingleMovable({ x: gap * 2 + panelW, y: baseY, w: panelW, h: panelH }, s);
+    if (showMulti) {
+      drawMultiple({ x: gap * 3 + panelW * 2, y: baseY, w: panelW, h: panelH }, s);
+    }
+    ctx.restore();
+  }
+
+  Object.values(inputs).forEach((el) => {
+    if (el instanceof HTMLInputElement || el instanceof HTMLSelectElement) {
+      el.addEventListener("input", render);
+      el.addEventListener("change", render);
+    }
+  });
+  inputs.showMulti.addEventListener("click", () => {
+    showMulti = !showMulti;
+    render();
+  });
+  inputs.showGuide.addEventListener("click", () => {
+    showGuide = !showGuide;
+    render();
+  });
+  window.addEventListener("resize", render);
+  if (document.fonts && document.fonts.ready) {
+    document.fonts.ready.then(render);
+  }
+  render();
+})();
+</script>
+</body>
+</html>

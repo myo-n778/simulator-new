@@ -1,0 +1,1407 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>車上鉛直投げ上げシミュレーター</title>
+  <link rel="stylesheet" href="../../assets/common-sim.css">
+  <script src="../../assets/sim-shell.js"></script>
+  <script src="../../assets/sim-clock.js"></script>
+  <style>
+    :root {
+      --bg: #071018;
+      --panel: #0d1924;
+      --panel-2: #122435;
+      --panel-3: #172d40;
+      --line: #284257;
+      --line-soft: rgba(196, 218, 235, .18);
+      --ink: #edf8ff;
+      --muted: #9eb4c7;
+      --cyan: #4fd9f6;
+      --blue: #7fb2ff;
+      --amber: #ffca66;
+      --green: #80e5a5;
+      --red: #ff6f7d;
+      --shadow: rgba(0, 0, 0, .36);
+      --radius: 8px;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      margin: 0;
+      min-height: 100%;
+      background:
+        radial-gradient(circle at 18% 12%, rgba(79, 217, 246, .11), transparent 31%),
+        radial-gradient(circle at 80% 8%, rgba(255, 202, 102, .08), transparent 25%),
+        linear-gradient(180deg, #0b1823 0%, var(--bg) 58%, #050a0f 100%);
+      color: var(--ink);
+      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Hiragino Kaku Gothic ProN", Meiryo, sans-serif;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    button,
+    input {
+      font: inherit;
+    }
+
+    .app {
+      width: min(1480px, calc(100% - 24px));
+      margin: 14px auto 24px;
+      display: grid;
+      grid-template-columns: 324px minmax(0, 1fr);
+      gap: 12px;
+      align-items: start;
+    }
+
+    .stage-panel,
+    .control-panel,
+    .readout-panel {
+      min-width: 0;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: linear-gradient(180deg, rgba(17, 33, 47, .98), rgba(8, 18, 28, .98));
+      box-shadow: 0 18px 44px var(--shadow);
+    }
+
+    .stage-panel {
+      grid-column: 2;
+      grid-row: 1;
+      overflow: hidden;
+    }
+
+    .panel-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      min-height: 56px;
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    h1,
+    h2,
+    h3 {
+      margin: 0;
+      letter-spacing: 0;
+    }
+
+    h1 {
+      font-size: 18px;
+      line-height: 1.25;
+    }
+
+    h2 {
+      font-size: 15px;
+      line-height: 1.25;
+    }
+
+    h3 {
+      font-size: 13px;
+      line-height: 1.2;
+    }
+
+    .formula {
+      color: var(--muted);
+      font-size: 12px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .button-row,
+    .toggle-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .button-row {
+      justify-content: flex-end;
+    }
+
+    button {
+      min-height: 36px;
+      border: 1px solid #31516a;
+      border-radius: var(--radius);
+      background: #14283a;
+      color: var(--ink);
+      cursor: pointer;
+      padding: 7px 10px;
+      font-size: 13px;
+      font-weight: 700;
+      line-height: 1;
+      transition: border-color .15s ease, background-color .15s ease, transform .15s ease;
+    }
+
+    button:hover {
+      border-color: #5f8eaf;
+      background: #193349;
+    }
+
+    button:active {
+      transform: translateY(1px);
+    }
+
+    button.primary {
+      border-color: rgba(79, 217, 246, .78);
+      background: linear-gradient(180deg, #1d5366, #174052);
+      color: #f6fdff;
+    }
+
+    button.ghost {
+      background: rgba(12, 24, 36, .88);
+    }
+
+    .view-tabs {
+      display: inline-flex;
+      gap: 4px;
+      padding: 4px;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: rgba(8, 17, 27, .7);
+    }
+
+    .view-tabs button {
+      min-height: 30px;
+      padding: 5px 9px;
+      border-color: transparent;
+      background: transparent;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .view-tabs button.active {
+      border-color: #477796;
+      background: #163247;
+      color: var(--ink);
+    }
+
+    canvas {
+      display: block;
+      width: 100%;
+      height: min(66vh, 640px);
+      min-height: 500px;
+      border: 1px solid rgba(153, 190, 218, .22);
+      border-radius: var(--radius);
+      background: #07111a;
+    }
+
+    .hud {
+      position: absolute;
+      left: 24px;
+      right: 24px;
+      bottom: 24px;
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 8px;
+      pointer-events: none;
+    }
+
+    .hud-item {
+      min-width: 0;
+      border: 1px solid rgba(152, 180, 199, .22);
+      border-radius: var(--radius);
+      background: rgba(8, 17, 26, .78);
+      backdrop-filter: blur(8px);
+      padding: 7px 9px;
+    }
+
+    .hud-label {
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1.1;
+    }
+
+    .hud-value {
+      margin-top: 2px;
+      color: var(--ink);
+      font-size: 15px;
+      font-weight: 800;
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+
+    .right-stack {
+      grid-column: 1;
+      grid-row: 1;
+      display: grid;
+      gap: 12px;
+    }
+
+    .control-panel {
+      padding-bottom: 12px;
+    }
+
+    .control-group {
+      padding: 12px;
+      border-bottom: 1px solid var(--line-soft);
+      display: grid;
+      gap: 10px;
+    }
+
+    .control-group:last-child {
+      border-bottom: 0;
+    }
+
+    .control-title {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .control-title span {
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    .field {
+      display: grid;
+      gap: 5px;
+    }
+
+    .field label {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      color: #d9ebf8;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .field output {
+      color: var(--cyan);
+      font-variant-numeric: tabular-nums;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+
+    input[type="range"] {
+      width: 100%;
+      accent-color: var(--cyan);
+    }
+
+    .toggle {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 32px;
+      color: #d8e8f5;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    .toggle input {
+      width: 16px;
+      height: 16px;
+      accent-color: var(--cyan);
+    }
+
+    .readout-panel {
+      padding: 12px;
+      display: grid;
+      gap: 10px;
+    }
+
+    .readout-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .readout {
+      min-width: 0;
+      border: 1px solid rgba(152, 180, 199, .18);
+      border-radius: var(--radius);
+      background: rgba(12, 24, 36, .72);
+      padding: 8px;
+    }
+
+    .readout span {
+      display: block;
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1.15;
+    }
+
+    .readout b {
+      display: block;
+      margin-top: 3px;
+      color: var(--ink);
+      font-size: 14px;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .note {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.55;
+    }
+
+    .legend {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .legend i {
+      display: inline-block;
+      width: 10px;
+      height: 10px;
+      margin-right: 5px;
+      border-radius: 999px;
+      vertical-align: -1px;
+    }
+
+    @media (max-width: 1080px) {
+      .app {
+        grid-template-columns: 1fr;
+      }
+
+      .control-panel {
+        order: 2;
+      }
+
+      .stage-panel,
+      .right-stack {
+        grid-column: auto;
+        grid-row: auto;
+      }
+
+      .right-stack {
+        order: 1;
+      }
+    }
+
+    @media (max-width: 760px) {
+      .app {
+        width: calc(100% - 16px);
+        margin-top: 10px;
+      }
+
+      .panel-head,
+      .button-row {
+        align-items: stretch;
+        flex-direction: column;
+      }
+
+      .view-tabs {
+        width: 100%;
+      }
+
+      .view-tabs button {
+        flex: 1;
+      }
+
+      canvas {
+        min-height: 390px;
+        height: 56vh;
+      }
+
+      .readout-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .hud {
+        position: static;
+        margin-top: 8px;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+  </style>
+</head>
+<body>
+<script>
+  PhysicsSimShell.create({
+    title: '車上鉛直投げ上げ',
+    subtitle: '外部視点では斜方投射、車視点では鉛直投げ上げとして見る',
+    basePath: '../../'
+  });
+</script>
+
+<main class="app">
+  <section class="stage-panel">
+    <div class="panel-head">
+      <div>
+        <h1>車から見た鉛直投げ上げと外から見た斜方投射</h1>
+        <div class="formula">地上系: x'' = a_car + a_drag_x + a_wind, y'' = -g + a_drag_y ／ 車系: x_rel = x_ball - x_car</div>
+      </div>
+      <div class="button-row">
+        <div class="view-tabs" aria-label="表示視点">
+          <button type="button" class="active" data-view="split">2画面</button>
+          <button type="button" data-view="outside">外部</button>
+          <button type="button" data-view="car">車視点</button>
+        </div>
+        <button type="button" id="play" class="primary">再生</button>
+        <button type="button" id="step" class="ghost">1コマ</button>
+        <button type="button" id="reset" class="ghost">リセット</button>
+      </div>
+    </div>
+
+    <div class="canvas-wrap">
+      <canvas id="scene" width="1320" height="760" aria-label="車上鉛直投げ上げのシミュレーション"></canvas>
+      <div class="hud" aria-live="polite">
+        <div class="hud-item">
+          <div class="hud-label">時刻</div>
+          <div class="hud-value" id="timeHud">0.00 s</div>
+        </div>
+        <div class="hud-item">
+          <div class="hud-label">地上から見た速度</div>
+          <div class="hud-value" id="groundHud">0.00 m/s</div>
+        </div>
+        <div class="hud-item">
+          <div class="hud-label">車から見た横ずれ</div>
+          <div class="hud-value" id="relHud">0.00 m</div>
+        </div>
+        <div class="hud-item">
+          <div class="hud-label">高さ</div>
+          <div class="hud-value" id="heightHud">0.00 m</div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <aside class="right-stack">
+    <section class="control-panel">
+      <div class="control-group">
+        <div class="control-title">
+          <h2>基本設定</h2>
+          <span>投げ上げと車の条件</span>
+        </div>
+
+        <div class="field">
+          <label for="throwSpeed">鉛直初速度 v_y0 <output id="throwSpeedOut"></output></label>
+          <input id="throwSpeed" type="range" min="2" max="40" step="0.1" value="16">
+        </div>
+
+        <div class="field">
+          <label for="carSpeed">車の初速度 v_car <output id="carSpeedOut"></output></label>
+          <input id="carSpeed" type="range" min="-12" max="40" step="0.1" value="16">
+        </div>
+
+        <div class="field">
+          <label for="carAccel">車の加速度 a_car <output id="carAccelOut"></output></label>
+          <input id="carAccel" type="range" min="-6" max="6" step="0.1" value="0">
+        </div>
+
+        <div class="field">
+          <label for="gravity">重力加速度 g <output id="gravityOut"></output></label>
+          <input id="gravity" type="range" min="1" max="20" step="0.1" value="9.8">
+        </div>
+      </div>
+
+      <div class="control-group">
+        <div class="control-title">
+          <h2>オプション</h2>
+          <span>空気・風・表示</span>
+        </div>
+
+        <div class="field">
+          <label for="drag">空気抵抗 k <output id="dragOut"></output></label>
+          <input id="drag" type="range" min="0" max="0.12" step="0.002" value="0">
+        </div>
+
+        <div class="field">
+          <label for="wind">風の速度 w_x <output id="windOut"></output></label>
+          <input id="wind" type="range" min="-20" max="20" step="0.1" value="0">
+        </div>
+
+        <div class="field">
+          <label for="windAccel">風による加速度 a_w <output id="windAccelOut"></output></label>
+          <input id="windAccel" type="range" min="-4" max="4" step="0.1" value="0">
+        </div>
+
+        <div class="field">
+          <label for="playback">再生速度 <output id="playbackOut"></output></label>
+          <input id="playback" type="range" min="0.1" max="3" step="0.1" value="1">
+        </div>
+
+        <div class="toggle-row">
+          <label class="toggle"><input id="showTrail" type="checkbox" checked> 軌跡</label>
+          <label class="toggle"><input id="showVectors" type="checkbox" checked> 速度ベクトル</label>
+          <label class="toggle"><input id="showGhost" type="checkbox" checked> 抵抗なし比較</label>
+        </div>
+      </div>
+    </section>
+
+    <section class="readout-panel">
+      <div class="control-title">
+        <h2>読み取り</h2>
+        <span>外部系と車系</span>
+      </div>
+      <div class="readout-grid">
+        <div class="readout"><span>x_ball</span><b id="xRead">0.00 m</b></div>
+        <div class="readout"><span>x_car</span><b id="carRead">0.00 m</b></div>
+        <div class="readout"><span>x_rel</span><b id="relRead">0.00 m</b></div>
+        <div class="readout"><span>v_rel,x</span><b id="relVRead">0.00 m/s</b></div>
+        <div class="readout"><span>最高到達の目安</span><b id="apexRead">13.06 m</b></div>
+        <div class="readout"><span>状態</span><b id="statusRead">待機中</b></div>
+      </div>
+      <div class="legend">
+        <span><i style="background: var(--cyan)"></i>実際の投射物</span>
+        <span><i style="background: var(--amber)"></i>車</span>
+        <span><i style="background: var(--green)"></i>軌跡</span>
+        <span><i style="background: var(--blue)"></i>抵抗なし比較</span>
+      </div>
+      <p class="note">
+        空気抵抗を 0、風と車の加速度を 0 にすると、車から見た横位置はほぼ 0 のままです。
+        外から見ると、投射物は車の水平速度を受け継いで斜方投射になります。
+        再生速度 1.0x は実時間です。
+      </p>
+    </section>
+  </aside>
+</main>
+
+<script>
+(() => {
+  'use strict';
+
+  const canvas = document.getElementById('scene');
+  const ctx = canvas.getContext('2d');
+  const dpr = Math.max(1, Math.min(2.5, window.devicePixelRatio || 1));
+
+  const els = {
+    play: document.getElementById('play'),
+    step: document.getElementById('step'),
+    reset: document.getElementById('reset'),
+    timeHud: document.getElementById('timeHud'),
+    groundHud: document.getElementById('groundHud'),
+    relHud: document.getElementById('relHud'),
+    heightHud: document.getElementById('heightHud'),
+    xRead: document.getElementById('xRead'),
+    carRead: document.getElementById('carRead'),
+    relRead: document.getElementById('relRead'),
+    relVRead: document.getElementById('relVRead'),
+    apexRead: document.getElementById('apexRead'),
+    statusRead: document.getElementById('statusRead')
+  };
+
+  const controlDefs = [
+    ['throwSpeed', 'throwSpeedOut', ' m/s', 1],
+    ['carSpeed', 'carSpeedOut', ' m/s', 1],
+    ['carAccel', 'carAccelOut', ' m/s²', 1],
+    ['gravity', 'gravityOut', ' m/s²', 1],
+    ['drag', 'dragOut', '', 3],
+    ['wind', 'windOut', ' m/s', 1],
+    ['windAccel', 'windAccelOut', ' m/s²', 1],
+    ['playback', 'playbackOut', 'x', 1]
+  ];
+
+  const controls = {};
+  for (const [id, outId, unit, digits] of controlDefs) {
+    controls[id] = document.getElementById(id);
+    controls[outId] = document.getElementById(outId);
+    controls[id].addEventListener('input', () => {
+      updateControlLabels();
+      if (!state.playing) {
+        resetState();
+      }
+    });
+  }
+
+  controls.showTrail = document.getElementById('showTrail');
+  controls.showVectors = document.getElementById('showVectors');
+  controls.showGhost = document.getElementById('showGhost');
+
+  controls.showTrail.addEventListener('change', draw);
+  controls.showVectors.addEventListener('change', draw);
+  controls.showGhost.addEventListener('change', draw);
+
+  const state = {
+    viewMode: 'split',
+    playing: false,
+    landed: false,
+    carHit: false,
+    t: 0,
+    ball: { x: 0, y: 2.4, vx: 16, vy: 16 },
+    ghost: { x: 0, y: 2.4, vx: 16, vy: 16 },
+    car: { x: 0, v: 16 },
+    trail: [],
+    ghostTrail: [],
+    viewExtents: {
+      outside: { xmin: -4, xmax: 42, ymin: 0, ymax: 18 },
+      car: { xmin: -12, xmax: 12, ymin: 0, ymax: 18 }
+    }
+  };
+
+  const clock = new PhysicsSimClock.FixedStepClock({
+    step: 1 / 120,
+    maxFrameTime: 0.12,
+    maxStepsPerFrame: 18,
+    onStep: (dt) => {
+      const speed = read('playback');
+      stepSimulation(dt * speed);
+    },
+    onRender: draw
+  });
+
+  function read(id) {
+    return Number(controls[id].value);
+  }
+
+  function updateControlLabels() {
+    for (const [id, outId, unit, digits] of controlDefs) {
+      const value = read(id);
+      if (id === 'throwSpeed' || id === 'carSpeed' || id === 'wind') {
+        controls[outId].textContent = formatSpeed(value, digits);
+      } else if (id === 'playback') {
+        controls[outId].textContent = `${value.toFixed(digits)}x${Math.abs(value - 1) < 0.001 ? ' = 実時間' : ''}`;
+      } else {
+        controls[outId].textContent = `${value.toFixed(digits)}${unit}`;
+      }
+    }
+    const g = Math.max(0.001, read('gravity'));
+    const vy = read('throwSpeed');
+    els.apexRead.textContent = `${(launchHeight() + vy * vy / (2 * g)).toFixed(2)} m`;
+  }
+
+  function launchHeight() {
+    return 2.4;
+  }
+
+  function formatSpeed(value, digits = 1) {
+    return `${value.toFixed(digits)} m/s / ${(value * 3.6).toFixed(digits)} km/h`;
+  }
+
+  function carCatchWidth() {
+    return 1.8;
+  }
+
+  function resetState() {
+    const vy = read('throwSpeed');
+    const vx = read('carSpeed');
+    state.playing = false;
+    state.landed = false;
+    state.carHit = false;
+    state.t = 0;
+    state.car = { x: 0, v: vx };
+    const y0 = launchHeight();
+    state.ball = { x: 0, y: y0, vx, vy };
+    state.ghost = { x: 0, y: y0, vx, vy };
+    state.trail = [{ x: 0, y: y0, carX: 0 }];
+    state.ghostTrail = [{ x: 0, y: y0, carX: 0 }];
+    state.viewExtents = computeViewExtents();
+    clock.pause();
+    els.play.textContent = '再生';
+    updateReadouts();
+    draw();
+  }
+
+  function computeViewExtents() {
+    const y0 = launchHeight();
+    const vy = read('throwSpeed');
+    const vx = read('carSpeed');
+    const g = Math.max(0.001, read('gravity'));
+    const carAccel = read('carAccel');
+    const windAccel = read('windAccel');
+    const dragK = read('drag');
+    const flightTime = Math.max(1.2, (vy + Math.sqrt(vy * vy + 2 * g * y0)) / g);
+    const ballX = vx * flightTime + 0.5 * windAccel * flightTime * flightTime;
+    const carX = vx * flightTime + 0.5 * carAccel * flightTime * flightTime;
+    const dragDrift = Math.abs(vx) * flightTime * Math.min(0.55, dragK * 2.2);
+    const relX = ballX - carX - Math.sign(vx || 1) * dragDrift;
+    const xMin = Math.min(0, ballX, carX, relX) - 7;
+    const xMax = Math.max(18, ballX, carX, relX) + 9;
+    const yMax = Math.max(8, y0 + vy * vy / (2 * g)) + 3.5;
+    const relHalf = Math.max(8, Math.abs(relX) + dragDrift + 5);
+    return {
+      outside: { xmin: xMin, xmax: xMax, ymin: 0, ymax: yMax },
+      car: { xmin: -relHalf, xmax: relHalf, ymin: 0, ymax: yMax }
+    };
+  }
+
+  function stepSimulation(dt) {
+    if (state.landed) {
+      setPlaying(false);
+      return;
+    }
+
+    const g = read('gravity');
+    const carAccel = read('carAccel');
+    const dragK = read('drag');
+    const wind = read('wind');
+    const windAccel = read('windAccel');
+
+    state.t += dt;
+
+    const prevBall = { ...state.ball };
+    const prevCar = { ...state.car };
+
+    state.car.v += carAccel * dt;
+    state.car.x += state.car.v * dt;
+
+    const relativeAirVx = state.ball.vx - wind;
+    const relativeAirVy = state.ball.vy;
+    const airSpeed = Math.hypot(relativeAirVx, relativeAirVy);
+    const dragScale = 0.12;
+    const dragAx = -dragK * dragScale * airSpeed * relativeAirVx;
+    const dragAy = -dragK * dragScale * airSpeed * relativeAirVy;
+
+    state.ball.vx += (dragAx + windAccel) * dt;
+    state.ball.vy += (-g + dragAy) * dt;
+    state.ball.x += state.ball.vx * dt;
+    state.ball.y += state.ball.vy * dt;
+
+    state.ghost.vy += -g * dt;
+    state.ghost.x += state.ghost.vx * dt;
+    state.ghost.y += state.ghost.vy * dt;
+
+    if (detectCarHit(prevBall, prevCar)) {
+      state.ball.y = launchHeight();
+      state.ball.vx = state.car.v;
+      state.ball.vy = 0;
+      state.carHit = true;
+      state.landed = true;
+    } else if (state.ball.y <= 0) {
+      state.ball.y = 0;
+      state.landed = true;
+    }
+
+    if (state.ghost.y < 0) {
+      state.ghost.y = 0;
+    }
+
+    if (state.trail.length === 0 || distance(state.trail[state.trail.length - 1], state.ball) > 0.04) {
+      state.trail.push({ x: state.ball.x, y: state.ball.y, carX: state.car.x });
+      if (state.trail.length > 900) state.trail.shift();
+    }
+
+    if (state.ghostTrail.length === 0 || distance(state.ghostTrail[state.ghostTrail.length - 1], state.ghost) > 0.04) {
+      state.ghostTrail.push({ x: state.ghost.x, y: state.ghost.y, carX: state.car.x });
+      if (state.ghostTrail.length > 900) state.ghostTrail.shift();
+    }
+
+    updateReadouts();
+  }
+
+  function distance(a, b) {
+    return Math.hypot(a.x - b.x, a.y - b.y);
+  }
+
+  function detectCarHit(prevBall, prevCar) {
+    const y0 = launchHeight();
+    if (prevBall.vy >= 0 || state.ball.vy > 0) return false;
+    if (!(prevBall.y >= y0 && state.ball.y <= y0)) return false;
+    const prevRel = prevBall.x - prevCar.x;
+    const rel = state.ball.x - state.car.x;
+    const crossedRoof = Math.abs(rel) <= carCatchWidth() || Math.abs(prevRel) <= carCatchWidth();
+    return crossedRoof;
+  }
+
+  function setPlaying(next) {
+    state.playing = next;
+    els.play.textContent = next ? '一時停止' : '再生';
+    if (next) {
+      clock.start();
+    } else {
+      clock.pause();
+    }
+    updateReadouts();
+  }
+
+  function updateReadouts() {
+    const speed = Math.hypot(state.ball.vx, state.ball.vy);
+    const relX = state.ball.x - state.car.x;
+    const relV = state.ball.vx - state.car.v;
+    els.timeHud.textContent = `${state.t.toFixed(2)} s`;
+    els.groundHud.textContent = formatSpeed(speed, 2);
+    els.relHud.textContent = `${relX.toFixed(2)} m`;
+    els.heightHud.textContent = `${state.ball.y.toFixed(2)} m`;
+    els.xRead.textContent = `${state.ball.x.toFixed(2)} m`;
+    els.carRead.textContent = `${state.car.x.toFixed(2)} m`;
+    els.relRead.textContent = `${relX.toFixed(2)} m`;
+    els.relVRead.textContent = formatSpeed(relV, 2);
+    els.statusRead.textContent = state.carHit ? '車に接触' : (state.landed ? '着地' : (state.playing ? '再生中' : '待機中'));
+  }
+
+  function resizeCanvas() {
+    const rect = canvas.getBoundingClientRect();
+    canvas.width = Math.max(320, Math.floor(rect.width * dpr));
+    canvas.height = Math.max(320, Math.floor(rect.height * dpr));
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    draw();
+  }
+
+  function clear() {
+    const w = canvas.width / dpr;
+    const h = canvas.height / dpr;
+    ctx.clearRect(0, 0, w, h);
+    const grad = ctx.createLinearGradient(0, 0, 0, h);
+    grad.addColorStop(0, '#091923');
+    grad.addColorStop(.55, '#07131c');
+    grad.addColorStop(1, '#050a0f');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, w, h);
+  }
+
+  function draw() {
+    clear();
+    const w = canvas.width / dpr;
+    const h = canvas.height / dpr;
+    const pad = 14;
+    if (state.viewMode === 'split') {
+      if (w < 720) {
+        const top = { x: pad, y: pad, w: w - pad * 2, h: (h - pad * 3) / 2 };
+        const bottom = { x: pad, y: top.y + top.h + pad, w: w - pad * 2, h: top.h };
+        drawPanel(top, '外から見る：斜方投射', 'outside');
+        drawPanel(bottom, '車から見る：鉛直投げ上げ', 'car');
+      } else {
+        const left = { x: pad, y: pad, w: (w - pad * 3) * .58, h: h - pad * 2 };
+        const right = { x: left.x + left.w + pad, y: pad, w: w - left.w - pad * 3, h: h - pad * 2 };
+        drawPanel(left, '外から見る：斜方投射', 'outside');
+        drawPanel(right, '車から見る：鉛直投げ上げ', 'car');
+      }
+    } else {
+      drawPanel({ x: pad, y: pad, w: w - pad * 2, h: h - pad * 2 }, state.viewMode === 'outside' ? '外から見る：斜方投射' : '車から見る：鉛直投げ上げ', state.viewMode);
+    }
+  }
+
+  function drawPanel(rect, title, mode) {
+    ctx.save();
+    roundRect(rect.x, rect.y, rect.w, rect.h, 8);
+    ctx.clip();
+    drawSceneBackground(rect, mode);
+    drawWorld(rect, mode);
+    drawPanelChrome(rect, title, mode);
+    ctx.restore();
+    ctx.strokeStyle = 'rgba(162, 199, 226, .25)';
+    ctx.lineWidth = 1;
+    roundRect(rect.x + .5, rect.y + .5, rect.w - 1, rect.h - 1, 8);
+    ctx.stroke();
+  }
+
+  function worldExtents(mode) {
+    return state.viewExtents[mode] || state.viewExtents.outside;
+  }
+
+  function project(rect, mode, x, y) {
+    const ex = worldExtents(mode);
+    const groundY = rect.y + rect.h * .78;
+    const topY = rect.y + rect.h * .12;
+    const sx = (rect.w * .82) / Math.max(1, ex.xmax - ex.xmin);
+    const sy = (groundY - topY) / Math.max(1, ex.ymax - ex.ymin);
+    const s = Math.min(sx, sy);
+    const centerX = mode === 'car' ? 0 : (ex.xmin + ex.xmax) / 2;
+    const px = rect.x + rect.w * .5 + (x - centerX) * s;
+    const py = groundY - y * s;
+    return { x: px, y: py, s, groundY };
+  }
+
+  function drawSceneBackground(rect, mode) {
+    const sky = ctx.createLinearGradient(0, rect.y, 0, rect.y + rect.h);
+    sky.addColorStop(0, '#0b2330');
+    sky.addColorStop(.55, '#0a1721');
+    sky.addColorStop(.56, '#0d1b22');
+    sky.addColorStop(1, '#071017');
+    ctx.fillStyle = sky;
+    ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
+
+    const horizon = rect.y + rect.h * .56;
+    const ground = rect.y + rect.h * .78;
+    const motionPhase = mode === 'car' ? positiveModulo(state.car.x * .08, 1) : 0;
+    if (mode === 'outside') {
+      drawOutsideBackground(rect, horizon, ground);
+      return;
+    }
+
+    ctx.fillStyle = 'rgba(30, 54, 68, .75)';
+    ctx.beginPath();
+    ctx.moveTo(rect.x, horizon + 16);
+    for (let i = 0; i <= 8; i += 1) {
+      const x = rect.x + rect.w * (i / 8);
+      const y = horizon + 10 + Math.sin(i * 1.7 + (mode === 'car' ? 1 : 0)) * 16 - (i % 3) * 8;
+      ctx.lineTo(x, y);
+    }
+    ctx.lineTo(rect.x + rect.w, ground);
+    ctx.lineTo(rect.x, ground);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.strokeStyle = 'rgba(130, 168, 194, .18)';
+    ctx.lineWidth = 1;
+    for (let i = 0; i < 9; i += 1) {
+      const t = mode === 'car' ? positiveModulo(i / 8 + motionPhase * .22, 1) : i / 8;
+      const y = horizon + (ground - horizon) * Math.pow(t, 1.65);
+      ctx.beginPath();
+      ctx.moveTo(rect.x, y);
+      ctx.lineTo(rect.x + rect.w, y);
+      ctx.stroke();
+    }
+
+    const vanishingX = rect.x + rect.w * (mode === 'car' ? .5 : .58);
+    for (let i = -5; i <= 5; i += 1) {
+      ctx.beginPath();
+      ctx.moveTo(vanishingX, horizon);
+      ctx.lineTo(rect.x + rect.w * (.5 + i * .16), ground);
+      ctx.stroke();
+    }
+
+    ctx.fillStyle = 'rgba(10, 18, 24, .68)';
+    ctx.beginPath();
+    ctx.moveTo(rect.x, ground);
+    ctx.lineTo(rect.x + rect.w, ground);
+    ctx.lineTo(rect.x + rect.w, rect.y + rect.h);
+    ctx.lineTo(rect.x, rect.y + rect.h);
+    ctx.closePath();
+    ctx.fill();
+
+    const roadLeft = rect.x + rect.w * (mode === 'car' ? .12 : .04);
+    const roadRight = rect.x + rect.w * (mode === 'car' ? .88 : .96);
+    const vanishingX2 = rect.x + rect.w * (mode === 'car' ? .5 : .58);
+    ctx.fillStyle = 'rgba(20, 26, 31, .82)';
+    ctx.beginPath();
+    ctx.moveTo(vanishingX2 - rect.w * .035, horizon);
+    ctx.lineTo(vanishingX2 + rect.w * .035, horizon);
+    ctx.lineTo(roadRight, rect.y + rect.h);
+    ctx.lineTo(roadLeft, rect.y + rect.h);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(235, 244, 252, .55)';
+    ctx.lineWidth = 2;
+    for (const side of [-1, 1]) {
+      ctx.beginPath();
+      ctx.moveTo(vanishingX2 + side * rect.w * .035, horizon);
+      ctx.lineTo(side < 0 ? roadLeft : roadRight, rect.y + rect.h);
+      ctx.stroke();
+    }
+    ctx.strokeStyle = 'rgba(255, 255, 255, .46)';
+    ctx.setLineDash([12, 16]);
+    ctx.beginPath();
+    ctx.moveTo(vanishingX2, horizon);
+    ctx.lineTo(rect.x + rect.w * .5, rect.y + rect.h);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    if (mode === 'car') {
+      drawMovingRoadCues(rect, horizon, roadLeft, roadRight, vanishingX2, motionPhase);
+    }
+  }
+
+  function drawOutsideBackground(rect, horizon, ground) {
+    ctx.fillStyle = 'rgba(29, 54, 68, .78)';
+    ctx.beginPath();
+    ctx.moveTo(rect.x, horizon + 18);
+    for (let i = 0; i <= 9; i += 1) {
+      const x = rect.x + rect.w * (i / 9);
+      const y = horizon + 12 + Math.sin(i * 1.35) * 14 - (i % 4) * 4;
+      ctx.lineTo(x, y);
+    }
+    ctx.lineTo(rect.x + rect.w, ground + 8);
+    ctx.lineTo(rect.x, ground + 8);
+    ctx.closePath();
+    ctx.fill();
+
+    const roadTop = ground - rect.h * .06;
+    const roadBottom = ground + rect.h * .10;
+    const road = ctx.createLinearGradient(0, roadTop, 0, roadBottom);
+    road.addColorStop(0, '#1c2930');
+    road.addColorStop(.48, '#171e24');
+    road.addColorStop(1, '#0c1218');
+    ctx.fillStyle = road;
+    ctx.fillRect(rect.x, roadTop, rect.w, roadBottom - roadTop);
+    ctx.strokeStyle = 'rgba(240, 247, 255, .55)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(rect.x, roadTop + 2);
+    ctx.lineTo(rect.x + rect.w, roadTop + 2);
+    ctx.moveTo(rect.x, roadBottom - 2);
+    ctx.lineTo(rect.x + rect.w, roadBottom - 2);
+    ctx.stroke();
+
+    ctx.strokeStyle = 'rgba(255, 255, 255, .6)';
+    ctx.lineWidth = 3;
+    ctx.setLineDash([28, 22]);
+    ctx.beginPath();
+    ctx.moveTo(rect.x, (roadTop + roadBottom) / 2);
+    ctx.lineTo(rect.x + rect.w, (roadTop + roadBottom) / 2);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    ctx.strokeStyle = 'rgba(130, 168, 194, .18)';
+    ctx.lineWidth = 1;
+    for (let i = 0; i < 8; i += 1) {
+      const y = ground + i * rect.h * .035;
+      ctx.beginPath();
+      ctx.moveTo(rect.x, y);
+      ctx.lineTo(rect.x + rect.w, y);
+      ctx.stroke();
+    }
+    for (let i = 0; i <= 10; i += 1) {
+      const x = rect.x + rect.w * (i / 10);
+      ctx.beginPath();
+      ctx.moveTo(x, ground);
+      ctx.lineTo(x - rect.w * .08, rect.y + rect.h);
+      ctx.stroke();
+    }
+  }
+
+  function drawMovingRoadCues(rect, horizon, roadLeft, roadRight, vanishingX, phase) {
+    const bottom = rect.y + rect.h;
+    const centerBottom = rect.x + rect.w * .5;
+    ctx.save();
+    for (let i = 0; i < 12; i += 1) {
+      const t = positiveModulo(i / 12 + phase, 1);
+      const t2 = Math.min(1, t + .035 + t * .045);
+      const y1 = horizon + (bottom - horizon) * Math.pow(t, 1.72);
+      const y2 = horizon + (bottom - horizon) * Math.pow(t2, 1.72);
+      const x1 = vanishingX + (centerBottom - vanishingX) * Math.pow(t, 1.05);
+      const x2 = vanishingX + (centerBottom - vanishingX) * Math.pow(t2, 1.05);
+      ctx.strokeStyle = `rgba(255,255,255,${.18 + t * .68})`;
+      ctx.lineWidth = 1 + t * 5;
+      ctx.beginPath();
+      ctx.moveTo(x1, y1);
+      ctx.lineTo(x2, y2);
+      ctx.stroke();
+    }
+
+    for (let i = 0; i < 9; i += 1) {
+      const t = positiveModulo(i / 9 + phase * .85, 1);
+      if (t < .08) continue;
+      const y = horizon + (bottom - horizon) * Math.pow(t, 1.55);
+      const leftX = vanishingX + (roadLeft - vanishingX) * t;
+      const rightX = vanishingX + (roadRight - vanishingX) * t;
+      const postH = 5 + t * 26;
+      const postW = 1 + t * 3;
+      ctx.fillStyle = `rgba(215,232,245,${.2 + t * .55})`;
+      ctx.fillRect(leftX - postW / 2, y - postH, postW, postH);
+      ctx.fillRect(rightX - postW / 2, y - postH, postW, postH);
+      ctx.fillStyle = `rgba(79,217,246,${.1 + t * .45})`;
+      ctx.fillRect(leftX - postW * 1.2, y - postH - 2, postW * 2.4, 2);
+      ctx.fillRect(rightX - postW * 1.2, y - postH - 2, postW * 2.4, 2);
+    }
+    ctx.restore();
+  }
+
+  function positiveModulo(value, divisor) {
+    return ((value % divisor) + divisor) % divisor;
+  }
+
+  function drawWorld(rect, mode) {
+    const toViewX = (x) => mode === 'car' ? x - state.car.x : x;
+    const carX = toViewX(state.car.x);
+    const ballX = toViewX(state.ball.x);
+    const ghostX = toViewX(state.ghost.x);
+    const trailX = (p) => mode === 'car' ? p.x - (p.carX ?? state.car.x) : p.x;
+
+    if (controls.showTrail.checked) {
+      drawTrail(rect, mode, state.trail, '#ffd95e', trailX);
+      if (controls.showGhost.checked) drawTrail(rect, mode, state.ghostTrail, '#7fb2ff', trailX, true);
+    }
+
+    if (controls.showGhost.checked) {
+      drawBall(rect, mode, ghostX, state.ghost.y, '#7fb2ff', .72);
+    }
+
+    drawCar(rect, mode, carX);
+    drawBall(rect, mode, ballX, state.ball.y, '#ffd95e', state.carHit ? .38 : 1, state.carHit);
+
+    if (controls.showVectors.checked) {
+      drawVector(rect, mode, ballX, state.ball.y, state.ball.vx - (mode === 'car' ? state.car.v : 0), state.ball.vy, '#80e5a5', 'v');
+      if (mode === 'outside') {
+        drawVector(rect, mode, carX, launchHeight(), state.car.v, 0, '#ffca66', 'v_car');
+      }
+    }
+
+    if (mode === 'car') {
+      const p = project(rect, mode, 0, launchHeight());
+      ctx.strokeStyle = 'rgba(255, 202, 102, .38)';
+      ctx.setLineDash([5, 5]);
+      ctx.beginPath();
+      ctx.moveTo(p.x, rect.y + rect.h * .12);
+      ctx.lineTo(p.x, p.groundY + 20);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+  }
+
+  function drawTrail(rect, mode, points, color, getX, dashed = false) {
+    if (points.length < 2) return;
+    ctx.save();
+    ctx.strokeStyle = color;
+    ctx.globalAlpha = dashed ? .6 : .85;
+    ctx.lineWidth = dashed ? 1.5 : 3;
+    ctx.shadowColor = color;
+    ctx.shadowBlur = dashed ? 0 : 10;
+    if (dashed) ctx.setLineDash([6, 7]);
+    ctx.beginPath();
+    points.forEach((p, index) => {
+      const q = project(rect, mode, getX(p), p.y);
+      if (index === 0) ctx.moveTo(q.x, q.y);
+      else ctx.lineTo(q.x, q.y);
+    });
+    ctx.stroke();
+    if (!dashed) {
+      const stride = Math.max(1, Math.floor(points.length / 18));
+      ctx.shadowBlur = 14;
+      points.forEach((sample, index) => {
+        if (index % stride !== 0 && index !== points.length - 1) return;
+        const q = project(rect, mode, getX(sample), sample.y);
+        const r = Math.max(2.2, Math.min(5, q.s * .06));
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        ctx.arc(q.x, q.y, r, 0, Math.PI * 2);
+        ctx.fill();
+      });
+    }
+    ctx.restore();
+  }
+
+  function drawBall(rect, mode, x, y, color, alpha, inactive = false) {
+    const p = project(rect, mode, x, y);
+    const r = Math.max(8, Math.min(18, p.s * .28));
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.shadowColor = color;
+    ctx.shadowBlur = 28;
+    const aura = ctx.createRadialGradient(p.x, p.y, r * .4, p.x, p.y, r * 3.2);
+    aura.addColorStop(0, 'rgba(255, 232, 112, .42)');
+    aura.addColorStop(.38, 'rgba(255, 217, 94, .16)');
+    aura.addColorStop(1, 'rgba(255, 217, 94, 0)');
+    ctx.fillStyle = aura;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, r * 3.2, 0, Math.PI * 2);
+    ctx.fill();
+    const glow = ctx.createRadialGradient(p.x - r * .35, p.y - r * .35, r * .1, p.x, p.y, r);
+    glow.addColorStop(0, '#ffffff');
+    glow.addColorStop(.22, '#fff2a0');
+    glow.addColorStop(.52, color);
+    glow.addColorStop(1, '#9d6b08');
+    ctx.fillStyle = glow;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, r, 0, Math.PI * 2);
+    ctx.fill();
+    if (inactive) {
+      ctx.setLineDash([4, 4]);
+      ctx.strokeStyle = 'rgba(255, 255, 255, .85)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(p.x, p.y, r * 1.45, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+    ctx.strokeStyle = 'rgba(255, 255, 255, .7)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawCar(rect, mode, x) {
+    const p = project(rect, mode, x, 0);
+    const carW = mode === 'car'
+      ? Math.max(104, Math.min(158, rect.w * .31))
+      : Math.max(72, Math.min(132, p.s * 2.35));
+    const carH = carW * (mode === 'car' ? .52 : .42);
+    const y = p.groundY - carH - 4;
+    ctx.save();
+    ctx.translate(p.x, y);
+    ctx.fillStyle = 'rgba(0, 0, 0, .34)';
+    ctx.beginPath();
+    ctx.ellipse(0, carH + 10, carW * .52, 11, 0, 0, Math.PI * 2);
+    ctx.fill();
+    if (mode === 'car') drawRearCar(carW, carH);
+    else drawSideCar(carW, carH);
+    ctx.restore();
+  }
+
+  function drawSideCar(carW, carH) {
+    ctx.save();
+    ctx.translate(-carW / 2, 0);
+    const body = ctx.createLinearGradient(0, carH * .28, 0, carH);
+    body.addColorStop(0, '#3f9af0');
+    body.addColorStop(.48, '#216db8');
+    body.addColorStop(1, '#0f396d');
+    ctx.fillStyle = body;
+    ctx.strokeStyle = '#a6d8ff';
+    ctx.lineWidth = 1.4;
+    roundRect(0, carH * .38, carW, carH * .48, 7);
+    ctx.fill();
+    ctx.stroke();
+
+    const roof = ctx.createLinearGradient(0, 0, 0, carH * .42);
+    roof.addColorStop(0, '#52aef8');
+    roof.addColorStop(1, '#185b9f');
+    ctx.fillStyle = roof;
+    ctx.beginPath();
+    ctx.moveTo(carW * .20, carH * .40);
+    ctx.lineTo(carW * .34, carH * .08);
+    ctx.quadraticCurveTo(carW * .49, -carH * .02, carW * .66, carH * .08);
+    ctx.lineTo(carW * .82, carH * .40);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.fillStyle = 'rgba(194, 238, 255, .86)';
+    ctx.beginPath();
+    ctx.moveTo(carW * .38, carH * .12);
+    ctx.lineTo(carW * .50, carH * .07);
+    ctx.lineTo(carW * .50, carH * .37);
+    ctx.lineTo(carW * .27, carH * .37);
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = 'rgba(134, 205, 226, .9)';
+    ctx.beginPath();
+    ctx.moveTo(carW * .54, carH * .08);
+    ctx.lineTo(carW * .64, carH * .13);
+    ctx.lineTo(carW * .76, carH * .37);
+    ctx.lineTo(carW * .54, carH * .37);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.fillStyle = 'rgba(255, 255, 255, .75)';
+    ctx.fillRect(carW * .09, carH * .53, carW * .12, carH * .06);
+    ctx.fillStyle = '#ffc857';
+    ctx.fillRect(carW * .87, carH * .54, carW * .08, carH * .06);
+    for (const wx of [carW * .22, carW * .78]) drawWheel(wx, carH * .86, carW * .105);
+    ctx.restore();
+  }
+
+  function drawRearCar(carW, carH) {
+    ctx.save();
+    ctx.translate(-carW / 2, 0);
+    const body = ctx.createLinearGradient(0, carH * .2, 0, carH);
+    body.addColorStop(0, '#48a6f4');
+    body.addColorStop(.45, '#226eb9');
+    body.addColorStop(1, '#0d3668');
+    ctx.fillStyle = body;
+    ctx.strokeStyle = '#a9ddff';
+    ctx.lineWidth = 1.4;
+    ctx.beginPath();
+    ctx.moveTo(carW * .16, carH * .43);
+    ctx.quadraticCurveTo(carW * .20, carH * .20, carW * .34, carH * .14);
+    ctx.lineTo(carW * .66, carH * .14);
+    ctx.quadraticCurveTo(carW * .81, carH * .20, carW * .86, carH * .43);
+    ctx.lineTo(carW * .96, carH * .72);
+    ctx.quadraticCurveTo(carW * .90, carH * .92, carW * .76, carH * .94);
+    ctx.lineTo(carW * .24, carH * .94);
+    ctx.quadraticCurveTo(carW * .10, carH * .92, carW * .04, carH * .72);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.fillStyle = 'rgba(160, 224, 246, .9)';
+    roundRect(carW * .31, carH * .22, carW * .38, carH * .26, 5);
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,.35)';
+    ctx.stroke();
+
+    ctx.fillStyle = '#071018';
+    roundRect(carW * .27, carH * .58, carW * .46, carH * .12, 4);
+    ctx.fill();
+    ctx.fillStyle = '#ff5f6f';
+    roundRect(carW * .12, carH * .60, carW * .14, carH * .10, 4);
+    ctx.fill();
+    roundRect(carW * .74, carH * .60, carW * .14, carH * .10, 4);
+    ctx.fill();
+    ctx.fillStyle = 'rgba(255, 255, 255, .8)';
+    roundRect(carW * .42, carH * .72, carW * .16, carH * .07, 3);
+    ctx.fill();
+    for (const wx of [carW * .20, carW * .80]) drawWheel(wx, carH * .91, carW * .09);
+    ctx.restore();
+  }
+
+  function drawWheel(x, y, r) {
+    ctx.save();
+    ctx.fillStyle = '#05090d';
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fill();
+    const rim = ctx.createRadialGradient(x - r * .2, y - r * .2, r * .1, x, y, r * .62);
+    rim.addColorStop(0, '#f6fbff');
+    rim.addColorStop(.45, '#9fb4c7');
+    rim.addColorStop(1, '#314252');
+    ctx.fillStyle = rim;
+    ctx.beginPath();
+    ctx.arc(x, y, r * .52, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function drawVector(rect, mode, x, y, vx, vy, color, label) {
+    const start = project(rect, mode, x, y);
+    const scale = Math.max(4, start.s * .42);
+    const end = { x: start.x + vx * scale, y: start.y - vy * scale };
+    ctx.save();
+    ctx.strokeStyle = color;
+    ctx.fillStyle = color;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(start.x, start.y);
+    ctx.lineTo(end.x, end.y);
+    ctx.stroke();
+    const ang = Math.atan2(end.y - start.y, end.x - start.x);
+    ctx.beginPath();
+    ctx.moveTo(end.x, end.y);
+    ctx.lineTo(end.x - 9 * Math.cos(ang - .45), end.y - 9 * Math.sin(ang - .45));
+    ctx.lineTo(end.x - 9 * Math.cos(ang + .45), end.y - 9 * Math.sin(ang + .45));
+    ctx.closePath();
+    ctx.fill();
+    ctx.font = '700 12px system-ui, sans-serif';
+    ctx.fillText(label, end.x + 6, end.y - 6);
+    ctx.restore();
+  }
+
+  function drawPanelChrome(rect, title, mode) {
+    ctx.save();
+    ctx.fillStyle = 'rgba(6, 13, 20, .64)';
+    ctx.fillRect(rect.x, rect.y, rect.w, 38);
+    ctx.fillStyle = '#edf8ff';
+    ctx.font = '800 14px system-ui, sans-serif';
+    ctx.fillText(title, rect.x + 12, rect.y + 24);
+    ctx.fillStyle = '#9eb4c7';
+    ctx.font = '12px system-ui, sans-serif';
+    const sub = mode === 'outside'
+      ? '地上系では水平速度を持つため、軌道は斜方投射になる'
+      : '車と一緒に動く系では、横方向の相対位置だけを見る';
+    ctx.fillText(sub, rect.x + 12, rect.y + 54);
+    ctx.restore();
+  }
+
+  function roundRect(x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + w - r, y);
+    ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+    ctx.lineTo(x + w, y + h - r);
+    ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+    ctx.lineTo(x + r, y + h);
+    ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+    ctx.lineTo(x, y + r);
+    ctx.quadraticCurveTo(x, y, x + r, y);
+    ctx.closePath();
+  }
+
+  document.querySelectorAll('[data-view]').forEach((button) => {
+    button.addEventListener('click', () => {
+      state.viewMode = button.dataset.view;
+      document.querySelectorAll('[data-view]').forEach((b) => b.classList.toggle('active', b === button));
+      draw();
+    });
+  });
+
+  els.play.addEventListener('click', () => {
+    if (state.landed) resetState();
+    setPlaying(!state.playing);
+  });
+
+  els.step.addEventListener('click', () => {
+    if (state.landed) resetState();
+    stepSimulation(1 / 30);
+    draw();
+  });
+
+  els.reset.addEventListener('click', resetState);
+
+  addEventListener('resize', resizeCanvas);
+  updateControlLabels();
+  resetState();
+  resizeCanvas();
+})();
+</script>
+</body>
+</html>

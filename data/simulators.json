@@ -39,6 +39,19 @@
     "lastReviewed": "2026-05-30"
   },
   {
+    "id": "car-vertical-throw",
+    "title": "車上鉛直投げ上げ",
+    "category": "力学",
+    "route": "./simulators/car-vertical-throw/",
+    "originalSource": "new-simulator-2026-06-07",
+    "alternateSources": [],
+    "status": "初版作成",
+    "dependencies": [],
+    "physicsModel": "車からの鉛直投げ上げ、外部視点と車視点の相対運動、空気抵抗、風、加速度",
+    "purpose": "車から真上に投げた物体が、外部視点では斜方投射、車視点では鉛直投げ上げに見えることを比較する。",
+    "lastReviewed": "2026-06-07"
+  },
+  {
     "id": "projectile",
     "title": "斜方投射",
     "category": "力学",
@@ -77,6 +90,45 @@
     "dependencies": [],
     "physicsModel": "水平/鉛直のばね単振動、ばね1本/2本、並列/左右接続、直列接続、合成ばね定数、鉛直つり合い位置",
     "purpose": "水平・鉛直とばね1本・2本を切り替え、合成ばね定数、静的伸び、つり合い位置まわりの単振動を確認する。",
+    "lastReviewed": "2026-06-07"
+  },
+  {
+    "id": "galton-board",
+    "title": "ガルトンボード",
+    "category": "数学補助",
+    "route": "./simulators/galton-board/",
+    "originalSource": "new-simulator-2026-06-07",
+    "alternateSources": [],
+    "status": "初版作成",
+    "dependencies": [],
+    "physicsModel": "段状の釘で左右に分岐する多数のボール、下部受け皿への蓄積、二項分布の視覚比較",
+    "purpose": "多数のボールが左右に分かれて下で山を作る様子を、ボールの挙動と蓄積結果として観察する。",
+    "lastReviewed": "2026-06-07"
+  },
+  {
+    "id": "dice-roll",
+    "title": "サイコロ出目",
+    "category": "数学補助",
+    "route": "./simulators/dice-roll/",
+    "originalSource": "new-simulator-2026-06-07",
+    "alternateSources": [],
+    "status": "初版作成",
+    "dependencies": [],
+    "physicsModel": "一様乱数による1〜6の出目記録、出現回数と割合のリアルタイム棒グラフ",
+    "purpose": "サイコロの出目を高速に記録し、試行回数が増えるほど各出目の割合がそろっていく様子を観察する。",
+    "lastReviewed": "2026-06-07"
+  },
+  {
+    "id": "bowling",
+    "title": "ボウリング理屈",
+    "category": "力学・日常現象",
+    "route": "./simulators/bowling/",
+    "originalSource": "new-simulator-2026-06-07",
+    "alternateSources": [],
+    "status": "初版作成",
+    "dependencies": [],
+    "physicsModel": "ボウリングの疑似3Dレーン、投球者の立ち位置、手元の左右ズレ、投げ出し角度、球速、質量、スピンによる簡易曲がり",
+    "purpose": "手の位置や投げ出し角度がスパット通過点と1番ピン位置の到達板目をどう変えるかを確認する。",
     "lastReviewed": "2026-06-07"
   },
   {
@@ -169,6 +221,19 @@
     "physicsModel": "軽い棒、壁端支持、糸の張力、張力成分、壁との摩擦条件",
     "purpose": "棒上のおもり位置、質量、糸角度、摩擦係数による張力と摩擦条件の変化を確認する。",
     "lastReviewed": "2026-05-06"
+  },
+  {
+    "id": "pulley-work",
+    "title": "定滑車・動滑車の仕事",
+    "category": "力学",
+    "route": "./simulators/pulley-work/",
+    "originalSource": "new-simulator-2026-06-07",
+    "alternateSources": [],
+    "status": "初版作成",
+    "dependencies": [],
+    "physicsModel": "理想滑車、支える紐の本数、必要な力、紐を引く距離、物体の上昇距離、仕事",
+    "purpose": "定滑車、動滑車1つ、複数動滑車を比較し、力が小さくなるほど紐を長く引く必要があることと、理想条件では仕事が等しいことを確認する。",
+    "lastReviewed": "2026-06-07"
   },
   {
     "id": "resultant-velocity",
