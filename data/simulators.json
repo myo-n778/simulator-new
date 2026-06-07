@@ -67,6 +67,19 @@
     "lastReviewed": "2026-05-05"
   },
   {
+    "id": "spring-oscillation",
+    "title": "ばね単振動",
+    "category": "力学",
+    "route": "./simulators/spring-oscillation/",
+    "originalSource": "new-simulator-2026-06-07",
+    "alternateSources": [],
+    "status": "初版作成",
+    "dependencies": [],
+    "physicsModel": "水平/鉛直のばね単振動、ばね1本/2本、並列/左右接続、直列接続、合成ばね定数、鉛直つり合い位置",
+    "purpose": "水平・鉛直とばね1本・2本を切り替え、合成ばね定数、静的伸び、つり合い位置まわりの単振動を確認する。",
+    "lastReviewed": "2026-06-07"
+  },
+  {
     "id": "spring-horizontal",
     "title": "水平ばね振り子",
     "category": "力学",
