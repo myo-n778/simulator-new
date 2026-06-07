@@ -108,7 +108,7 @@
   }
   .toggle-row {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 8px;
   }
   .plain-button {
@@ -232,6 +232,7 @@
           <output id="multiCountOut">3個</output>
         </div>
         <div class="toggle-row">
+          <button class="plain-button" id="animate" type="button" aria-pressed="false">アニメ再生</button>
           <button class="plain-button" id="showMulti" type="button" aria-pressed="true">複数を表示</button>
           <button class="plain-button" id="showGuide" type="button" aria-pressed="true">式を表示</button>
         </div>
@@ -260,6 +261,7 @@
     mass: document.getElementById("mass"),
     objectType: document.getElementById("objectType"),
     multiCount: document.getElementById("multiCount"),
+    animate: document.getElementById("animate"),
     showMulti: document.getElementById("showMulti"),
     showGuide: document.getElementById("showGuide")
   };
@@ -285,6 +287,9 @@
   };
   let showMulti = true;
   let showGuide = true;
+  let animate = false;
+  let animationStart = performance.now();
+  let frameId = null;
 
   function state() {
     const liftCm = Number(inputs.liftHeight.value);
@@ -325,6 +330,8 @@
     outs.ratioText.textContent = `1/${s.multiSupports}`;
     outs.distanceText.textContent = `${s.multiSupports}倍`;
     outs.formulaBox.style.display = showGuide ? "block" : "none";
+    inputs.animate.setAttribute("aria-pressed", String(animate));
+    inputs.animate.textContent = animate ? "アニメ停止" : "アニメ再生";
     inputs.showMulti.setAttribute("aria-pressed", String(showMulti));
     inputs.showGuide.setAttribute("aria-pressed", String(showGuide));
   }
@@ -346,6 +353,27 @@
     line(x1 + 2, y1 + 3, x2 + 2, y2 + 3, "rgba(47, 36, 22, .18)", width + 2);
     line(x1, y1, x2, y2, color, width);
     line(x1 - 1, y1 - 1, x2 - 1, y2 - 1, "rgba(255, 255, 255, .35)", Math.max(1, width * .28));
+  }
+
+  function ropeArc(x, y, r, start, end, color, width = 5) {
+    ctx.save();
+    ctx.lineCap = "round";
+    ctx.strokeStyle = "rgba(47, 36, 22, .18)";
+    ctx.lineWidth = width + 2;
+    ctx.beginPath();
+    ctx.arc(x + 2, y + 3, r, start, end);
+    ctx.stroke();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = width;
+    ctx.beginPath();
+    ctx.arc(x, y, r, start, end);
+    ctx.stroke();
+    ctx.strokeStyle = "rgba(255, 255, 255, .35)";
+    ctx.lineWidth = Math.max(1, width * .28);
+    ctx.beginPath();
+    ctx.arc(x - 1, y - 1, r, start, end);
+    ctx.stroke();
+    ctx.restore();
   }
 
   function beam3d(x1, y, x2, depth = 10) {
@@ -588,7 +616,11 @@
       ctx.strokeStyle = "#7d5b3c";
       ctx.lineWidth = 1.4;
       ctx.beginPath();
-      ctx.roundRect(-22, -31, 44, 20, 7);
+      ctx.moveTo(-24, -18);
+      ctx.bezierCurveTo(-22, -31, -12, -36, 0, -35);
+      ctx.bezierCurveTo(12, -36, 22, -31, 24, -18);
+      ctx.bezierCurveTo(16, -10, -16, -10, -24, -18);
+      ctx.closePath();
       ctx.fill();
       ctx.stroke();
       ctx.fillStyle = "#fff1d3";
@@ -690,16 +722,20 @@
     const top = y + 70;
     const px = x + w * 0.5;
     const py = top + 46;
-    const loadY = y + h - 116 - s.liftCm * 0.55;
+    const lift = s.visualLiftCm ?? s.liftCm;
+    const loadY = y + h - 116 - lift * 0.55;
+    const freeEndY = y + h - 82 + lift * 0.55;
     beam3d(x + 48, top, x + w - 48);
     drawSuspensionHook(px, top + 4, py - 25);
-    pulley(px, py, 28, false);
     ropeLine(px - 28, py, px - 28, loadY - 28, colors.support, 5);
-    ropeLine(px + 28, py, px + 28, y + h - 82 + s.liftCm * 0.55, colors.ropeActive, 5);
+    ropeArc(px, py, 28, Math.PI, Math.PI * 2, colors.rope, 5);
+    ropeLine(px + 28, py, px + 28, freeEndY, colors.ropeActive, 5);
+    pulley(px, py, 28, false);
+    ropeArc(px, py, 28, Math.PI, Math.PI * 2, colors.rope, 5);
     post3d(px - 28, loadY - 28, loadY - 8);
     drawLoad(px - 28, loadY + 22, s.objectType, 0.9);
-    arrow(px + 48, y + h - 120, px + 48, y + h - 120 + Math.min(92, s.liftCm * 0.7), colors.ropeActive, `${s.liftCm} cm`, -1);
-    arrow(px - 82, y + h - 94, px - 82, y + h - 94 - Math.min(145, s.liftCm * 1.15), colors.lift, `${s.liftCm} cm`, -1);
+    arrow(px + 48, y + h - 120, px + 48, y + h - 120 + Math.min(92, lift * 0.7), colors.ropeActive, `${Math.round(lift)} cm`, -1);
+    arrow(px - 82, y + h - 94, px - 82, y + h - 94 - Math.min(145, lift * 1.15), colors.lift, `${Math.round(lift)} cm`, -1);
     arrow(px + 78, py + 78, px + 78, py + 138, colors.force, fmtN(s.weightN), -1);
     label("支える紐 1本", x + w / 2, y + h - 58, { box: "#f3eefe", color: "#583586", font: "800 12px ui-sans-serif, system-ui" });
     label(`仕事 ${Math.round(s.weightN * s.liftM)} J`, x + w / 2, y + h - 32, { color: "#7b4800", font: "800 12px ui-sans-serif, system-ui" });
@@ -711,21 +747,28 @@
     const top = y + 70;
     const left = x + w * 0.36;
     const right = x + w * 0.64;
-    const loadY = y + h - 118 - s.liftCm * 0.55;
+    const lift = s.visualLiftCm ?? s.liftCm;
+    const loadY = y + h - 118 - lift * 0.55;
     const py = loadY - 40;
     const fixedY = top + 46;
+    const movableR = 27;
+    const fixedR = 24;
+    const freeEndY = y + h - 82 + lift * 1.1;
     beam3d(x + 48, top, x + w - 48);
     drawSuspensionHook(right, top + 4, fixedY - 23);
-    ropeLine(left, top, left, py, colors.support, 5);
-    ropeLine(left, py, right, py, colors.rope, 5);
-    ropeLine(right, py, right, fixedY, colors.support, 5);
-    ropeLine(right + 24, fixedY, right + 24, y + h - 82 + s.liftCm * 1.1, colors.ropeActive, 5);
-    pulley(right, fixedY, 24, false);
-    pulley(left, py, 27, true);
-    post3d(left, py + 27, loadY - 8);
+    ropeLine(left - movableR, top, left - movableR, py, colors.support, 5);
+    ropeArc(left, py, movableR, 0, Math.PI, colors.rope, 5);
+    ropeLine(left + movableR, py, right - fixedR, fixedY, colors.support, 5);
+    ropeArc(right, fixedY, fixedR, Math.PI, Math.PI * 2, colors.rope, 5);
+    ropeLine(right + fixedR, fixedY, right + fixedR, freeEndY, colors.ropeActive, 5);
+    pulley(right, fixedY, fixedR, false);
+    pulley(left, py, movableR, true);
+    ropeArc(left, py, movableR, 0, Math.PI, colors.rope, 5);
+    ropeArc(right, fixedY, fixedR, Math.PI, Math.PI * 2, colors.rope, 5);
+    post3d(left, py + movableR, loadY - 8);
     drawLoad(left, loadY + 22, s.objectType, 0.9);
-    arrow(right + 44, y + h - 142, right + 44, y + h - 142 + Math.min(82, s.liftCm * 0.72), colors.ropeActive, `${s.liftCm * 2} cm`, -1);
-    arrow(left - 58, y + h - 94, left - 58, y + h - 94 - Math.min(145, s.liftCm * 1.15), colors.lift, `${s.liftCm} cm`, -1);
+    arrow(right + 44, y + h - 142, right + 44, y + h - 142 + Math.min(82, lift * 1.44), colors.ropeActive, `${Math.round(lift * 2)} cm`, -1);
+    arrow(left - 58, y + h - 94, left - 58, y + h - 94 - Math.min(145, lift * 1.15), colors.lift, `${Math.round(lift)} cm`, -1);
     arrow(right + 56, fixedY + 76, right + 56, fixedY + 130, colors.force, fmtN(s.weightN / 2));
     label("支える紐 2本", x + w / 2, y + h - 58, { box: "#f3eefe", color: "#583586", font: "800 12px ui-sans-serif, system-ui" });
     label(`仕事 ${Math.round((s.weightN / 2) * s.liftM * 2)} J`, x + w / 2, y + h - 32, { color: "#7b4800", font: "800 12px ui-sans-serif, system-ui" });
@@ -735,7 +778,8 @@
     const { x, y, w, h } = area;
     panelFrame(x, y, w, h, `複数動滑車 ${s.multiMovable}個`);
     const top = y + 70;
-    const bottom = y + h - 150 - s.liftCm * 0.44;
+    const lift = s.visualLiftCm ?? s.liftCm;
+    const bottom = y + h - 150 - lift * 0.44;
     const columns = s.multiSupports;
     const left = x + 54;
     const right = x + w - 54;
@@ -743,8 +787,12 @@
     for (let i = 0; i < s.multiMovable; i++) {
       const t = s.multiMovable === 1 ? 0.5 : i / (s.multiMovable - 1);
       drawSuspensionHook(left + (right - left) * t, top + 4, top + 20);
+      ropeArc(left + (right - left) * t, top + 40, 21, 0, Math.PI, colors.rope, 4);
+      ropeArc(left + (right - left) * t, bottom, 21, Math.PI, Math.PI * 2, colors.rope, 4);
       pulley(left + (right - left) * t, top + 40, 21, false);
       pulley(left + (right - left) * t, bottom, 21, true);
+      ropeArc(left + (right - left) * t, top + 40, 21, 0, Math.PI, colors.rope, 4);
+      ropeArc(left + (right - left) * t, bottom, 21, Math.PI, Math.PI * 2, colors.rope, 4);
     }
     for (let i = 0; i < columns; i++) {
       const t = columns === 1 ? 0.5 : i / (columns - 1);
@@ -755,9 +803,9 @@
     beam3d(left, bottom + 22, right, 7);
     post3d((left + right) / 2, bottom + 25, bottom + 45);
     drawLoad((left + right) / 2, bottom + 76, s.objectType, 0.86);
-    const pullDistance = s.liftCm * s.multiSupports;
-    arrow(right + 18, y + h - 122, right + 18, y + h - 122 + Math.min(98, pullDistance * 0.18), colors.ropeActive, `${pullDistance} cm`, -1);
-    arrow(left - 24, y + h - 96, left - 24, y + h - 96 - Math.min(145, s.liftCm * 1.15), colors.lift, `${s.liftCm} cm`, -1);
+    const pullDistance = lift * s.multiSupports;
+    arrow(right + 18, y + h - 122, right + 18, y + h - 122 + Math.min(98, pullDistance * 0.18), colors.ropeActive, `${Math.round(pullDistance)} cm`, -1);
+    arrow(left - 24, y + h - 96, left - 24, y + h - 96 - Math.min(145, lift * 1.15), colors.lift, `${Math.round(lift)} cm`, -1);
     arrow(right + 34, bottom + 70, right + 34, bottom + 120, colors.force, fmtN(s.weightN / s.multiSupports), -1);
     label(`支える紐 ${s.multiSupports}本`, x + w / 2, y + h - 58, { box: "#f3eefe", color: "#583586", font: "800 12px ui-sans-serif, system-ui" });
     label(`仕事 ${Math.round((s.weightN / s.multiSupports) * s.liftM * s.multiSupports)} J`, x + w / 2, y + h - 32, { color: "#7b4800", font: "800 12px ui-sans-serif, system-ui" });
@@ -766,6 +814,13 @@
   function render() {
     setCanvasSize();
     const s = state();
+    if (animate) {
+      const period = 2800;
+      const t = ((performance.now() - animationStart) % period) / period;
+      s.visualLiftCm = s.liftCm * (0.5 - 0.5 * Math.cos(t * Math.PI * 2));
+    } else {
+      s.visualLiftCm = s.liftCm;
+    }
     updateReadouts(s);
     const rect = canvas.getBoundingClientRect();
     const w = rect.width;
@@ -787,6 +842,14 @@
     ctx.restore();
   }
 
+  function scheduleFrame() {
+    if (!animate) return;
+    frameId = requestAnimationFrame(() => {
+      render();
+      scheduleFrame();
+    });
+  }
+
   Object.values(inputs).forEach((el) => {
     if (el instanceof HTMLInputElement || el instanceof HTMLSelectElement) {
       el.addEventListener("input", render);
@@ -796,6 +859,16 @@
   inputs.showMulti.addEventListener("click", () => {
     showMulti = !showMulti;
     render();
+  });
+  inputs.animate.addEventListener("click", () => {
+    animate = !animate;
+    animationStart = performance.now();
+    if (!animate && frameId !== null) {
+      cancelAnimationFrame(frameId);
+      frameId = null;
+    }
+    render();
+    scheduleFrame();
   });
   inputs.showGuide.addEventListener("click", () => {
     showGuide = !showGuide;
