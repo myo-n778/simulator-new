@@ -1197,22 +1197,22 @@
       ctx.fill();
       ctx.restore();
 
-      const dotRadius = (face === 1 ? 16.4 : 13.2) * radiusScale;
+      const dotRadius = (face === 1 ? 12.6 : 10.2) * radiusScale;
       dotPositions(face).forEach(([u, v]) => {
         const p = pointInQuad(quad, u, v);
-        const recess = ctx.createRadialGradient(p.x - dotRadius * .28, p.y - dotRadius * .34, 1, p.x, p.y, dotRadius * 1.18);
+        const recess = ctx.createRadialGradient(p.x - dotRadius * .08, p.y - dotRadius * .10, 1, p.x, p.y, dotRadius * 1.05);
         ctx.beginPath();
         if (face === 1) {
-          recess.addColorStop(0, "#ffb1ad");
-          recess.addColorStop(.36, "#d8202a");
-          recess.addColorStop(1, "#65080f");
+          recess.addColorStop(0, "#d51d2a");
+          recess.addColorStop(.58, "#a60f1a");
+          recess.addColorStop(1, "#4a050b");
         } else {
-          recess.addColorStop(0, "#526174");
-          recess.addColorStop(.36, "#141d28");
-          recess.addColorStop(1, "#02060b");
+          recess.addColorStop(0, "#263241");
+          recess.addColorStop(.58, "#0b1119");
+          recess.addColorStop(1, "#010306");
         }
-        ctx.arc(p.x, p.y, dotRadius * 1.08, 0, Math.PI * 2);
-        ctx.fillStyle = "rgba(6, 12, 18, .36)";
+        ctx.arc(p.x, p.y, dotRadius * 1.16, 0, Math.PI * 2);
+        ctx.fillStyle = "rgba(5, 10, 16, .24)";
         ctx.fill();
 
         ctx.beginPath();
@@ -1220,14 +1220,14 @@
         ctx.fillStyle = recess;
         ctx.fill();
 
-        ctx.lineWidth = Math.max(1, 1.6 * radiusScale);
-        ctx.strokeStyle = "rgba(0,0,0,.42)";
+        ctx.lineWidth = Math.max(1, 1.1 * radiusScale);
+        ctx.strokeStyle = "rgba(0,0,0,.52)";
         ctx.stroke();
 
         ctx.beginPath();
-        ctx.arc(p.x - dotRadius * .12, p.y - dotRadius * .15, dotRadius * .82, Math.PI * 1.08, Math.PI * 1.86);
-        ctx.strokeStyle = "rgba(255,255,255,.36)";
-        ctx.lineWidth = Math.max(1, 1.2 * radiusScale);
+        ctx.arc(p.x - dotRadius * .06, p.y - dotRadius * .10, dotRadius * .92, Math.PI * 1.02, Math.PI * 1.82);
+        ctx.strokeStyle = "rgba(255,255,255,.16)";
+        ctx.lineWidth = Math.max(1, .8 * radiusScale);
         ctx.stroke();
       });
     }
