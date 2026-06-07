@@ -1174,6 +1174,75 @@
       return map[face] || map[1];
     }
 
+    function normalizedVector(from, to) {
+      const dx = to.x - from.x;
+      const dy = to.y - from.y;
+      const length = Math.hypot(dx, dy) || 1;
+      return { x: dx / length, y: dy / length };
+    }
+
+    function drawProjectedPip(quad, u, v, face, radiusScale) {
+      const ctx = diceCtx;
+      const p = pointInQuad(quad, u, v);
+      const uDir = normalizedVector(pointInQuad(quad, Math.max(.02, u - .05), v), pointInQuad(quad, Math.min(.98, u + .05), v));
+      const vDir = normalizedVector(pointInQuad(quad, u, Math.max(.02, v - .05)), pointInQuad(quad, u, Math.min(.98, v + .05)));
+      const radius = (face === 1 ? 8.9 : 7.2) * radiusScale;
+      const ringRadius = radius * 1.2;
+      const isRed = face === 1;
+
+      function ellipsePath(scale = 1) {
+        ctx.beginPath();
+        ctx.save();
+        ctx.transform(
+          uDir.x * radius * scale,
+          uDir.y * radius * scale,
+          vDir.x * radius * scale,
+          vDir.y * radius * scale,
+          p.x,
+          p.y
+        );
+        ctx.arc(0, 0, 1, 0, Math.PI * 2);
+        ctx.restore();
+      }
+
+      ellipsePath(1.28);
+      ctx.fillStyle = "rgba(4, 9, 14, .18)";
+      ctx.fill();
+
+      ellipsePath(1);
+      const recess = ctx.createRadialGradient(p.x, p.y, 1, p.x, p.y, ringRadius);
+      if (isRed) {
+        recess.addColorStop(0, "#cb382c");
+        recess.addColorStop(.74, "#9d1715");
+        recess.addColorStop(1, "#4a0507");
+      } else {
+        recess.addColorStop(0, "#202a35");
+        recess.addColorStop(.74, "#080d13");
+        recess.addColorStop(1, "#010306");
+      }
+      ctx.fillStyle = recess;
+      ctx.fill();
+      ctx.lineWidth = Math.max(1, .9 * radiusScale);
+      ctx.strokeStyle = "rgba(0,0,0,.58)";
+      ctx.stroke();
+
+      ctx.save();
+      ctx.transform(
+        uDir.x * radius,
+        uDir.y * radius,
+        vDir.x * radius,
+        vDir.y * radius,
+        p.x,
+        p.y
+      );
+      ctx.beginPath();
+      ctx.arc(-.04, -.08, .78, Math.PI * 1.08, Math.PI * 1.78);
+      ctx.strokeStyle = "rgba(255,255,255,.08)";
+      ctx.lineWidth = Math.max(.08, .45 * radiusScale / radius);
+      ctx.stroke();
+      ctx.restore();
+    }
+
     function drawFace(quad, face, base, radiusScale = 1) {
       const ctx = diceCtx;
       drawRoundPolygon(quad, 18 * radiusScale);
@@ -1201,38 +1270,8 @@
       drawRoundPolygon(quad, 18 * radiusScale);
       ctx.clip();
 
-      const dotRadius = (face === 1 ? 9.4 : 7.6) * radiusScale;
       dotPositions(face).forEach(([u, v]) => {
-        const p = pointInQuad(quad, u, v);
-        const recess = ctx.createRadialGradient(p.x, p.y, 1, p.x, p.y, dotRadius * 1.08);
-        ctx.beginPath();
-        if (face === 1) {
-          recess.addColorStop(0, "#c71925");
-          recess.addColorStop(.72, "#9c1019");
-          recess.addColorStop(1, "#4a050b");
-        } else {
-          recess.addColorStop(0, "#1d2734");
-          recess.addColorStop(.72, "#080d14");
-          recess.addColorStop(1, "#010306");
-        }
-        ctx.arc(p.x, p.y, dotRadius * 1.18, 0, Math.PI * 2);
-        ctx.fillStyle = "rgba(4, 9, 14, .18)";
-        ctx.fill();
-
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, dotRadius, 0, Math.PI * 2);
-        ctx.fillStyle = recess;
-        ctx.fill();
-
-        ctx.lineWidth = Math.max(1, .95 * radiusScale);
-        ctx.strokeStyle = "rgba(0,0,0,.62)";
-        ctx.stroke();
-
-        ctx.beginPath();
-        ctx.arc(p.x - dotRadius * .03, p.y - dotRadius * .08, dotRadius * .86, Math.PI * 1.08, Math.PI * 1.76);
-        ctx.strokeStyle = "rgba(255,255,255,.08)";
-        ctx.lineWidth = Math.max(1, .55 * radiusScale);
-        ctx.stroke();
+        drawProjectedPip(quad, u, v, face, radiusScale);
       });
       ctx.restore();
     }
