@@ -1200,21 +1200,73 @@
       const dotRadius = (face === 1 ? 16.4 : 13.2) * radiusScale;
       dotPositions(face).forEach(([u, v]) => {
         const p = pointInQuad(quad, u, v);
+        const recess = ctx.createRadialGradient(p.x - dotRadius * .28, p.y - dotRadius * .34, 1, p.x, p.y, dotRadius * 1.18);
+        ctx.beginPath();
+        if (face === 1) {
+          recess.addColorStop(0, "#ffb1ad");
+          recess.addColorStop(.36, "#d8202a");
+          recess.addColorStop(1, "#65080f");
+        } else {
+          recess.addColorStop(0, "#526174");
+          recess.addColorStop(.36, "#141d28");
+          recess.addColorStop(1, "#02060b");
+        }
+        ctx.arc(p.x, p.y, dotRadius * 1.08, 0, Math.PI * 2);
+        ctx.fillStyle = "rgba(6, 12, 18, .36)";
+        ctx.fill();
+
         ctx.beginPath();
         ctx.arc(p.x, p.y, dotRadius, 0, Math.PI * 2);
-        const dot = ctx.createRadialGradient(p.x - dotRadius * .35, p.y - dotRadius * .35, 1, p.x, p.y, dotRadius);
-        if (face === 1) {
-          dot.addColorStop(0, "#ff9a9a");
-          dot.addColorStop(1, "#c1121f");
-        } else {
-          dot.addColorStop(0, "#425469");
-          dot.addColorStop(1, "#07111b");
-        }
-        ctx.fillStyle = dot;
+        ctx.fillStyle = recess;
         ctx.fill();
-        ctx.strokeStyle = "rgba(255,255,255,.12)";
+
+        ctx.lineWidth = Math.max(1, 1.6 * radiusScale);
+        ctx.strokeStyle = "rgba(0,0,0,.42)";
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.arc(p.x - dotRadius * .12, p.y - dotRadius * .15, dotRadius * .82, Math.PI * 1.08, Math.PI * 1.86);
+        ctx.strokeStyle = "rgba(255,255,255,.36)";
+        ctx.lineWidth = Math.max(1, 1.2 * radiusScale);
         ctx.stroke();
       });
+    }
+
+    function drawCubeEdges(front, top, right, radiusScale = 1) {
+      const ctx = diceCtx;
+      ctx.save();
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+      ctx.lineWidth = Math.max(1, 2.1 * radiusScale);
+      ctx.strokeStyle = "rgba(255,255,255,.45)";
+      [
+        [front[0], front[1]],
+        [front[1], front[2]],
+        [front[2], front[3]],
+        [front[3], front[0]],
+        [top[2], top[3]],
+        [top[3], top[0]],
+        [right[1], right[2]],
+        [right[2], right[3]]
+      ].forEach(([a, b]) => {
+        ctx.beginPath();
+        ctx.moveTo(a.x, a.y);
+        ctx.lineTo(b.x, b.y);
+        ctx.stroke();
+      });
+
+      ctx.lineWidth = Math.max(1, 1.4 * radiusScale);
+      ctx.strokeStyle = "rgba(23,39,55,.34)";
+      [
+        [top[1], top[2]],
+        [right[0], right[1]]
+      ].forEach(([a, b]) => {
+        ctx.beginPath();
+        ctx.moveTo(a.x, a.y);
+        ctx.lineTo(b.x, b.y);
+        ctx.stroke();
+      });
+      ctx.restore();
     }
 
     function sideFaces(frontFace) {
@@ -1281,6 +1333,7 @@
       drawFace(top, topFace, "#edf7fc", scale);
       drawFace(right, rightFace, "#cbdce8", scale);
       drawFace(front, face, "#f7fbfe", scale);
+      drawCubeEdges(front, top, right, scale);
 
       if (rollingVisual) {
         diceCtx.save();
