@@ -167,8 +167,8 @@ const canvas = $('view');
 const ctx = canvas.getContext('2d');
 const topCanvas = $('topView');
 const topCtx = topCanvas.getContext('2d');
-const lane = { boardMin: 1, boardMax: 39, length: 18.29, widthM: 1.054, spotY: 4.57, pinY: 18.29, headBoard: 20 };
-const pinDeck = { frontY: 18.29, rowGap: 0.32 };
+const lane = { boardMin: 1, boardMax: 39, length: 19.2, widthM: 1.054, spotY: 4.57, headBoard: 20 };
+const pinDeck = { frontY: 18.29, rowGap: 0.22 };
 const pinLayout = [
   { id: 1, board: 20.0, row: 0 },
   { id: 2, board: 18.8, row: 1 },
@@ -186,7 +186,7 @@ const state = {
   handOffset: 3.2,
   bodyHeight: 158,
   armLength: 58,
-  angle: 0,
+  angle: -3.3,
   speed: 24,
   mass: 5.4,
   spin: 0,
@@ -265,7 +265,7 @@ function compute(){
   const v = speedMs();
   const p = state.mass * v;
   const ke = 0.5 * state.mass * v * v;
-  const curve = curveAt(lane.pinY);
+  const curve = curveAt(pinDeck.frontY);
   const required = requiredAngleToHead();
   const miss = pinBoard - lane.headBoard;
   const pinHits = computePinHits(pinBoard, gutterAt);
@@ -273,7 +273,7 @@ function compute(){
 }
 function sampleGutter(){
   for(let i=0;i<=120;i++){
-    const y = lane.length * i / 120;
+    const y = pinDeck.frontY * i / 120;
     const x = pathBoardAt(y);
     if(x < lane.boardMin || x > lane.boardMax) return {y,x};
   }
@@ -500,19 +500,26 @@ function drawPolyline(points, color, width, dash){
 function trajectoryPoints(angle = state.angle, release = releaseBoard()){
   const pts = [];
   for(let i=0;i<=110;i++){
-    const y = lane.length * i / 110;
+    const y = pinDeck.frontY * i / 110;
     pts.push({x:pathBoardAt(y, angle, release), y});
   }
   return pts;
 }
 function drawTrajectory(){
+  if(!state.spinOn){
+    const a = screenPointAt(0);
+    const b = screenPointAt(metrics.gutterAt ? metrics.gutterAt.y : pinDeck.frontY);
+    drawScreenLine(a, b, '#31d8c1', 4);
+    drawScreenLine(a, b, 'rgba(255,255,255,.65)', 1.2);
+    return;
+  }
   const pts = trajectoryPoints();
   const visible = metrics.gutterAt ? pts.filter(pt=>pt.y <= metrics.gutterAt.y) : pts;
   drawPolyline(visible, '#31d8c1', 4);
   drawPolyline(visible, 'rgba(255,255,255,.65)', 1.2);
 }
 function drawTargetLine(){
-  drawPolyline([{x:metrics.release,y:0},{x:metrics.targetSpot,y:lane.spotY},{x:lane.headBoard,y:pinDeck.frontY}], '#ff9d43', 2.5, [7,6]);
+  drawScreenLine(screenTargetPointAt(0), screenTargetPointAt(pinDeck.frontY), '#ff9d43', 2.5, [7,6]);
 }
 function drawGhostLine(){
   const release = state.standing;
@@ -522,10 +529,10 @@ function drawGhostLine(){
 function drawBall(){
   const lp = laneProgress();
   if(lp <= 0) return;
-  const y = lane.length * lp;
-  const gutterLimit = metrics.gutterAt ? metrics.gutterAt.y : lane.length;
+  const y = pinDeck.frontY * lp;
+  const gutterLimit = metrics.gutterAt ? metrics.gutterAt.y : pinDeck.frontY;
   const drawY = Math.min(y, gutterLimit);
-  const p = project(pathBoardAt(drawY), drawY);
+  const p = state.spinOn ? project(pathBoardAt(drawY), drawY) : screenPointAt(drawY);
   const r = 15 * p.scale + 4;
   const grad = ctx.createRadialGradient(p.x-r*.35,p.y-r*.4,2,p.x,p.y,r);
   grad.addColorStop(0,'#b5fff4');
@@ -538,6 +545,41 @@ function drawBall(){
   ctx.strokeStyle = 'rgba(255,255,255,.5)';
   ctx.lineWidth = 1.2;
   ctx.stroke();
+}
+
+function screenPointAt(y){
+  const t = clamp(y / pinDeck.frontY, 0, 1);
+  const start = project(metrics.release, 0);
+  const end = project(metrics.pinBoard, pinDeck.frontY);
+  return {
+    x: lerp(start.x, end.x, t),
+    y: lerp(start.y, end.y, t),
+    scale: lerp(start.scale, end.scale, t)
+  };
+}
+
+function screenTargetPointAt(y){
+  const t = clamp(y / pinDeck.frontY, 0, 1);
+  const start = project(metrics.release, 0);
+  const end = project(lane.headBoard, pinDeck.frontY);
+  return {
+    x: lerp(start.x, end.x, t),
+    y: lerp(start.y, end.y, t),
+    scale: lerp(start.scale, end.scale, t)
+  };
+}
+
+function drawScreenLine(a,b,color,width,dash){
+  ctx.save();
+  if(dash) ctx.setLineDash(dash);
+  ctx.beginPath();
+  ctx.moveTo(a.x,a.y);
+  ctx.lineTo(b.x,b.y);
+  ctx.strokeStyle = color;
+  ctx.lineWidth = width;
+  ctx.lineCap = 'round';
+  ctx.stroke();
+  ctx.restore();
 }
 
 function drawBowler(){
@@ -694,12 +736,14 @@ function drawTopView(){
   const release = topProject(metrics.release,0);
   const head = topProject(lane.headBoard,pinDeck.frontY);
   const spot = topProject(metrics.spotBoard,lane.spotY);
+  const actualHead = topProject(metrics.pinBoard,pinDeck.frontY);
   topCtx.setLineDash([]);
   topCtx.lineWidth = 4;
   topCtx.strokeStyle = '#31d8c1';
   topCtx.beginPath();
   topCtx.moveTo(release.x, release.y);
-  topCtx.lineTo(head.x, head.y);
+  topCtx.lineTo(spot.x, spot.y);
+  topCtx.lineTo(actualHead.x, actualHead.y);
   topCtx.stroke();
   if(state.targetOn){
     topCtx.setLineDash([6,5]);
@@ -707,13 +751,14 @@ function drawTopView(){
     topCtx.strokeStyle = '#ff9d43';
     topCtx.beginPath();
     topCtx.moveTo(release.x, release.y);
+    topCtx.lineTo(topProject(metrics.targetSpot,lane.spotY).x, topProject(metrics.targetSpot,lane.spotY).y);
     topCtx.lineTo(head.x, head.y);
     topCtx.stroke();
     topCtx.setLineDash([]);
   }
   const lp = laneProgress();
   if(lp > 0){
-    const by = lane.length * lp;
+    const by = pinDeck.frontY * lp;
     const bp = topProject(pathBoardAt(by), by);
     topCtx.fillStyle = '#12363d';
     topCtx.strokeStyle = '#b5fff4';
@@ -742,7 +787,7 @@ function drawTopView(){
   topCtx.fillText('真上表示', 12, 18);
   topCtx.fillStyle = '#9eb0bf';
   topCtx.fillText('等速直線運動', 12, 36);
-  topCtx.fillText(`release ${boardLabel(metrics.release)} → 1番 ${lane.headBoard}`, 12, h - 10);
+  topCtx.fillText(`実線: ${boardLabel(metrics.release)} → ${boardLabel(metrics.spotBoard)} → ${boardLabel(metrics.pinBoard)}`, 12, h - 10);
 }
 function easeInOut(t){
   return t < .5 ? 2*t*t : 1 - Math.pow(-2*t+2,2)/2;
@@ -786,11 +831,11 @@ function updateReadouts(){
   $('spotTarget').textContent = boardLabel(metrics.targetSpot);
   $('energy').textContent = `${metrics.p.toFixed(1)} Ns / ${metrics.ke.toFixed(0)} J`;
   $('curve').textContent = `${metrics.curve.toFixed(1)} board`;
-  const realTime = lane.length / speedMs();
+  const realTime = pinDeck.frontY / speedMs();
   $('summary').innerHTML =
     `現在の投げ方では、リリース位置は <b>${boardLabel(metrics.release)} board</b>、スパット付近は <b>${boardLabel(metrics.spotBoard)} board</b> を通ります。` +
     ` 1番ピンへ合わせるなら、投げ出し角度はおよそ <b>${metrics.required.toFixed(1)} deg</b>、またはスパット <b>${boardLabel(metrics.targetSpot)} board</b> が目安です。` +
-    ` レーン距離はファウルラインから1番ピンまで <b>${lane.length.toFixed(2)} m</b>、現在の球速なら実時間で約 <b>${realTime.toFixed(2)} s</b> です。`;
+    ` ファウルラインから1番ピン中心まで <b>${pinDeck.frontY.toFixed(2)} m</b>、現在の球速なら実時間で約 <b>${realTime.toFixed(2)} s</b> です。`;
 }
 
 function syncControls(){
@@ -851,7 +896,7 @@ function updatePlayLabels(){
 function tick(dt){
   if(state.playing){
     const releaseTime = 0.35;
-    const dur = releaseTime + lane.length / speedMs();
+    const dur = releaseTime + pinDeck.frontY / speedMs();
     state.progress += (dt * state.playback) / dur;
     if(state.progress >= 1){
       state.progress = 1;
