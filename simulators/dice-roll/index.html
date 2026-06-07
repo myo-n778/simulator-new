@@ -1197,7 +1197,7 @@
       ctx.fill();
       ctx.restore();
 
-      const dotRadius = 8.2 * radiusScale;
+      const dotRadius = (face === 1 ? 16.4 : 13.2) * radiusScale;
       dotPositions(face).forEach(([u, v]) => {
         const p = pointInQuad(quad, u, v);
         ctx.beginPath();
@@ -1245,15 +1245,16 @@
       const cx = width / 2 + sway;
       const cy = height / 2 - 4 + bounce;
       const size = Math.min(width, height) * .38;
-      const depthX = size * (.38 + Math.sin(spin) * .04);
-      const depthY = size * (.26 + Math.cos(spin * .7) * .03);
-      const tilt = rollingVisual ? Math.sin(spin) * .16 : 0;
+      const half = size * .50;
+      const depthX = size * (.30 + Math.sin(spin) * .025);
+      const depthY = size * (.24 + Math.cos(spin * .7) * .018);
+      const tilt = rollingVisual ? Math.sin(spin) * .055 : 0;
 
       const front = [
-        { x: cx - size * .52, y: cy - size * .50 + tilt * size },
-        { x: cx + size * .52, y: cy - size * .44 - tilt * size },
-        { x: cx + size * .52, y: cy + size * .48 + tilt * size },
-        { x: cx - size * .52, y: cy + size * .42 - tilt * size }
+        { x: cx - half, y: cy - half + tilt * size },
+        { x: cx + half, y: cy - half - tilt * size },
+        { x: cx + half, y: cy + half - tilt * size },
+        { x: cx - half, y: cy + half + tilt * size }
       ];
       const top = [
         { x: front[0].x, y: front[0].y },
