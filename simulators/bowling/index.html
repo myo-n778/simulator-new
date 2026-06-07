@@ -159,7 +159,7 @@
 const $ = (id)=>document.getElementById(id);
 const canvas = $('view');
 const ctx = canvas.getContext('2d');
-const lane = { boards: 40, length: 18.29, spotY: 4.57, pinY: 18.29, headBoard: 20 };
+const lane = { boardMin: 1, boardMax: 39, length: 18.29, widthM: 1.054, spotY: 4.57, pinY: 18.29, headBoard: 20 };
 const pinDeck = { frontY: 18.29, rowGap: 0.32 };
 const pinLayout = [
   { id: 1, board: 20.0, row: 0 },
@@ -216,7 +216,7 @@ function lerp(a,b,t){ return a + (b-a)*t; }
 function boardLabel(x){ return x.toFixed(1); }
 function speedMs(){ return state.speed / 3.6; }
 function releaseBoard(){
-  return clamp(state.standing + state.handOffset * 0.78, -2, 42);
+  return clamp(state.standing + state.handOffset * 0.78, lane.boardMin, lane.boardMax);
 }
 function curveAt(y){
   if(!state.spinOn) return 0;
@@ -233,7 +233,7 @@ function pathBoardAt(y, angleOverride = state.angle, releaseOverride = releaseBo
 function targetSpotForHead(){
   const release = releaseBoard();
   const desiredAtSpot = release + (lane.headBoard - release - curveAt(pinDeck.frontY)) * (lane.spotY / pinDeck.frontY);
-  return clamp(desiredAtSpot, 0, 40);
+  return clamp(desiredAtSpot, lane.boardMin, lane.boardMax);
 }
 function requiredAngleToHead(){
   const release = releaseBoard();
@@ -259,7 +259,7 @@ function sampleGutter(){
   for(let i=0;i<=120;i++){
     const y = lane.length * i / 120;
     const x = pathBoardAt(y);
-    if(x < 0 || x > lane.boards) return {y,x};
+    if(x < lane.boardMin || x > lane.boardMax) return {y,x};
   }
   return null;
 }
@@ -299,11 +299,11 @@ function project(board, y){
   const t = y / lane.length;
   const tc = clamp(t, -0.08, 1.08);
   const centerX = w * 0.5;
-  const halfBottom = Math.min(w * 0.42, 390);
-  const halfTop = Math.max(72, halfBottom * 0.21);
+  const halfBottom = Math.min(w * 0.28, 245);
+  const halfTop = Math.max(34, halfBottom * 0.19);
   const py = lerp(bottomY, topY, tc);
   const half = lerp(halfBottom, halfTop, tc);
-  const x = centerX + ((board - 20) / 20) * half;
+  const x = centerX + ((board - lane.headBoard) / ((lane.boardMax - lane.boardMin) / 2)) * half;
   return {x,y:py,half,centerX,scale:lerp(1.15,.24,clamp(tc,0,1)),t:tc};
 }
 
@@ -337,7 +337,7 @@ function drawBackground(w,h){
 }
 
 function drawLane(){
-  const nearL = project(0,0), nearR = project(40,0), farL = project(0,lane.length), farR = project(40,lane.length);
+  const nearL = project(lane.boardMin,0), nearR = project(lane.boardMax,0), farL = project(lane.boardMin,lane.length), farR = project(lane.boardMax,lane.length);
   const laneGrad = ctx.createLinearGradient(0,farL.y,0,nearL.y);
   laneGrad.addColorStop(0,'#e0af6b');
   laneGrad.addColorStop(.35,'#c78642');
@@ -545,7 +545,7 @@ function drawFallbackBowler(p, scale, arm, throwPhase){
   ctx.save();
   ctx.fillStyle = 'rgba(0,0,0,.28)';
   ctx.beginPath();
-  ctx.ellipse(p.x, p.y + 82 * scale, 58 * scale, 15 * scale, 0,0,Math.PI*2);
+  ctx.ellipse(p.x, p.y + 82 * scale, 44 * scale, 13 * scale, 0,0,Math.PI*2);
   ctx.fill();
 
   // Rear-facing, lane-aligned classroom-safe bowler.
@@ -557,36 +557,43 @@ function drawFallbackBowler(p, scale, arm, throwPhase){
   ctx.beginPath();
   ctx.arc(p.x, p.y - 119 * scale, 16 * scale, Math.PI, Math.PI * 2);
   ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(p.x + 7 * scale, p.y - 100 * scale, 8 * scale, 24 * scale, -0.12, 0, Math.PI * 2);
+  ctx.fill();
 
   ctx.fillStyle = '#24384b';
   ctx.beginPath();
-  ctx.roundRect(p.x - 28 * scale, p.y - 98 * scale, 56 * scale, 72 * scale, 14 * scale);
+  ctx.roundRect(p.x - 24 * scale, p.y - 98 * scale, 48 * scale, 72 * scale, 13 * scale);
+  ctx.fill();
+  ctx.fillStyle = '#162331';
+  ctx.beginPath();
+  ctx.roundRect(p.x - 17 * scale, p.y - 34 * scale, 34 * scale, 15 * scale, 8 * scale);
   ctx.fill();
   ctx.strokeStyle = '#8fb8c8';
   ctx.lineWidth = 4 * scale;
   ctx.beginPath();
-  ctx.moveTo(p.x - 18 * scale, p.y - 88 * scale);
-  ctx.lineTo(p.x - 9 * scale, p.y - 34 * scale);
-  ctx.moveTo(p.x + 18 * scale, p.y - 88 * scale);
-  ctx.lineTo(p.x + 9 * scale, p.y - 34 * scale);
+  ctx.moveTo(p.x - 15 * scale, p.y - 88 * scale);
+  ctx.lineTo(p.x - 7 * scale, p.y - 34 * scale);
+  ctx.moveTo(p.x + 15 * scale, p.y - 88 * scale);
+  ctx.lineTo(p.x + 7 * scale, p.y - 34 * scale);
   ctx.stroke();
 
   ctx.strokeStyle = '#1e2d3c';
   ctx.lineWidth = 12 * scale;
   ctx.lineCap = 'round';
   ctx.beginPath();
-  ctx.moveTo(p.x - 12 * scale, p.y - 28 * scale);
-  ctx.lineTo(p.x - 24 * scale, p.y + 62 * scale);
-  ctx.moveTo(p.x + 12 * scale, p.y - 28 * scale);
-  ctx.lineTo(p.x + 23 * scale, p.y + 62 * scale);
+  ctx.moveTo(p.x - 10 * scale, p.y - 28 * scale);
+  ctx.lineTo(p.x - 20 * scale, p.y + 62 * scale);
+  ctx.moveTo(p.x + 10 * scale, p.y - 28 * scale);
+  ctx.lineTo(p.x + 20 * scale, p.y + 62 * scale);
   ctx.stroke();
 
   ctx.strokeStyle = '#d8c3ae';
   ctx.lineWidth = 7 * scale;
   ctx.beginPath();
-  ctx.moveTo(p.x - 25 * scale, p.y - 82 * scale);
-  ctx.lineTo(p.x - 52 * scale, p.y - 32 * scale);
-  ctx.moveTo(p.x + 25 * scale, p.y - 82 * scale);
+  ctx.moveTo(p.x - 22 * scale, p.y - 82 * scale);
+  ctx.lineTo(p.x - 46 * scale, p.y - 32 * scale);
+  ctx.moveTo(p.x + 22 * scale, p.y - 82 * scale);
   ctx.quadraticCurveTo(
     lerp(p.x + 42 * scale, handX, 0.45),
     lerp(p.y - 35 * scale, handY, 0.45),
@@ -627,7 +634,7 @@ function drawOverlays(){
     ctx.fill();
     textBox('ガター', p.x + 12, p.y - 22, '#ff6b64');
   }
-  const head = project(20,pinDeck.frontY);
+  const head = project(lane.headBoard,pinDeck.frontY);
   textBox('1番ピン（手前）', head.x + 12, head.y - 30, '#ff9d43');
   const spot = project(metrics.spotBoard,lane.spotY);
   textBox('通過 ' + boardLabel(metrics.spotBoard), spot.x + 10, spot.y - 28, '#31d8c1');
