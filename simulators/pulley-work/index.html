@@ -478,10 +478,6 @@
     ctx.restore();
   }
 
-  function distanceArrowLength(distanceCm) {
-    return Math.max(12, Math.min(132, distanceCm * 0.62));
-  }
-
   function initialGuide(x1, x2, y, color) {
     line(x1, y, x2, y, color, 1.6, [5, 5]);
   }
@@ -790,12 +786,14 @@
     const startLoadY = y + h - (shiromo ? 140 : 132);
     const loadY = y + h - (shiromo ? 140 : 132) - lift * 0.55;
     const startObjectY = startLoadY + 34;
-    const startRopeEndY = Math.min(y + h - 92, y + h - 146);
-    const freeEndY = Math.min(y + h - 92, y + h - 146 + lift * 0.55);
+    const objectY = loadY + 34;
+    const startRopeEndY = y + h - 190;
+    const freeEndY = startRopeEndY + lift * 0.55;
     beam3d(x + 48, top, x + w - 48);
     initialGuideLegend(x + 22, y + 48);
     initialGuide(x + 54, x + w - 54, startObjectY, colors.lift);
     initialGuide(x + 54, x + w - 54, startRopeEndY, colors.ropeActive);
+    initialGuide(x + w * 0.56, x + w - 54, freeEndY, colors.ropeActive);
     drawSuspensionHook(px, top + 4, py - 25);
     ropeLine(px - 28, py, px - 28, loadY - 28, colors.support, 5);
     ropeArc(px, py, 28, Math.PI, Math.PI * 2, colors.rope, 5);
@@ -804,12 +802,10 @@
     ropeArc(px, py, 28, Math.PI, Math.PI * 2, colors.rope, 5);
     drawSling(px - 28, loadY - 28, loadY + 2, !shiromo);
     drawLoad(px - 28, loadY + 34, s.objectType, shiromo ? 0.78 : 0.9);
-    const liftArrowLen = distanceArrowLength(lift);
     const fixedPullX = px + 58;
-    const fixedPullTop = y + h - 182;
-    arrow(fixedPullX, fixedPullTop, fixedPullX, fixedPullTop + liftArrowLen, colors.ropeActive, "", 1);
-    label(`引く ${Math.round(lift)} cm`, fixedPullX + 62, fixedPullTop + liftArrowLen / 2, { box: "#eaf3ff", color: "#245f9f", font: "800 12px ui-sans-serif, system-ui" });
-    arrow(px - 82, y + h - 94, px - 82, y + h - 94 - liftArrowLen, colors.lift, `${Math.round(lift)} cm`, -1);
+    arrow(fixedPullX, startRopeEndY, fixedPullX, freeEndY, colors.ropeActive, "", 1);
+    label(`引く ${Math.round(lift)} cm`, fixedPullX + 62, (startRopeEndY + freeEndY) / 2, { box: "#eaf3ff", color: "#245f9f", font: "800 12px ui-sans-serif, system-ui" });
+    arrow(px - 82, startObjectY, px - 82, objectY, colors.lift, `${Math.round(lift)} cm`, -1);
     arrow(px + 78, py + 78, px + 78, py + 138, colors.force, fmtN(s.weightN), -1);
     label(`支える紐 1本 / 仕事 ${Math.round(s.weightN * s.liftM)} J`, x + w / 2, y + h - 42, { box: "#f3eefe", color: "#62400d", font: "800 12px ui-sans-serif, system-ui" });
   }
@@ -827,15 +823,17 @@
     const startLoadY = y + h - (shiromo ? 140 : 132);
     const loadY = y + h - (shiromo ? 140 : 132) - lift * 0.55;
     const startObjectY = startLoadY + 34;
+    const objectY = loadY + 34;
     const py = loadY - 40;
     const fixedY = top + 46;
-    const startRopeEndY = Math.min(y + h - 92, y + h - 170);
-    const freeEndY = Math.min(y + h - 92, y + h - 170 + lift * 1.1);
+    const startRopeEndY = y + h - 260;
+    const freeEndY = startRopeEndY + lift * 1.1;
     const movedPx = Math.min(90, lift * 0.55);
     beam3d(x + 48, top, x + w - 48);
     initialGuideLegend(x + 22, y + 48);
     initialGuide(x + 54, x + w - 54, startObjectY, colors.lift);
     initialGuide(x + 54, x + w - 54, startRopeEndY, colors.ropeActive);
+    initialGuide(x + w * 0.56, x + w - 54, freeEndY, colors.ropeActive);
     drawSuspensionHook(right, top + 4, fixedY - 23);
     ropeLine(left - movableR, top, left - movableR, py, colors.support, 5);
     ropeArc(left, py, movableR, 0, Math.PI, colors.rope, 5);
@@ -851,13 +849,9 @@
     drawSling(left, py + movableR, loadY + 2, !shiromo);
     drawLoad(left, loadY + 34, s.objectType, shiromo ? 0.78 : 0.9);
     const pullArrowX = x + w - 44;
-    const liftArrowLen = distanceArrowLength(lift);
-    const pullArrowLen = distanceArrowLength(lift * 2);
-    const pullArrowTop = y + h - 210;
-    const pullArrowBottom = pullArrowTop + pullArrowLen;
-    arrow(pullArrowX, pullArrowTop, pullArrowX, pullArrowBottom, colors.ropeActive, "", -1);
-    label(`引く ${Math.round(lift * 2)} cm`, pullArrowX - 50, (pullArrowTop + pullArrowBottom) / 2, { box: "#eaf3ff", color: "#245f9f", font: "800 12px ui-sans-serif, system-ui" });
-    arrow(left - 58, y + h - 94, left - 58, y + h - 94 - liftArrowLen, colors.lift, `${Math.round(lift)} cm`, -1);
+    arrow(pullArrowX, startRopeEndY, pullArrowX, freeEndY, colors.ropeActive, "", -1);
+    label(`引く ${Math.round(lift * 2)} cm`, pullArrowX - 50, (startRopeEndY + freeEndY) / 2, { box: "#eaf3ff", color: "#245f9f", font: "800 12px ui-sans-serif, system-ui" });
+    arrow(left - 58, startObjectY, left - 58, objectY, colors.lift, `${Math.round(lift)} cm`, -1);
     arrow(right + 56, fixedY + 76, right + 56, fixedY + 130, colors.force, fmtN(s.weightN / 2));
     label(`支える紐 2本 / 仕事 ${Math.round((s.weightN / 2) * s.liftM * 2)} J`, x + w / 2, y + h - 42, { box: "#f3eefe", color: "#62400d", font: "800 12px ui-sans-serif, system-ui" });
   }
