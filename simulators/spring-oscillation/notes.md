@@ -58,3 +58,10 @@ Added as a new integrated spring simple-harmonic-motion simulator.
 - Replaced the sharp zigzag spring drawing with smoother coil-like strokes.
 - Restyled the mass, wall, rail, labels, grid, and graph backgrounds to look more like a physics apparatus diagram.
 - Hid the scene energy mini-panel on narrow screens to avoid covering the spring and mass drawing.
+
+## Mode Update 2026-06-07
+
+- Horizontal one-spring and two-spring modes now draw the mass in contact with a floor.
+- Added a horizontal friction coefficient `μ`; it is applied as Coulomb friction `μmg`, separately from viscous damping `c`.
+- Vertical two-spring mode now separates `並列`, `上直列`, and `上下挟み`.
+- `上下挟み` draws the mass between upper and lower springs and uses `k_eff = k1 + k2` for displacement from equilibrium.

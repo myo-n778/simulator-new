@@ -585,8 +585,9 @@
         <h2 class="section-title">パラメータ</h2>
         <div class="switch-row" id="connectionGroup">
           <div class="segmented" aria-label="ばね2本の接続">
-            <button class="seg-btn is-active" type="button" data-mode="connection" data-value="parallel">並列/左右</button>
-            <button class="seg-btn" type="button" data-mode="connection" data-value="series">直列</button>
+            <button id="connectionParallel" class="seg-btn is-active" type="button" data-mode="connection" data-value="parallel">並列/左右</button>
+            <button id="connectionSeries" class="seg-btn" type="button" data-mode="connection" data-value="series">直列</button>
+            <button id="connectionSandwich" class="seg-btn" type="button" data-mode="connection" data-value="sandwich">上下挟み</button>
           </div>
         </div>
 
@@ -606,6 +607,10 @@
           <div class="field">
             <div class="field-top"><label for="damping">減衰 <strong>c</strong> [N s/m] = <span id="dampingText">0.00</span></label><input id="dampingNumber" type="number" min="0" max="6" step="0.01" value="0"></div>
             <input id="damping" type="range" min="0" max="6" step="0.01" value="0">
+          </div>
+          <div class="field" id="frictionField">
+            <div class="field-top"><label for="friction">摩擦係数 <strong>μ</strong> = <span id="frictionText">0.00</span></label><input id="frictionNumber" type="number" min="0" max="1.5" step="0.01" value="0"></div>
+            <input id="friction" type="range" min="0" max="1.5" step="0.01" value="0">
           </div>
           <div class="field">
             <div class="field-top"><label for="gravity">重力 <strong>g</strong> [m/s^2] = <span id="gravityText">9.80</span></label><input id="gravityNumber" type="number" min="0" max="20" step="0.01" value="9.8"></div>
@@ -658,6 +663,7 @@
     k1: 12,
     k2: 18,
     damping: 0,
+    friction: 0,
     gravity: 9.8,
     speed: 1,
     zoom: 'fit',
@@ -668,13 +674,14 @@
 
   const ids = [
     'scene', 'qGraph', 'vGraph', 'eGraph', 'playBtn', 'stepBtn', 'resetBtn', 'speedSelect',
-    'zoomSelect', 'connectionGroup', 'k2Field', 'mass', 'massNumber', 'k1', 'k1Number',
-    'k2', 'k2Number', 'damping', 'dampingNumber', 'gravity', 'gravityNumber', 'q0',
+    'zoomSelect', 'connectionGroup', 'connectionParallel', 'connectionSeries', 'connectionSandwich',
+    'k2Field', 'frictionField', 'mass', 'massNumber', 'k1', 'k1Number',
+    'k2', 'k2Number', 'damping', 'dampingNumber', 'friction', 'frictionNumber', 'gravity', 'gravityNumber', 'q0',
     'q0Number', 'v0', 'v0Number', 'windowSec', 'windowNumber', 'showForces', 'showTrail',
     'showEnergy', 'showNatural', 'timeReadout', 'qReadout', 'vReadout', 'forceReadout',
     'keffReadout', 'periodReadout', 'omegaReadout', 'staticReadout', 'accelReadout',
     'energyReadout', 'qRange', 'vRange', 'eRange', 'massText', 'k1Text', 'k2Text',
-    'dampingText', 'gravityText', 'q0Text', 'v0Text', 'windowText', 'formulaTitle',
+    'dampingText', 'frictionText', 'gravityText', 'q0Text', 'v0Text', 'windowText', 'formulaTitle',
     'formulaBody'
   ];
   const el = Object.fromEntries(ids.map((id) => [id, document.getElementById(id)]));
@@ -767,6 +774,7 @@
   function kEff() {
     if (state.springCount === 'one') return state.k1;
     if (state.connection === 'parallel') return state.k1 + state.k2;
+    if (state.connection === 'sandwich') return state.k1 + state.k2;
     return (state.k1 * state.k2) / (state.k1 + state.k2);
   }
 
@@ -784,7 +792,17 @@
   }
 
   function acceleration(q, v) {
-    return (-(kEff() * q) - (state.damping * v)) / state.mass;
+    const springViscous = -(kEff() * q) - (state.damping * v);
+    return (springViscous + frictionForce(q, v)) / state.mass;
+  }
+
+  function frictionForce(q, v) {
+    if (state.orientation !== 'horizontal' || state.friction <= 0 || state.gravity <= 0) return 0;
+    const springViscous = -(kEff() * q) - (state.damping * v);
+    const maxFriction = state.friction * state.mass * state.gravity;
+    if (Math.abs(v) > 0.002) return -maxFriction * Math.sign(v);
+    if (Math.abs(springViscous) <= maxFriction) return -springViscous;
+    return -maxFriction * Math.sign(springViscous);
   }
 
   function energy() {
@@ -819,6 +837,11 @@
     const k4v = a(q0 + dt * k3q, v0 + dt * k3v);
     state.q += (dt / 6) * (k1q + 2 * k2q + 2 * k3q + k4q);
     state.v += (dt / 6) * (k1v + 2 * k2v + 2 * k3v + k4v);
+    const springViscous = -(kEff() * state.q) - (state.damping * state.v);
+    const maxFriction = state.friction * state.mass * state.gravity;
+    if (state.orientation === 'horizontal' && maxFriction > 0 && Math.abs(state.v) < 0.002 && Math.abs(springViscous) <= maxFriction) {
+      state.v = 0;
+    }
   }
 
   function pushSample() {
@@ -969,12 +992,12 @@
 
   function drawHorizontal(ctx, W, H, pxPerM, blockW, blockH, ke) {
     const pal = scenePalette();
-    const cy = H * 0.44;
+    const cy = H * 0.48;
     const center = W * 0.5;
     const x = center + state.q * pxPerM;
     const wallL = Math.max(32, W * 0.1);
     const wallR = W - wallL;
-    const groundY = cy + blockH * 0.5 + 14;
+    const groundY = cy + blockH * 0.5;
     const leftFace = x - blockW / 2;
     const rightFace = x + blockW / 2;
 
@@ -983,7 +1006,7 @@
     ctx.shadowBlur = 10;
     ctx.shadowOffsetY = 4;
     ctx.strokeStyle = pal.rail;
-    ctx.lineWidth = 5;
+    ctx.lineWidth = 4;
     ctx.beginPath();
     ctx.moveTo(wallL, groundY);
     ctx.lineTo(wallR, groundY);
@@ -992,9 +1015,17 @@
     ctx.strokeStyle = pal.railLight;
     ctx.lineWidth = 1.5;
     ctx.beginPath();
-    ctx.moveTo(wallL, groundY - 3);
-    ctx.lineTo(wallR, groundY - 3);
+    ctx.moveTo(wallL, groundY - 2);
+    ctx.lineTo(wallR, groundY - 2);
     ctx.stroke();
+    ctx.strokeStyle = isDark() ? 'rgba(145, 162, 183, 0.35)' : 'rgba(91, 111, 130, 0.28)';
+    ctx.lineWidth = 1;
+    for (let gx = wallL + 10; gx < wallR; gx += 20) {
+      ctx.beginPath();
+      ctx.moveTo(gx, groundY + 2);
+      ctx.lineTo(gx - 10, groundY + 12);
+      ctx.stroke();
+    }
     ctx.restore();
 
     drawWall(ctx, wallL, cy - 88, 14, 176, 'left');
@@ -1008,8 +1039,8 @@
       ctx.beginPath();
       state.trail.forEach((p, i) => {
         const tx = center + p.q * pxPerM;
-        if (i === 0) ctx.moveTo(tx, groundY + 18);
-        else ctx.lineTo(tx, groundY + 18);
+        if (i === 0) ctx.moveTo(tx, groundY + 20);
+        else ctx.lineTo(tx, groundY + 20);
       });
       ctx.stroke();
     }
@@ -1018,10 +1049,10 @@
     ctx.strokeStyle = pal.guide;
     ctx.beginPath();
     ctx.moveTo(center, cy - 90);
-    ctx.lineTo(center, groundY + 34);
+    ctx.lineTo(center, groundY + 38);
     ctx.stroke();
     ctx.setLineDash([]);
-    drawLabelTag(ctx, 'q = 0', center, groundY + 50, 'center');
+    drawLabelTag(ctx, 'q = 0', center, groundY + 54, 'center');
 
     ctx.strokeStyle = pal.spring;
     ctx.lineWidth = 3;
@@ -1056,7 +1087,13 @@
       drawArrow(ctx, x, cy - 58, x + arrow, cy - 58, isDark() ? '#ffd166' : '#b7791f', 'F');
       const vel = clamp(state.v * 24, -76, 76);
       drawArrow(ctx, x, cy + 64, x + vel, cy + 64, isDark() ? '#8ee7c8' : '#2b9b78', 'v');
+      if (state.friction > 0) {
+        const friction = frictionForce(state.q, state.v);
+        const frictionArrow = clamp(friction * 12, -82, 82);
+        drawArrow(ctx, x, groundY + 26, x + frictionArrow, groundY + 26, isDark() ? '#ff9f7d' : '#c86b46', '摩擦');
+      }
     }
+    drawLabelTag(ctx, `床 μ=${fmt(state.friction, 2)}`, wallR - 18, groundY + 26, 'right');
     if (el.showEnergy.checked && W >= 520) drawEnergyBar(ctx, W - 145, 22, 110, 70);
   }
 
@@ -1065,9 +1102,11 @@
     const anchorY = 48;
     const centerX = W * 0.5;
     const naturalLength = Math.max(82, H * 0.23);
-    const eqY = anchorY + naturalLength + stretch * pxPerM;
+    const isSandwich = state.springCount === 'two' && state.connection === 'sandwich';
+    const eqY = isSandwich ? H * 0.52 : anchorY + naturalLength + stretch * pxPerM;
     const massY = eqY + state.q * pxPerM;
     const topBarW = Math.min(260, W * 0.52);
+    const bottomAnchorY = H - 48;
 
     ctx.save();
     ctx.shadowColor = pal.shadow;
@@ -1083,7 +1122,23 @@
     ctx.fill();
     ctx.restore();
 
-    if (el.showNatural.checked) {
+    if (isSandwich) {
+      ctx.save();
+      ctx.shadowColor = pal.shadow;
+      ctx.shadowBlur = 10;
+      ctx.shadowOffsetY = -2;
+      const lowerGrad = ctx.createLinearGradient(centerX - topBarW / 2, bottomAnchorY - 8, centerX + topBarW / 2, bottomAnchorY + 10);
+      lowerGrad.addColorStop(0, pal.railLight);
+      lowerGrad.addColorStop(0.5, pal.rail);
+      lowerGrad.addColorStop(1, pal.railLight);
+      ctx.fillStyle = lowerGrad;
+      ctx.beginPath();
+      ctx.roundRect(centerX - topBarW / 2, bottomAnchorY - 8, topBarW, 16, 6);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    if (el.showNatural.checked && !isSandwich) {
       ctx.setLineDash([4, 6]);
       ctx.strokeStyle = pal.rail;
       ctx.beginPath();
@@ -1114,6 +1169,13 @@
       drawSpring(ctx, centerX + dx, anchorY + 3, centerX + dx, massY - blockH / 2, 11, 10);
       labelSpring(ctx, centerX - dx - 30, (anchorY + massY - blockH / 2) / 2, 'k1');
       labelSpring(ctx, centerX + dx + 30, (anchorY + massY - blockH / 2) / 2, 'k2');
+    } else if (state.connection === 'sandwich') {
+      drawSpring(ctx, centerX, anchorY + 3, centerX, massY - blockH / 2, 11, 12);
+      drawSpring(ctx, centerX, massY + blockH / 2, centerX, bottomAnchorY - 3, 11, 12);
+      drawConnectorDot(ctx, centerX, massY - blockH / 2);
+      drawConnectorDot(ctx, centerX, massY + blockH / 2);
+      labelSpring(ctx, centerX + 34, (anchorY + massY - blockH / 2) / 2, 'k1');
+      labelSpring(ctx, centerX + 34, (massY + blockH / 2 + bottomAnchorY) / 2, 'k2');
     } else {
       const totalLen = massY - blockH / 2 - (anchorY + 3);
       const firstLen = totalLen * (state.k2 / (state.k1 + state.k2));
@@ -1142,10 +1204,12 @@
     }
     if (el.showForces.checked) {
       const restore = clamp((-ke * state.q) * 11, -90, 90);
-      drawArrow(ctx, centerX - 52, massY, centerX - 52, massY + restore, isDark() ? '#ffd166' : '#b7791f', '復元力');
+      const forceOffset = isSandwich ? 68 : 52;
+      drawArrow(ctx, centerX - forceOffset, massY, centerX - forceOffset, massY + restore, isDark() ? '#ffd166' : '#b7791f', '復元力');
       const vel = clamp(state.v * 22, -80, 80);
-      drawArrow(ctx, centerX + 52, massY, centerX + 52, massY + vel, isDark() ? '#8ee7c8' : '#2b9b78', 'v');
-      drawArrow(ctx, centerX, massY + blockH / 2 + 6, centerX, massY + blockH / 2 + 48, isDark() ? '#ff7d7d' : '#c85050', 'mg');
+      drawArrow(ctx, centerX + forceOffset, massY, centerX + forceOffset, massY + vel, isDark() ? '#8ee7c8' : '#2b9b78', 'v');
+      const mgX = isSandwich ? centerX + 34 : centerX;
+      drawArrow(ctx, mgX, massY + blockH / 2 + 6, mgX, massY + blockH / 2 + 48, isDark() ? '#ff7d7d' : '#c85050', 'mg');
     }
     if (el.showEnergy.checked && W >= 520) drawEnergyBar(ctx, W - 145, 22, 110, 70);
   }
@@ -1361,6 +1425,7 @@
     el.k1Text.textContent = fmt(state.k1, 1);
     el.k2Text.textContent = fmt(state.k2, 1);
     el.dampingText.textContent = fmt(state.damping, 2);
+    el.frictionText.textContent = fmt(state.friction, 2);
     el.gravityText.textContent = fmt(state.gravity, 2);
     el.q0Text.textContent = fmt(state.q0, 3);
     el.v0Text.textContent = fmt(state.v0, 3);
@@ -1368,17 +1433,28 @@
 
     el.connectionGroup.hidden = state.springCount !== 'two';
     el.k2Field.hidden = state.springCount !== 'two';
+    el.frictionField.hidden = state.orientation !== 'horizontal';
     el.gravity.disabled = state.orientation !== 'vertical';
     el.gravityNumber.disabled = state.orientation !== 'vertical';
+    el.connectionParallel.textContent = state.orientation === 'horizontal' ? '左右/並列' : '並列';
+    el.connectionSeries.textContent = state.orientation === 'horizontal' ? '直列' : '上直列';
+    el.connectionSandwich.hidden = state.orientation !== 'vertical';
 
     if (state.springCount === 'one') {
-      el.formulaTitle.textContent = '1本ばね';
-      el.formulaBody.textContent = 'k_eff = k1、m q\'\' + c q\' + k_eff q = 0';
+      el.formulaTitle.textContent = state.orientation === 'horizontal' ? '水平1本ばね + 床摩擦' : '鉛直1本ばね';
+      el.formulaBody.textContent = state.orientation === 'horizontal'
+        ? 'k_eff = k1、運動中は摩擦力 μmg が速度と逆向きに働きます。'
+        : 'k_eff = k1、m q\'\' + c q\' + k_eff q = 0';
     } else if (state.connection === 'parallel') {
       el.formulaTitle.textContent = state.orientation === 'horizontal' ? '2本ばね: 左右/並列' : '2本ばね: 並列支持';
-      el.formulaBody.textContent = 'k_eff = k1 + k2、同じ変位 q に対して復元力が加算されます。';
+      el.formulaBody.textContent = state.orientation === 'horizontal'
+        ? 'k_eff = k1 + k2、左右のばねと床摩擦を同時に扱います。'
+        : 'k_eff = k1 + k2、同じ変位 q に対して復元力が加算されます。';
+    } else if (state.connection === 'sandwich') {
+      el.formulaTitle.textContent = '2本ばね: 上下挟み';
+      el.formulaBody.textContent = '上下のばねでおもりを挟み、変位 q に対する復元力は k_eff = k1 + k2 です。';
     } else {
-      el.formulaTitle.textContent = '2本ばね: 直列';
+      el.formulaTitle.textContent = state.orientation === 'horizontal' ? '2本ばね: 直列' : '2本ばね: 上直列';
       el.formulaBody.textContent = '1/k_eff = 1/k1 + 1/k2、同じ張力で伸びを分担します。';
     }
   }
@@ -1417,9 +1493,17 @@
 
   function setMode(kind, value) {
     state[kind] = value;
+    if (kind === 'orientation' && value === 'horizontal' && state.connection === 'sandwich') {
+      state.connection = 'parallel';
+    }
     document.querySelectorAll(`[data-mode="${kind}"]`).forEach((button) => {
-      button.classList.toggle('is-active', button.dataset.value === value);
+      button.classList.toggle('is-active', button.dataset.value === state[kind]);
     });
+    if (kind === 'orientation') {
+      document.querySelectorAll('[data-mode="connection"]').forEach((button) => {
+        button.classList.toggle('is-active', button.dataset.value === state.connection);
+      });
+    }
     resetMotion();
   }
 
@@ -1443,6 +1527,7 @@
   syncPair('k1', 'k1Number', 'k1');
   syncPair('k2', 'k2Number', 'k2');
   syncPair('damping', 'dampingNumber', 'damping');
+  syncPair('friction', 'frictionNumber', 'friction');
   syncPair('gravity', 'gravityNumber', 'gravity');
   syncPair('q0', 'q0Number', 'q0');
   syncPair('v0', 'v0Number', 'v0');
