@@ -65,3 +65,9 @@ Added as a new integrated spring simple-harmonic-motion simulator.
 - Added a horizontal friction coefficient `μ`; it is applied as Coulomb friction `μmg`, separately from viscous damping `c`.
 - Vertical two-spring mode now separates `並列`, `上直列`, and `上下挟み`.
 - `上下挟み` draws the mass between upper and lower springs and uses `k_eff = k1 + k2` for displacement from equilibrium.
+
+## Force Label Adjustment 2026-06-07
+
+- Moved restoring-force arrows to the spring/mass contact height.
+- Moved gravity and resultant-force arrows to the mass center height.
+- Changed force labels to side tags so the labels do not overlap the mass text or force arrows.
