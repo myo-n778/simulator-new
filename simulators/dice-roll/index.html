@@ -1242,64 +1242,33 @@
       ctx.save();
       ctx.lineCap = "round";
       ctx.lineJoin = "round";
-      ctx.lineWidth = Math.max(1, 2.1 * radiusScale);
-      ctx.strokeStyle = "rgba(255,255,255,.45)";
+      ctx.lineWidth = Math.max(1, 1.65 * radiusScale);
+      ctx.strokeStyle = "rgba(255,255,255,.42)";
       [
         [front[0], front[1]],
-        [front[1], front[2]],
-        [front[2], front[3]],
         [front[3], front[0]],
         [top[2], top[3]],
-        [top[3], top[0]],
+        [top[3], top[0]]
+      ].forEach(([a, b]) => {
+        ctx.beginPath();
+        ctx.moveTo(a.x, a.y);
+        ctx.lineTo(b.x, b.y);
+        ctx.stroke();
+      });
+
+      ctx.lineWidth = Math.max(1, 1.45 * radiusScale);
+      ctx.strokeStyle = "rgba(24,41,56,.42)";
+      [
+        [front[1], front[2]],
+        [front[2], front[3]],
+        [top[1], top[2]],
+        [right[0], right[1]],
         [right[1], right[2]],
         [right[2], right[3]]
       ].forEach(([a, b]) => {
         ctx.beginPath();
         ctx.moveTo(a.x, a.y);
         ctx.lineTo(b.x, b.y);
-        ctx.stroke();
-      });
-
-      ctx.lineWidth = Math.max(1, 1.4 * radiusScale);
-      ctx.strokeStyle = "rgba(23,39,55,.34)";
-      [
-        [top[1], top[2]],
-        [right[0], right[1]]
-      ].forEach(([a, b]) => {
-        ctx.beginPath();
-        ctx.moveTo(a.x, a.y);
-        ctx.lineTo(b.x, b.y);
-        ctx.stroke();
-      });
-      ctx.restore();
-    }
-
-    function drawFrontFaceBevel(front, radiusScale = 1) {
-      const ctx = diceCtx;
-      const center = pointInQuad(front, .5, .5);
-      const inset = 5.4 * radiusScale;
-      const inner = front.map((point) => {
-        const angle = Math.atan2(center.y - point.y, center.x - point.x);
-        return {
-          x: point.x + Math.cos(angle) * inset,
-          y: point.y + Math.sin(angle) * inset
-        };
-      });
-
-      ctx.save();
-      ctx.lineCap = "round";
-      ctx.lineJoin = "round";
-      ctx.lineWidth = Math.max(1, 1.25 * radiusScale);
-      [
-        { a: inner[0], b: inner[1], color: "rgba(255,255,255,.34)" },
-        { a: inner[0], b: inner[3], color: "rgba(255,255,255,.24)" },
-        { a: inner[1], b: inner[2], color: "rgba(30,47,63,.24)" },
-        { a: inner[3], b: inner[2], color: "rgba(30,47,63,.26)" }
-      ].forEach((edge) => {
-        ctx.beginPath();
-        ctx.moveTo(edge.a.x, edge.a.y);
-        ctx.lineTo(edge.b.x, edge.b.y);
-        ctx.strokeStyle = edge.color;
         ctx.stroke();
       });
       ctx.restore();
@@ -1370,7 +1339,6 @@
       drawFace(right, rightFace, "#cbdce8", scale);
       drawFace(front, face, "#f7fbfe", scale);
       drawCubeEdges(front, top, right, scale);
-      drawFrontFaceBevel(front, scale);
 
       if (rollingVisual) {
         diceCtx.save();
