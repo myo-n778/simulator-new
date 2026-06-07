@@ -183,10 +183,10 @@ const pinLayout = [
 ];
 const state = {
   standing: 20,
-  handOffset: 3.2,
+  handOffset: 5.5,
   bodyHeight: 158,
   armLength: 58,
-  angle: -3.3,
+  angle: -5.7,
   speed: 24,
   mass: 5.4,
   spin: 0,
@@ -733,6 +733,48 @@ function drawTopView(){
     topCtx.strokeStyle = board === 20 ? 'rgba(255,255,255,.55)' : 'rgba(80,44,18,.45)';
     topCtx.stroke();
   }
+  const spotLeft = topProject(lane.boardMin,lane.spotY);
+  const spotRight = topProject(lane.boardMax,lane.spotY);
+  topCtx.fillStyle = 'rgba(104,168,255,.10)';
+  topCtx.fillRect(spotLeft.x, spotLeft.y - 18, spotRight.x - spotLeft.x, 36);
+  topCtx.strokeStyle = 'rgba(104,168,255,.55)';
+  topCtx.setLineDash([4,4]);
+  topCtx.beginPath();
+  topCtx.moveTo(spotLeft.x, spotLeft.y);
+  topCtx.lineTo(spotRight.x, spotRight.y);
+  topCtx.stroke();
+  topCtx.setLineDash([]);
+  const arrowBoards = [5,10,15,20,25,30,35];
+  arrowBoards.forEach(board=>{
+    const ap = topProject(board,lane.spotY);
+    topCtx.beginPath();
+    topCtx.moveTo(ap.x, ap.y - 9);
+    topCtx.lineTo(ap.x - 7, ap.y + 7);
+    topCtx.lineTo(ap.x + 7, ap.y + 7);
+    topCtx.closePath();
+    topCtx.fillStyle = board === 10 ? 'rgba(255,157,67,.95)' : board === 20 ? 'rgba(49,216,193,.9)' : 'rgba(38,76,96,.9)';
+    topCtx.fill();
+    topCtx.fillStyle = '#dce8f2';
+    topCtx.font = '9px system-ui, sans-serif';
+    topCtx.textAlign = 'center';
+    topCtx.fillText(String(board), ap.x, ap.y + 20);
+  });
+  const basic = topProject(10,lane.spotY);
+  topCtx.fillStyle = '#ffcf9a';
+  topCtx.font = '10px system-ui, sans-serif';
+  topCtx.textAlign = 'center';
+  topCtx.fillText('右投げ基本', basic.x, basic.y - 14);
+  const targetArrow = topProject(metrics.targetSpot,lane.spotY);
+  const actualSpot = topProject(metrics.spotBoard,lane.spotY);
+  topCtx.strokeStyle = '#ff9d43';
+  topCtx.lineWidth = 2;
+  topCtx.beginPath();
+  topCtx.arc(targetArrow.x,targetArrow.y,12,0,Math.PI*2);
+  topCtx.stroke();
+  topCtx.strokeStyle = '#31d8c1';
+  topCtx.beginPath();
+  topCtx.arc(actualSpot.x,actualSpot.y,8,0,Math.PI*2);
+  topCtx.stroke();
   const release = topProject(metrics.release,0);
   const head = topProject(lane.headBoard,pinDeck.frontY);
   const spot = topProject(metrics.spotBoard,lane.spotY);
@@ -787,6 +829,8 @@ function drawTopView(){
   topCtx.fillText('真上表示', 12, 18);
   topCtx.fillStyle = '#9eb0bf';
   topCtx.fillText('等速直線運動', 12, 36);
+  topCtx.fillText('スパット 15ft / 4.57m', 12, 54);
+  topCtx.fillText('右投げ基本: 2番スパット/10枚目', 12, 72);
   topCtx.fillText(`実線: ${boardLabel(metrics.release)} → ${boardLabel(metrics.spotBoard)} → ${boardLabel(metrics.pinBoard)}`, 12, h - 10);
 }
 function easeInOut(t){
