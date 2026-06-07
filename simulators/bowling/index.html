@@ -32,7 +32,9 @@
   .layout{display:grid;grid-template-columns:minmax(520px,1fr) 360px;gap:12px;align-items:start;}
   .stage,.panel,.meter{background:var(--panel);border:1px solid var(--line);border-radius:8px;box-shadow:0 18px 38px rgba(0,0,0,.28);}
   .stage{padding:10px;}
+  .views{display:grid;grid-template-columns:minmax(0,1fr) 230px;gap:10px;}
   canvas{display:block;width:100%;height:640px;background:linear-gradient(#111d28,#071018);border-radius:6px;}
+  #topView{height:640px;background:#071018;}
   .panel{padding:12px;display:grid;gap:10px;}
   .section-title{font-size:12px;color:#c9d7e4;font-weight:800;letter-spacing:0;margin:2px 0 0;}
   .controls{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
@@ -63,7 +65,8 @@
     .top{align-items:stretch;flex-direction:column;}
     .quick-actions{grid-template-columns:1fr 1fr 1fr;}
     .layout{grid-template-columns:1fr;}
-    canvas{height:560px;}
+    .views{grid-template-columns:1fr;}
+    canvas,#topView{height:520px;}
     .readouts{grid-template-columns:repeat(2,1fr);}
   }
   @media (max-width:560px){
@@ -72,7 +75,7 @@
     .toggles,.buttons{grid-template-columns:1fr;}
     .quick-actions{position:sticky;top:8px;z-index:5;}
     .readouts{grid-template-columns:1fr;}
-    canvas{height:500px;}
+    canvas,#topView{height:460px;}
   }
 </style>
 </head>
@@ -100,7 +103,10 @@
   <div class="layout">
     <div>
       <div class="stage">
-        <canvas id="view" width="980" height="760" aria-label="疑似3Dボウリングレーン"></canvas>
+        <div class="views">
+          <canvas id="view" width="980" height="760" aria-label="疑似3Dボウリングレーン"></canvas>
+          <canvas id="topView" width="300" height="760" aria-label="真上から見たボウリングレーン"></canvas>
+        </div>
         <div class="legend">
           <span class="chip"><span class="sw" style="background:var(--teal)"></span>実際の軌道</span>
           <span class="chip"><span class="sw" style="background:var(--orange)"></span>1番ピンへ向かう目安ライン</span>
@@ -159,6 +165,8 @@
 const $ = (id)=>document.getElementById(id);
 const canvas = $('view');
 const ctx = canvas.getContext('2d');
+const topCanvas = $('topView');
+const topCtx = topCanvas.getContext('2d');
 const lane = { boardMin: 1, boardMax: 39, length: 18.29, widthM: 1.054, spotY: 4.57, pinY: 18.29, headBoard: 20 };
 const pinDeck = { frontY: 18.29, rowGap: 0.32 };
 const pinLayout = [
@@ -200,6 +208,10 @@ const bowlerImage = new Image();
 bowlerImage.src = 'assets/bowler.png?v=20260607-throw2';
 bowlerImage.onload = () => draw();
 bowlerImage.onerror = () => draw();
+const bowlerReleaseImage = new Image();
+bowlerReleaseImage.src = 'assets/bowler-release.png?v=20260607-release1';
+bowlerReleaseImage.onload = () => draw();
+bowlerReleaseImage.onerror = () => draw();
 const releaseProgress = 0.18;
 
 function fitCanvas(){
@@ -208,6 +220,10 @@ function fitCanvas(){
   canvas.width = Math.round(rect.width * dpr);
   canvas.height = Math.round(rect.height * dpr);
   ctx.setTransform(dpr,0,0,dpr,0,0);
+  const topRect = topCanvas.getBoundingClientRect();
+  topCanvas.width = Math.round(topRect.width * dpr);
+  topCanvas.height = Math.round(topRect.height * dpr);
+  topCtx.setTransform(dpr,0,0,dpr,0,0);
   draw();
 }
 
@@ -322,6 +338,7 @@ function draw(){
   drawBall();
   drawBowler();
   drawOverlays();
+  drawTopView();
   updateReadouts();
 }
 
@@ -528,7 +545,29 @@ function drawBowler(){
   const scale = 0.72 + (state.bodyHeight - 145) / 90;
   const arm = 1 + (state.armLength - 58) / 85;
   const throwPhase = clamp(state.progress / releaseProgress, 0, 1);
-  drawFallbackBowler(p, scale, arm, throwPhase);
+  const img = throwPhase < 1 ? bowlerImage : bowlerReleaseImage;
+  if(img.complete && img.naturalWidth){
+    drawImageBowler(img, p, scale, throwPhase);
+  }else{
+    drawFallbackBowler(p, scale, arm, throwPhase);
+  }
+}
+
+function drawImageBowler(img, p, scale, throwPhase){
+  const releaseP = project(releaseBoard(), 0);
+  const imgW = 290 * scale;
+  const imgH = 435 * scale;
+  const swing = easeInOut(throwPhase);
+  const x = p.x - imgW * 0.60 + (releaseP.x - p.x) * 0.10 * swing;
+  const y = p.y - imgH + 132 - 18 * swing;
+  ctx.save();
+  ctx.globalAlpha = 0.98;
+  ctx.fillStyle = 'rgba(0,0,0,.28)';
+  ctx.beginPath();
+  ctx.ellipse(p.x - 6, p.y + 83 * scale, 52 * scale, 14 * scale, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.drawImage(img, x, y, imgW, imgH);
+  ctx.restore();
 }
 
 function drawFallbackBowler(p, scale, arm, throwPhase){
@@ -616,6 +655,94 @@ function drawFallbackBowler(p, scale, arm, throwPhase){
     ctx.stroke();
   }
   ctx.restore();
+}
+
+function topProject(board, y){
+  const w = topCanvas.clientWidth;
+  const h = topCanvas.clientHeight;
+  const padX = Math.max(18, w * 0.16);
+  const padY = 22;
+  const x = lerp(padX, w - padX, (board - lane.boardMin) / (lane.boardMax - lane.boardMin));
+  const yy = lerp(h - padY, padY, y / lane.length);
+  return {x, y: yy};
+}
+
+function drawTopView(){
+  const w = topCanvas.clientWidth;
+  const h = topCanvas.clientHeight;
+  topCtx.clearRect(0,0,w,h);
+  topCtx.fillStyle = '#071018';
+  topCtx.fillRect(0,0,w,h);
+  topCtx.fillStyle = '#d09a55';
+  const a = topProject(lane.boardMin,0);
+  const b = topProject(lane.boardMax,0);
+  const c = topProject(lane.boardMax,lane.length);
+  const d = topProject(lane.boardMin,lane.length);
+  topCtx.beginPath();
+  topCtx.moveTo(a.x,a.y); topCtx.lineTo(b.x,b.y); topCtx.lineTo(c.x,c.y); topCtx.lineTo(d.x,d.y); topCtx.closePath();
+  topCtx.fill();
+  topCtx.strokeStyle = 'rgba(255,255,255,.45)';
+  topCtx.lineWidth = 1;
+  topCtx.stroke();
+  for(let board=5; board<=35; board+=5){
+    const p0 = topProject(board,0), p1 = topProject(board,lane.length);
+    topCtx.beginPath();
+    topCtx.moveTo(p0.x,p0.y); topCtx.lineTo(p1.x,p1.y);
+    topCtx.strokeStyle = board === 20 ? 'rgba(255,255,255,.55)' : 'rgba(80,44,18,.45)';
+    topCtx.stroke();
+  }
+  const release = topProject(metrics.release,0);
+  const head = topProject(lane.headBoard,pinDeck.frontY);
+  const spot = topProject(metrics.spotBoard,lane.spotY);
+  topCtx.setLineDash([]);
+  topCtx.lineWidth = 4;
+  topCtx.strokeStyle = '#31d8c1';
+  topCtx.beginPath();
+  topCtx.moveTo(release.x, release.y);
+  topCtx.lineTo(head.x, head.y);
+  topCtx.stroke();
+  if(state.targetOn){
+    topCtx.setLineDash([6,5]);
+    topCtx.lineWidth = 2;
+    topCtx.strokeStyle = '#ff9d43';
+    topCtx.beginPath();
+    topCtx.moveTo(release.x, release.y);
+    topCtx.lineTo(head.x, head.y);
+    topCtx.stroke();
+    topCtx.setLineDash([]);
+  }
+  const lp = laneProgress();
+  if(lp > 0){
+    const by = lane.length * lp;
+    const bp = topProject(pathBoardAt(by), by);
+    topCtx.fillStyle = '#12363d';
+    topCtx.strokeStyle = '#b5fff4';
+    topCtx.lineWidth = 2;
+    topCtx.beginPath();
+    topCtx.arc(bp.x,bp.y,8,0,Math.PI*2);
+    topCtx.fill();
+    topCtx.stroke();
+  }
+  pinLayout.forEach(pin=>{
+    const y = pinDeck.frontY + pin.row * pinDeck.rowGap;
+    const pp = topProject(pin.board,y);
+    const hit = state.pinOn && metrics.pinHits.has(pin.id) && lp > .9;
+    topCtx.fillStyle = hit ? '#ff6b64' : '#fff7ec';
+    topCtx.beginPath();
+    topCtx.arc(pp.x,pp.y,5,0,Math.PI*2);
+    topCtx.fill();
+    topCtx.fillStyle = '#0b141d';
+    topCtx.font = '9px system-ui, sans-serif';
+    topCtx.textAlign = 'center';
+    topCtx.fillText(String(pin.id), pp.x, pp.y + 3);
+  });
+  topCtx.fillStyle = '#eaf1f7';
+  topCtx.font = '12px system-ui, sans-serif';
+  topCtx.textAlign = 'left';
+  topCtx.fillText('真上表示', 12, 18);
+  topCtx.fillStyle = '#9eb0bf';
+  topCtx.fillText('等速直線運動', 12, 36);
+  topCtx.fillText(`release ${boardLabel(metrics.release)} → 1番 ${lane.headBoard}`, 12, h - 10);
 }
 function easeInOut(t){
   return t < .5 ? 2*t*t : 1 - Math.pow(-2*t+2,2)/2;
