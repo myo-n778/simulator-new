@@ -1227,13 +1227,19 @@
       ctx.stroke();
     }
     if (el.showForces.checked) {
-      const springForce = -ke * state.q;
-      const restore = clamp(springForce * 11, -90, 90);
+      const gravityForce = state.mass * state.gravity;
+      const dampingForce = -state.damping * state.v;
+      const combinedSpringForce = -(gravityForce + ke * state.q);
+      const resultantForce = combinedSpringForce + gravityForce + dampingForce;
+      const forceScale = 5;
+      const restore = clamp(combinedSpringForce * forceScale, -96, 96);
       const forceOffset = isSandwich ? 68 : 52;
       const springColor = isDark() ? '#ffd166' : '#b7791f';
       if (isSandwich) {
-        const topRestore = clamp((-state.k1 * state.q) * 10, -72, 72);
-        const bottomRestore = clamp((-state.k2 * state.q) * 10, -72, 72);
+        const topSpringForce = combinedSpringForce * (state.k1 / ke);
+        const bottomSpringForce = combinedSpringForce * (state.k2 / ke);
+        const topRestore = clamp(topSpringForce * forceScale, -82, 82);
+        const bottomRestore = clamp(bottomSpringForce * forceScale, -82, 82);
         drawForceArrow(ctx, centerX - forceOffset, massY - blockH / 2, centerX - forceOffset, massY - blockH / 2 + topRestore, springColor, '上ばね', 'left');
         drawForceArrow(ctx, centerX - forceOffset, massY + blockH / 2, centerX - forceOffset, massY + blockH / 2 + bottomRestore, springColor, '下ばね', 'left');
       } else {
@@ -1242,8 +1248,9 @@
       const vel = clamp(state.v * 22, -80, 80);
       drawForceArrow(ctx, centerX + forceOffset, massY, centerX + forceOffset, massY + vel, isDark() ? '#8ee7c8' : '#2b9b78', 'v', 'right');
       const mgX = centerX + (isSandwich ? 38 : 28);
-      drawForceArrow(ctx, mgX, massY, mgX, massY + 44, isDark() ? '#ff7d7d' : '#c85050', 'mg', 'right');
-      const net = clamp((springForce - state.damping * state.v) * 11, -90, 90);
+      const mg = clamp(gravityForce * forceScale, 0, 96);
+      drawForceArrow(ctx, mgX, massY, mgX, massY + mg, isDark() ? '#ff7d7d' : '#c85050', 'mg', 'right');
+      const net = clamp(resultantForce * forceScale, -96, 96);
       drawForceArrow(ctx, centerX + forceOffset + 28, massY, centerX + forceOffset + 28, massY + net, isDark() ? '#f7b267' : '#a65f1c', '合力', 'right');
     }
     if (el.showEnergy.checked && W >= 520) drawEnergyBar(ctx, W - 145, 22, 110, 70);

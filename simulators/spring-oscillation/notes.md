@@ -71,3 +71,4 @@ Added as a new integrated spring simple-harmonic-motion simulator.
 - Moved restoring-force arrows to the spring/mass contact height.
 - Moved gravity and resultant-force arrows to the mass center height.
 - Changed force labels to side tags so the labels do not overlap the mass text or force arrows.
+- Corrected vertical force-arrow scaling so spring force, gravity, and resultant force use the same force-to-pixel conversion and the resultant is drawn as their vector sum.
