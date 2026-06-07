@@ -160,7 +160,7 @@ const $ = (id)=>document.getElementById(id);
 const canvas = $('view');
 const ctx = canvas.getContext('2d');
 const lane = { boards: 40, length: 18.29, spotY: 4.57, pinY: 18.29, headBoard: 20 };
-const pinDeck = { frontY: 17.18, rowGap: 0.32 };
+const pinDeck = { frontY: 18.29, rowGap: 0.32 };
 const pinLayout = [
   { id: 1, board: 20.0, row: 0 },
   { id: 2, board: 18.8, row: 1 },
@@ -197,8 +197,9 @@ let dpr = 1;
 let metrics = null;
 let clock = null;
 const bowlerImage = new Image();
-bowlerImage.src = 'assets/bowler.png';
+bowlerImage.src = 'assets/bowler.png?v=20260607-throw2';
 bowlerImage.onload = () => draw();
+bowlerImage.onerror = () => draw();
 
 function fitCanvas(){
   const rect = canvas.getBoundingClientRect();
@@ -292,16 +293,17 @@ function computePinHits(pinBoard, gutterAt){
 function project(board, y){
   const w = canvas.clientWidth;
   const h = canvas.clientHeight;
-  const topY = 42;
-  const bottomY = h - 68;
+  const topY = 58;
+  const bottomY = h - 76;
   const t = y / lane.length;
+  const tc = clamp(t, -0.08, 1.08);
   const centerX = w * 0.5;
   const halfBottom = Math.min(w * 0.42, 390);
   const halfTop = Math.max(72, halfBottom * 0.21);
-  const py = lerp(bottomY, topY, t);
-  const half = lerp(halfBottom, halfTop, Math.pow(t, .78));
+  const py = lerp(bottomY, topY, tc);
+  const half = lerp(halfBottom, halfTop, tc);
   const x = centerX + ((board - 20) / 20) * half;
-  return {x,y:py,half,centerX,scale:lerp(1.15,.24,t),t};
+  return {x,y:py,half,centerX,scale:lerp(1.15,.24,clamp(tc,0,1)),t:tc};
 }
 
 function draw(){
@@ -420,13 +422,13 @@ function drawSpots(){
 }
 
 function drawPins(){
-  const impactT = clamp((state.progress - 0.9) / 0.1, 0, 1);
+  const impactT = clamp((state.progress - 0.82) / 0.18, 0, 1);
   [...pinLayout].reverse().forEach((pin)=>{
     const y = pinDeck.frontY + pin.row * pinDeck.rowGap;
     const p = project(pin.board, y);
     const hit = state.pinOn && metrics.pinHits.has(pin.id);
     const s = p.scale * 2.7 + 0.12;
-    const fall = hit ? impactT : 0;
+    const fall = hit ? easeOutBack(impactT) : 0;
     const side = pin.board >= metrics.pinBoard ? 1 : -1;
     ctx.save();
     ctx.translate(p.x + side * 20 * fall * s, p.y + 12 * fall * s);
@@ -445,6 +447,11 @@ function drawPins(){
     ctx.fillText(String(pin.id), 0, -18*s);
     ctx.restore();
   });
+}
+function easeOutBack(t){
+  const c1 = 1.7;
+  const c3 = c1 + 1;
+  return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2);
 }
 function roundPin(x,y,w,h){
   ctx.beginPath();
@@ -516,12 +523,12 @@ function drawBowler(){
   const p = project(state.standing, -0.15);
   const scale = 0.72 + (state.bodyHeight - 145) / 90;
   const arm = 1 + (state.armLength - 58) / 85;
-  const throwPhase = clamp(state.progress / 0.14, 0, 1);
+  const throwPhase = clamp(state.progress / 0.22, 0, 1);
   if(bowlerImage.complete && bowlerImage.naturalWidth){
-    const imgW = 250 * scale;
-    const imgH = 360 * scale;
-    const x = p.x - imgW * 0.58 + state.handOffset * 4 + throwPhase * 18;
-    const y = p.y - imgH + 92 - throwPhase * 16;
+    const imgW = 290 * scale;
+    const imgH = 435 * scale;
+    const x = p.x - imgW * 0.62 + state.handOffset * 5 + throwPhase * 24;
+    const y = p.y - imgH + 136 - throwPhase * 22;
     ctx.save();
     ctx.globalAlpha = 0.98;
     ctx.fillStyle = 'rgba(0,0,0,.28)';
@@ -534,6 +541,10 @@ function drawBowler(){
     ctx.restore();
     return;
   }
+  drawFallbackBowler(p, scale, arm, throwPhase);
+}
+
+function drawFallbackBowler(p, scale, arm, throwPhase){
   ctx.save();
   ctx.translate(p.x, p.y + 36);
   ctx.scale(scale, scale);
@@ -578,10 +589,10 @@ function drawBowler(){
   ctx.moveTo(-22,-24);
   ctx.lineTo(-42,-2);
   ctx.moveTo(22,-24);
-  ctx.lineTo(22 + state.handOffset * 7, 22 * arm);
+  ctx.lineTo(22 + state.handOffset * 7 + throwPhase * 22, 22 * arm - throwPhase * 16);
   ctx.stroke();
-  const handX = 22 + state.handOffset * 7;
-  const handY = 22 * arm;
+  const handX = 22 + state.handOffset * 7 + throwPhase * 22;
+  const handY = 22 * arm - throwPhase * 16;
   ctx.fillStyle = '#31d8c1';
   ctx.beginPath();
   ctx.arc(handX, handY+6, 11, 0, Math.PI*2);
