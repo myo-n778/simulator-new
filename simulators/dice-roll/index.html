@@ -148,13 +148,58 @@
       transform-origin: 50% 65%;
     }
 
+    .dice-canvas {
+      position: relative;
+      z-index: 3;
+      display: block;
+      width: min(78%, 430px);
+      height: min(58%, 360px);
+      min-height: 260px;
+      pointer-events: none;
+    }
+
     .die-wrap {
       position: relative;
       width: 154px;
       height: 154px;
+      display: none;
       transform-style: preserve-3d;
+      transform-origin: 50% 50%;
       transition: transform .18s linear;
       filter: drop-shadow(0 34px 34px rgba(0, 0, 0, .42));
+    }
+
+    .die-wrap::before,
+    .die-wrap::after {
+      content: "";
+      position: absolute;
+      display: block;
+      border: 1px solid rgba(255, 255, 255, .48);
+      pointer-events: none;
+    }
+
+    .die-wrap::before {
+      z-index: 1;
+      top: -25px;
+      left: 18px;
+      width: 132px;
+      height: 40px;
+      border-radius: 22px 24px 10px 9px;
+      background: linear-gradient(135deg, rgba(255, 255, 255, .95), rgba(222, 235, 244, .96) 55%, rgba(165, 186, 202, .96));
+      box-shadow: inset 0 12px 14px rgba(255, 255, 255, .46);
+      transform: skewX(30deg);
+    }
+
+    .die-wrap::after {
+      z-index: 1;
+      top: 12px;
+      right: -31px;
+      width: 44px;
+      height: 128px;
+      border-radius: 8px 22px 24px 8px;
+      background: linear-gradient(90deg, rgba(203, 219, 231, .96), rgba(125, 148, 165, .96));
+      box-shadow: inset -12px 0 18px rgba(41, 64, 82, .2);
+      transform: skewY(26deg);
     }
 
     .die-wrap.rolling {
@@ -169,6 +214,7 @@
     .die {
       position: absolute;
       inset: 0;
+      z-index: 2;
       transform-style: preserve-3d;
     }
 
@@ -182,10 +228,29 @@
       border: 1px solid rgba(255, 255, 255, .72);
       border-radius: 24px;
       background:
-        radial-gradient(circle at 28% 18%, rgba(255, 255, 255, .98), rgba(235, 244, 250, .98) 44%, rgba(198, 215, 228, .98));
+        radial-gradient(circle at 28% 18%, rgba(255, 255, 255, .98), rgba(235, 244, 250, .98) 42%, rgba(196, 213, 226, .98));
       box-shadow:
         inset 0 16px 22px rgba(255, 255, 255, .72),
         inset 0 -18px 28px rgba(31, 55, 72, .2);
+      backface-visibility: hidden;
+    }
+
+    .front {
+      background: radial-gradient(circle at 26% 16%, #ffffff, #eef6fb 46%, #c6d8e5);
+    }
+
+    .right,
+    .left {
+      background: radial-gradient(circle at 32% 18%, #f3f8fb, #d9e8f0 45%, #9fb6c7);
+    }
+
+    .top {
+      background: radial-gradient(circle at 26% 16%, #ffffff, #f7fbfd 46%, #d7e5ee);
+    }
+
+    .bottom,
+    .back {
+      background: radial-gradient(circle at 34% 20%, #e9f2f7, #c7d9e5 48%, #839bad);
     }
 
     .face::before {
@@ -272,7 +337,7 @@
 
     .chart-head {
       display: grid;
-      grid-template-columns: repeat(3, minmax(0, 1fr));
+      grid-template-columns: repeat(4, minmax(0, 1fr));
       gap: 8px;
       margin-bottom: 10px;
     }
@@ -368,7 +433,9 @@
       width: min(70%, 46px);
       min-height: 2px;
       border-radius: 7px 7px 0 0;
-      background: linear-gradient(180deg, var(--bar-top), var(--bar-bottom));
+      background:
+        repeating-linear-gradient(180deg, rgba(255, 255, 255, .22) 0 1px, transparent 1px 10px),
+        linear-gradient(180deg, var(--bar-top), var(--bar-bottom));
       box-shadow: 0 0 26px var(--bar-glow);
       transition: height .12s ease-out;
     }
@@ -502,6 +569,25 @@
       align-items: center;
     }
 
+    .number-line {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 118px;
+      gap: 8px;
+      align-items: center;
+    }
+
+    input[type="number"] {
+      width: 100%;
+      min-height: 34px;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: #07111c;
+      color: var(--ink);
+      font-variant-numeric: tabular-nums;
+      font-weight: 800;
+      padding: 0 8px;
+    }
+
     .toggle {
       display: flex;
       align-items: center;
@@ -604,9 +690,30 @@
         min-height: 440px;
       }
 
+      .dice-canvas {
+        width: min(86%, 330px);
+        min-height: 220px;
+      }
+
       .die-wrap {
         width: 116px;
         height: 116px;
+      }
+
+      .die-wrap::before {
+        top: -18px;
+        left: 13px;
+        width: 100px;
+        height: 31px;
+        border-radius: 18px 19px 8px 8px;
+      }
+
+      .die-wrap::after {
+        top: 9px;
+        right: -23px;
+        width: 34px;
+        height: 96px;
+        border-radius: 7px 18px 19px 7px;
       }
 
       .front { transform: translateZ(58px); }
@@ -658,6 +765,7 @@
         <section class="dice-stage" aria-label="3D風サイコロ表示">
           <div class="throw-lane"></div>
           <div class="table-ellipse"></div>
+          <canvas class="dice-canvas" id="diceCanvas" aria-label="立方体のサイコロ表示"></canvas>
           <div class="die-wrap" id="dieWrap" aria-hidden="true">
             <div class="die" id="die">
               <div class="face front" data-face="1"><i class="dot p1"></i></div>
@@ -676,15 +784,19 @@
 
         <section class="chart-panel" aria-label="出目ごとの棒グラフ">
           <div class="chart-head">
-            <div class="mini-stat">
-              <span>総試行</span>
-              <strong id="totalRolls">0</strong>
-            </div>
-            <div class="mini-stat">
-              <span>最多</span>
-              <strong id="peakFace">未記録</strong>
-            </div>
-            <div class="mini-stat">
+          <div class="mini-stat">
+            <span>総試行</span>
+            <strong id="totalRolls">0</strong>
+          </div>
+          <div class="mini-stat">
+            <span>目標</span>
+            <strong id="targetRollsText">1,000</strong>
+          </div>
+          <div class="mini-stat">
+            <span>最多</span>
+            <strong id="peakFace">未記録</strong>
+          </div>
+          <div class="mini-stat">
               <span>平均との差</span>
               <strong id="spread">0個</strong>
             </div>
@@ -731,6 +843,14 @@
             <label for="rollRate">記録速度</label>
             <span class="value" id="rollRateValue">500回/秒</span>
             <input type="range" id="rollRate" min="10" max="5000" step="10" value="500">
+          </div>
+          <div class="control">
+            <div class="number-line">
+              <label for="targetRolls">目標回数</label>
+              <input type="number" id="targetRollsNumber" min="10" max="100000" step="10" value="1000">
+            </div>
+            <span class="value" id="targetRollsValue">1,000回</span>
+            <input type="range" id="targetRolls" min="10" max="100000" step="10" value="1000">
           </div>
           <div class="select-row">
             <label for="speedPreset">プリセット</label>
@@ -805,6 +925,8 @@
     });
 
     const dieWrap = document.getElementById("dieWrap");
+    const diceCanvas = document.getElementById("diceCanvas");
+    const diceCtx = diceCanvas.getContext("2d");
     const barsEl = document.getElementById("bars");
     const counts = [0, 0, 0, 0, 0, 0];
     const colors = [
@@ -821,6 +943,8 @@
       rollOnce: document.getElementById("rollOnce"),
       reset: document.getElementById("reset"),
       rollRate: document.getElementById("rollRate"),
+      targetRolls: document.getElementById("targetRolls"),
+      targetRollsNumber: document.getElementById("targetRollsNumber"),
       speedPreset: document.getElementById("speedPreset"),
       firstThrow: document.getElementById("firstThrow"),
       showTheory: document.getElementById("showTheory")
@@ -830,10 +954,12 @@
       runState: document.getElementById("runState"),
       lastFace: document.getElementById("lastFace"),
       totalRolls: document.getElementById("totalRolls"),
+      targetRollsText: document.getElementById("targetRollsText"),
       peakFace: document.getElementById("peakFace"),
       spread: document.getElementById("spread"),
       rollRateText: document.getElementById("rollRateText"),
       rollRateValue: document.getElementById("rollRateValue"),
+      targetRollsValue: document.getElementById("targetRollsValue"),
       averageFace: document.getElementById("averageFace"),
       lowShare: document.getElementById("lowShare"),
       highShare: document.getElementById("highShare"),
@@ -852,7 +978,8 @@
     let lastFace = null;
     let pendingRolls = 0;
     let renderAccumulator = 0;
-    let visualSpin = { x: -18, y: 28, z: 0 };
+    let visualSpin = { x: -32, y: -38, z: -6 };
+    let visualTime = 0;
     let firstThrowPending = false;
 
     const faceRotations = {
@@ -871,6 +998,10 @@
     function percent(value, denom = total) {
       if (denom <= 0) return "0%";
       return `${(value / denom * 100).toFixed(1)}%`;
+    }
+
+    function getTargetRolls() {
+      return Math.max(10, Math.min(100000, Number(controls.targetRolls.value) || 1000));
     }
 
     function createBars() {
@@ -893,6 +1024,7 @@
     }
 
     function rollDie() {
+      if (total >= getTargetRolls()) return lastFace;
       const face = Math.floor(Math.random() * 6) + 1;
       counts[face - 1] += 1;
       total += 1;
@@ -901,16 +1033,27 @@
     }
 
     function rollMany(amount) {
-      for (let i = 0; i < amount; i += 1) {
+      const rollable = Math.min(amount, Math.max(0, getTargetRolls() - total));
+      for (let i = 0; i < rollable; i += 1) {
         rollDie();
       }
+      return rollable;
     }
 
     function setRunning(next) {
+      if (next && total >= getTargetRolls()) {
+        running = false;
+        controls.toggleRun.dataset.running = "false";
+        controls.toggleRun.textContent = "開始";
+        readouts.runState.textContent = "完了";
+        dieWrap.classList.remove("rolling");
+        updateReadouts();
+        return;
+      }
       running = next;
       controls.toggleRun.dataset.running = String(running);
       controls.toggleRun.textContent = running ? "停止" : "開始";
-      readouts.runState.textContent = running ? "記録中" : "待機中";
+      readouts.runState.textContent = running ? "記録中" : total >= getTargetRolls() ? "完了" : "待機中";
       dieWrap.classList.toggle("rolling", running);
       if (running && controls.firstThrow.checked && total === 0) {
         firstThrowPending = true;
@@ -923,8 +1066,8 @@
       lastFace = null;
       pendingRolls = 0;
       firstThrowPending = false;
-      visualSpin = { x: -18, y: 28, z: 0 };
-      dieWrap.style.transform = "rotateX(-18deg) rotateY(28deg) rotateZ(0deg)";
+      visualSpin = { x: -32, y: -38, z: -6 };
+      dieWrap.style.transform = "rotateX(-32deg) rotateY(-38deg) rotateZ(-6deg)";
       setRunning(false);
       updateReadouts();
     }
@@ -935,7 +1078,207 @@
       readouts.rollRateText.textContent = `${formatNumber(rate)}回/秒`;
     }
 
+    function updateTargetText() {
+      const target = getTargetRolls();
+      controls.targetRolls.value = String(target);
+      controls.targetRollsNumber.value = String(target);
+      readouts.targetRollsValue.textContent = `${formatNumber(target)}回`;
+      readouts.targetRollsText.textContent = formatNumber(target);
+      if (total >= target) {
+        setRunning(false);
+      }
+      updateReadouts();
+    }
+
+    function resizeDiceCanvas() {
+      const rect = diceCanvas.getBoundingClientRect();
+      const dpr = window.devicePixelRatio || 1;
+      const width = Math.max(1, Math.round(rect.width * dpr));
+      const height = Math.max(1, Math.round(rect.height * dpr));
+      if (diceCanvas.width !== width || diceCanvas.height !== height) {
+        diceCanvas.width = width;
+        diceCanvas.height = height;
+      }
+      diceCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      return rect;
+    }
+
+    function shadeColor(hex, amount) {
+      const value = Number.parseInt(hex.slice(1), 16);
+      const r = Math.max(0, Math.min(255, (value >> 16) + amount));
+      const g = Math.max(0, Math.min(255, ((value >> 8) & 255) + amount));
+      const b = Math.max(0, Math.min(255, (value & 255) + amount));
+      return `rgb(${r}, ${g}, ${b})`;
+    }
+
+    function drawRoundPolygon(points, radius) {
+      const ctx = diceCtx;
+      ctx.beginPath();
+      points.forEach((point, index) => {
+        const prev = points[(index - 1 + points.length) % points.length];
+        const next = points[(index + 1) % points.length];
+        const fromAngle = Math.atan2(prev.y - point.y, prev.x - point.x);
+        const toAngle = Math.atan2(next.y - point.y, next.x - point.x);
+        const p1 = {
+          x: point.x + Math.cos(fromAngle) * radius,
+          y: point.y + Math.sin(fromAngle) * radius
+        };
+        const p2 = {
+          x: point.x + Math.cos(toAngle) * radius,
+          y: point.y + Math.sin(toAngle) * radius
+        };
+        if (index === 0) ctx.moveTo(p1.x, p1.y);
+        else ctx.lineTo(p1.x, p1.y);
+        ctx.quadraticCurveTo(point.x, point.y, p2.x, p2.y);
+      });
+      ctx.closePath();
+    }
+
+    function pointInQuad(quad, u, v) {
+      const top = {
+        x: quad[0].x + (quad[1].x - quad[0].x) * u,
+        y: quad[0].y + (quad[1].y - quad[0].y) * u
+      };
+      const bottom = {
+        x: quad[3].x + (quad[2].x - quad[3].x) * u,
+        y: quad[3].y + (quad[2].y - quad[3].y) * u
+      };
+      return {
+        x: top.x + (bottom.x - top.x) * v,
+        y: top.y + (bottom.y - top.y) * v
+      };
+    }
+
+    function dotPositions(face) {
+      const map = {
+        1: [[.5, .5]],
+        2: [[.28, .28], [.72, .72]],
+        3: [[.28, .28], [.5, .5], [.72, .72]],
+        4: [[.28, .28], [.72, .28], [.28, .72], [.72, .72]],
+        5: [[.28, .28], [.72, .28], [.5, .5], [.28, .72], [.72, .72]],
+        6: [[.28, .25], [.72, .25], [.28, .5], [.72, .5], [.28, .75], [.72, .75]]
+      };
+      return map[face] || map[1];
+    }
+
+    function drawFace(quad, face, base, radiusScale = 1) {
+      const ctx = diceCtx;
+      drawRoundPolygon(quad, 18 * radiusScale);
+      const gradient = ctx.createLinearGradient(quad[0].x, quad[0].y, quad[2].x, quad[2].y);
+      gradient.addColorStop(0, shadeColor(base, 36));
+      gradient.addColorStop(.55, base);
+      gradient.addColorStop(1, shadeColor(base, -34));
+      ctx.fillStyle = gradient;
+      ctx.fill();
+      ctx.strokeStyle = "rgba(255,255,255,.68)";
+      ctx.lineWidth = 1.3;
+      ctx.stroke();
+
+      ctx.save();
+      drawRoundPolygon(quad, 18 * radiusScale);
+      ctx.clip();
+      ctx.globalAlpha = .35;
+      ctx.fillStyle = "#ffffff";
+      ctx.beginPath();
+      ctx.ellipse(pointInQuad(quad, .26, .18).x, pointInQuad(quad, .26, .18).y, 42 * radiusScale, 18 * radiusScale, -0.25, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+
+      const dotRadius = 8.2 * radiusScale;
+      dotPositions(face).forEach(([u, v]) => {
+        const p = pointInQuad(quad, u, v);
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, dotRadius, 0, Math.PI * 2);
+        const dot = ctx.createRadialGradient(p.x - dotRadius * .35, p.y - dotRadius * .35, 1, p.x, p.y, dotRadius);
+        dot.addColorStop(0, "#425469");
+        dot.addColorStop(1, "#07111b");
+        ctx.fillStyle = dot;
+        ctx.fill();
+        ctx.strokeStyle = "rgba(255,255,255,.12)";
+        ctx.stroke();
+      });
+    }
+
+    function sideFaces(frontFace) {
+      const pairs = {
+        1: [2, 3],
+        2: [6, 3],
+        3: [1, 5],
+        4: [6, 2],
+        5: [1, 4],
+        6: [5, 4]
+      };
+      return pairs[frontFace] || [2, 3];
+    }
+
+    function drawCanvasDie() {
+      const rect = resizeDiceCanvas();
+      const width = rect.width;
+      const height = rect.height;
+      diceCtx.clearRect(0, 0, width, height);
+
+      const bounce = running ? Math.sin(visualTime * 11) * 24 : 0;
+      const sway = running ? Math.sin(visualTime * 7) * 13 : 0;
+      const spin = running ? visualTime * 5.8 : 0;
+      const face = running ? ((Math.floor(visualTime * 18) % 6) + 1) : (lastFace || 1);
+      const [topFace, rightFace] = sideFaces(face);
+
+      const cx = width / 2 + sway;
+      const cy = height / 2 - 4 + bounce;
+      const size = Math.min(width, height) * .38;
+      const depthX = size * (.38 + Math.sin(spin) * .04);
+      const depthY = size * (.26 + Math.cos(spin * .7) * .03);
+      const tilt = running ? Math.sin(spin) * .08 : 0;
+
+      const front = [
+        { x: cx - size * .52, y: cy - size * .50 + tilt * size },
+        { x: cx + size * .52, y: cy - size * .44 - tilt * size },
+        { x: cx + size * .52, y: cy + size * .48 + tilt * size },
+        { x: cx - size * .52, y: cy + size * .42 - tilt * size }
+      ];
+      const top = [
+        { x: front[0].x, y: front[0].y },
+        { x: front[1].x, y: front[1].y },
+        { x: front[1].x + depthX, y: front[1].y - depthY },
+        { x: front[0].x + depthX, y: front[0].y - depthY }
+      ];
+      const right = [
+        { x: front[1].x, y: front[1].y },
+        { x: front[1].x + depthX, y: front[1].y - depthY },
+        { x: front[2].x + depthX, y: front[2].y - depthY },
+        { x: front[2].x, y: front[2].y }
+      ];
+
+      diceCtx.save();
+      diceCtx.globalAlpha = .28;
+      diceCtx.fillStyle = "#000";
+      diceCtx.beginPath();
+      diceCtx.ellipse(width / 2, height * .82, size * .88, size * .17, 0, 0, Math.PI * 2);
+      diceCtx.fill();
+      diceCtx.restore();
+
+      const scale = size / 150;
+      drawFace(top, topFace, "#edf7fc", scale);
+      drawFace(right, rightFace, "#cbdce8", scale);
+      drawFace(front, face, "#f7fbfe", scale);
+
+      if (running) {
+        diceCtx.save();
+        diceCtx.globalAlpha = .18;
+        diceCtx.strokeStyle = "#45d8f5";
+        diceCtx.lineWidth = 4;
+        for (let i = 0; i < 4; i += 1) {
+          diceCtx.beginPath();
+          diceCtx.ellipse(cx - 14 - i * 18, cy + 2, size * (.58 + i * .12), size * (.16 + i * .035), -.12, Math.PI * .2, Math.PI * 1.25);
+          diceCtx.stroke();
+        }
+        diceCtx.restore();
+      }
+    }
+
     function updateDie(dt) {
+      visualTime += dt;
+      drawCanvasDie();
       if (running) {
         visualSpin.x += 720 * dt;
         visualSpin.y += 1040 * dt;
@@ -945,11 +1288,12 @@
       }
       if (lastFace) {
         const r = faceRotations[lastFace];
-        dieWrap.style.transform = `rotateX(${r.x - 14}deg) rotateY(${r.y + 24}deg) rotateZ(${r.z}deg)`;
+        dieWrap.style.transform = `rotateX(${r.x - 32}deg) rotateY(${r.y - 38}deg) rotateZ(${r.z - 6}deg)`;
       }
     }
 
     function updateReadouts() {
+      const target = getTargetRolls();
       const max = Math.max(...counts);
       const min = Math.min(...counts);
       const expected = total / 6;
@@ -962,7 +1306,7 @@
       const even = counts[1] + counts[3] + counts[5];
 
       readouts.lastFace.textContent = lastFace ?? "-";
-      readouts.totalRolls.textContent = formatNumber(total);
+      readouts.totalRolls.textContent = `${formatNumber(total)} / ${formatNumber(target)}`;
       readouts.peakFace.textContent = total > 0 ? `${peakIndex + 1}が最多` : "未記録";
       readouts.spread.textContent = `${formatNumber(spread)}個`;
       readouts.averageFace.textContent = total > 0 ? (weighted / total).toFixed(2) : "未記録";
@@ -982,7 +1326,8 @@
         const countEl = document.getElementById(`count${index + 1}`);
         const shareEl = document.getElementById(`share${index + 1}`);
         const cell = bar.closest(".bar-cell");
-        const height = total > 0 ? Math.max(2, Math.min(100, count / total / 0.25 * 100)) : 2;
+        const expectedTop = target / 4;
+        const height = total > 0 ? Math.max(2, Math.min(100, count / expectedTop * 100)) : 2;
         bar.style.height = `${height}%`;
         countEl.textContent = formatNumber(count);
         shareEl.textContent = percent(count);
@@ -999,9 +1344,13 @@
           pendingRolls += Number(controls.rollRate.value) * dt;
           const amount = Math.floor(pendingRolls);
           if (amount > 0) {
-            rollMany(Math.min(amount, 25000));
-            pendingRolls -= amount;
+            const rolled = rollMany(Math.min(amount, 25000));
+            pendingRolls = rolled < amount ? 0 : pendingRolls - amount;
           }
+        }
+        if (total >= getTargetRolls()) {
+          setRunning(false);
+          pendingRolls = 0;
         }
       }
       updateDie(dt);
@@ -1030,6 +1379,17 @@
       controls.rollRate.value = controls.speedPreset.value;
       updateRateText();
     });
+    controls.targetRolls.addEventListener("input", () => {
+      controls.targetRollsNumber.value = controls.targetRolls.value;
+      updateTargetText();
+    });
+    function syncTargetFromNumber() {
+      const next = Math.max(10, Math.min(100000, Number(controls.targetRollsNumber.value) || 1000));
+      controls.targetRolls.value = String(Math.round(next / 10) * 10);
+      updateTargetText();
+    }
+    controls.targetRollsNumber.addEventListener("input", syncTargetFromNumber);
+    controls.targetRollsNumber.addEventListener("change", syncTargetFromNumber);
     controls.showTheory.addEventListener("change", () => {
       barsEl.classList.toggle("show-theory", controls.showTheory.checked);
     });
@@ -1037,7 +1397,9 @@
     createBars();
     barsEl.classList.toggle("show-theory", controls.showTheory.checked);
     updateRateText();
+    updateTargetText();
     reset();
+    window.addEventListener("resize", drawCanvasDie);
 
     const clock = new PhysicsSimClock.FixedStepClock({
       step: 1 / 60,
