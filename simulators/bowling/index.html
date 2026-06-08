@@ -234,17 +234,20 @@ function speedMs(){ return state.speed / 3.6; }
 function releaseBoard(){
   return clamp(state.standing + state.handOffset * 0.78, lane.boardMin, lane.boardMax);
 }
-function curveAt(y){
-  if(!state.spinOn) return 0;
+function curveAt(y, spinEnabled = state.spinOn){
+  if(!spinEnabled) return 0;
   const v = speedMs();
   const spin = state.spin / 450;
   const massFactor = 5.4 / state.mass;
   const speedFactor = Math.pow(6.7 / v, 1.35);
-  const t = y / lane.length;
-  return spin * massFactor * speedFactor * 5.2 * t * t;
+  const t = clamp(y / pinDeck.frontY, 0, 1);
+  const hookStart = 0.48;
+  const hookT = clamp((t - hookStart) / (1 - hookStart), 0, 1);
+  const hookShape = hookT * hookT * (3 - 2 * hookT);
+  return -spin * massFactor * speedFactor * 4.8 * hookShape;
 }
-function pathBoardAt(y, angleOverride = state.angle, releaseOverride = releaseBoard()){
-  return releaseOverride + Math.tan(angleOverride * Math.PI / 180) * y * 2.35 + curveAt(y);
+function pathBoardAt(y, angleOverride = state.angle, releaseOverride = releaseBoard(), spinEnabled = state.spinOn){
+  return releaseOverride + Math.tan(angleOverride * Math.PI / 180) * y * 2.35 + curveAt(y, spinEnabled);
 }
 function targetSpotForHead(){
   const release = releaseBoard();
@@ -312,15 +315,19 @@ function project(board, y){
   const h = canvas.clientHeight;
   const topY = 58;
   const bottomY = h - 76;
-  const t = y / lane.length;
-  const tc = clamp(t, -0.08, 1.08);
+  const t = clamp(y / lane.length, -0.08, 1.08);
   const centerX = w * 0.5;
   const halfBottom = Math.min(w * 0.28, 245);
   const halfTop = Math.max(34, halfBottom * 0.19);
-  const py = lerp(bottomY, topY, tc);
-  const half = lerp(halfBottom, halfTop, tc);
+  const z0 = (halfTop * lane.length) / Math.max(1, halfBottom - halfTop);
+  const q = 1 / (z0 + lane.length * t);
+  const nearQ = 1 / z0;
+  const farQ = 1 / (z0 + lane.length);
+  const s = (q - farQ) / (nearQ - farQ);
+  const py = lerp(topY, bottomY, s);
+  const half = halfBottom * z0 / (z0 + lane.length * t);
   const x = centerX + ((board - lane.headBoard) / ((lane.boardMax - lane.boardMin) / 2)) * half;
-  return {x,y:py,half,centerX,scale:lerp(1.15,.24,clamp(tc,0,1)),t:tc};
+  return {x,y:py,half,centerX,scale:lerp(1.15,.24,clamp(t,0,1)),t};
 }
 
 function draw(){
@@ -497,33 +504,26 @@ function drawPolyline(points, color, width, dash){
   ctx.stroke();
   ctx.restore();
 }
-function trajectoryPoints(angle = state.angle, release = releaseBoard()){
+function trajectoryPoints(angle = state.angle, release = releaseBoard(), spinEnabled = state.spinOn){
   const pts = [];
   for(let i=0;i<=110;i++){
     const y = pinDeck.frontY * i / 110;
-    pts.push({x:pathBoardAt(y, angle, release), y});
+    pts.push({x:pathBoardAt(y, angle, release, spinEnabled), y});
   }
   return pts;
 }
 function drawTrajectory(){
-  if(!state.spinOn){
-    const a = screenPointAt(0);
-    const b = screenPointAt(metrics.gutterAt ? metrics.gutterAt.y : pinDeck.frontY);
-    drawScreenLine(a, b, '#31d8c1', 4);
-    drawScreenLine(a, b, 'rgba(255,255,255,.65)', 1.2);
-    return;
-  }
   const pts = trajectoryPoints();
   const visible = metrics.gutterAt ? pts.filter(pt=>pt.y <= metrics.gutterAt.y) : pts;
   drawPolyline(visible, '#31d8c1', 4);
   drawPolyline(visible, 'rgba(255,255,255,.65)', 1.2);
 }
 function drawTargetLine(){
-  drawScreenLine(screenTargetPointAt(0), screenTargetPointAt(pinDeck.frontY), '#ff9d43', 2.5, [7,6]);
+  drawPolyline(trajectoryPoints(metrics.required, metrics.release), '#ff9d43', 2.5, [7,6]);
 }
 function drawGhostLine(){
   const release = state.standing;
-  const pts = trajectoryPoints(0, release);
+  const pts = trajectoryPoints(0, release, false);
   drawPolyline(pts, 'rgba(255,255,255,.28)', 2, [4,7]);
 }
 function drawBall(){
@@ -532,7 +532,7 @@ function drawBall(){
   const y = pinDeck.frontY * lp;
   const gutterLimit = metrics.gutterAt ? metrics.gutterAt.y : pinDeck.frontY;
   const drawY = Math.min(y, gutterLimit);
-  const p = state.spinOn ? project(pathBoardAt(drawY), drawY) : screenPointAt(drawY);
+  const p = project(pathBoardAt(drawY), drawY);
   const r = 15 * p.scale + 4;
   const grad = ctx.createRadialGradient(p.x-r*.35,p.y-r*.4,2,p.x,p.y,r);
   grad.addColorStop(0,'#b5fff4');
@@ -545,41 +545,6 @@ function drawBall(){
   ctx.strokeStyle = 'rgba(255,255,255,.5)';
   ctx.lineWidth = 1.2;
   ctx.stroke();
-}
-
-function screenPointAt(y){
-  const t = clamp(y / pinDeck.frontY, 0, 1);
-  const start = project(metrics.release, 0);
-  const end = project(metrics.pinBoard, pinDeck.frontY);
-  return {
-    x: lerp(start.x, end.x, t),
-    y: lerp(start.y, end.y, t),
-    scale: lerp(start.scale, end.scale, t)
-  };
-}
-
-function screenTargetPointAt(y){
-  const t = clamp(y / pinDeck.frontY, 0, 1);
-  const start = project(metrics.release, 0);
-  const end = project(lane.headBoard, pinDeck.frontY);
-  return {
-    x: lerp(start.x, end.x, t),
-    y: lerp(start.y, end.y, t),
-    scale: lerp(start.scale, end.scale, t)
-  };
-}
-
-function drawScreenLine(a,b,color,width,dash){
-  ctx.save();
-  if(dash) ctx.setLineDash(dash);
-  ctx.beginPath();
-  ctx.moveTo(a.x,a.y);
-  ctx.lineTo(b.x,b.y);
-  ctx.strokeStyle = color;
-  ctx.lineWidth = width;
-  ctx.lineCap = 'round';
-  ctx.stroke();
-  ctx.restore();
 }
 
 function drawBowler(){
@@ -775,32 +740,16 @@ function drawTopView(){
   topCtx.beginPath();
   topCtx.arc(actualSpot.x,actualSpot.y,8,0,Math.PI*2);
   topCtx.stroke();
-  const release = topProject(metrics.release,0);
-  const head = topProject(lane.headBoard,pinDeck.frontY);
-  const spot = topProject(metrics.spotBoard,lane.spotY);
-  const actualHead = topProject(metrics.pinBoard,pinDeck.frontY);
-  topCtx.setLineDash([]);
-  topCtx.lineWidth = 4;
-  topCtx.strokeStyle = '#31d8c1';
-  topCtx.beginPath();
-  topCtx.moveTo(release.x, release.y);
-  topCtx.lineTo(spot.x, spot.y);
-  topCtx.lineTo(actualHead.x, actualHead.y);
-  topCtx.stroke();
+  const actualPts = trajectoryPoints();
+  const visiblePts = metrics.gutterAt ? actualPts.filter(pt=>pt.y <= metrics.gutterAt.y) : actualPts;
+  drawTopPath(visiblePts, '#31d8c1', 4);
   if(state.targetOn){
-    topCtx.setLineDash([6,5]);
-    topCtx.lineWidth = 2;
-    topCtx.strokeStyle = '#ff9d43';
-    topCtx.beginPath();
-    topCtx.moveTo(release.x, release.y);
-    topCtx.lineTo(topProject(metrics.targetSpot,lane.spotY).x, topProject(metrics.targetSpot,lane.spotY).y);
-    topCtx.lineTo(head.x, head.y);
-    topCtx.stroke();
-    topCtx.setLineDash([]);
+    drawTopPath(trajectoryPoints(metrics.required, metrics.release), '#ff9d43', 2, [6,5]);
   }
   const lp = laneProgress();
   if(lp > 0){
-    const by = pinDeck.frontY * lp;
+    const gutterLimit = metrics.gutterAt ? metrics.gutterAt.y : pinDeck.frontY;
+    const by = Math.min(pinDeck.frontY * lp, gutterLimit);
     const bp = topProject(pathBoardAt(by), by);
     topCtx.fillStyle = '#12363d';
     topCtx.strokeStyle = '#b5fff4';
@@ -832,6 +781,22 @@ function drawTopView(){
   topCtx.fillText('スパット 15ft / 4.57m', 12, 54);
   topCtx.fillText('右投げ基本: 2番スパット/10枚目', 12, 72);
   topCtx.fillText(`実線: ${boardLabel(metrics.release)} → ${boardLabel(metrics.spotBoard)} → ${boardLabel(metrics.pinBoard)}`, 12, h - 10);
+}
+
+function drawTopPath(points, color, width, dash){
+  topCtx.save();
+  if(dash) topCtx.setLineDash(dash);
+  topCtx.lineWidth = width;
+  topCtx.strokeStyle = color;
+  topCtx.lineCap = 'round';
+  topCtx.lineJoin = 'round';
+  topCtx.beginPath();
+  points.forEach((pt,i)=>{
+    const p = topProject(pt.x, pt.y);
+    if(i === 0) topCtx.moveTo(p.x,p.y); else topCtx.lineTo(p.x,p.y);
+  });
+  topCtx.stroke();
+  topCtx.restore();
 }
 function easeInOut(t){
   return t < .5 ? 2*t*t : 1 - Math.pow(-2*t+2,2)/2;
