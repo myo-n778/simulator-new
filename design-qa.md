@@ -13,6 +13,7 @@
 - Rolled results are displayed on the top face of the die, while front/side faces remain supporting visible faces.
 - Pips remain projected along the visible die faces and read as recessed holes rather than pasted circles.
 - The visible die uses generated CG raster assets rather than the older hand-drawn canvas cube.
+- The six CG die assets were regenerated so the visible top, front, and right faces do not repeat the same pip count on one die.
 - Auto display fit keeps the primary simulator surface inside a `1365 x 768` viewport, with manual zoom controls available.
 - Target preset `50` run completed at `50 / 50`.
 - Odd/even counts summed to the total run count.
