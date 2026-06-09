@@ -10,6 +10,7 @@
 
 - Desktop layout uses left controls, central die stage, right cumulative bars, and bottom summary stats.
 - The die is prominent and closer to the selected reference: large rounded white cube, red `1` on the top face, black pips on front/side faces, and stronger depth.
+- Rolled results are displayed on the top face of the die, while front/side faces remain supporting visible faces.
 - Pips remain projected along the visible die faces and read as recessed holes rather than pasted circles.
 - Target preset `50` run completed at `50 / 50`.
 - Odd/even counts summed to the total run count.
