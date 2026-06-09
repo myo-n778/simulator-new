@@ -12,10 +12,12 @@
 - The die is prominent and closer to the selected reference: large rounded white cube, red `1` on the top face, black pips on front/side faces, and stronger depth.
 - Rolled results are displayed on the top face of the die, while front/side faces remain supporting visible faces.
 - Pips remain projected along the visible die faces and read as recessed holes rather than pasted circles.
+- Auto display fit keeps the primary simulator surface inside a `1365 x 768` viewport, with manual zoom controls available.
 - Target preset `50` run completed at `50 / 50`.
 - Odd/even counts summed to the total run count.
 - Browser console errors: none observed.
 - Mobile viewport `390 x 844` had no horizontal overflow.
+- Mobile viewport `390 x 844` also stayed within the viewport in auto display mode.
 
 ## Notes
 
