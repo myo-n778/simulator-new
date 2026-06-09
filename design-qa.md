@@ -9,8 +9,8 @@
 ## Checks
 
 - Desktop layout uses left controls, central die stage, right cumulative bars, and bottom summary stats.
-- The die remains prominent and readable as a cube.
-- Pips remain projected along the visible die faces.
+- The die is prominent and closer to the selected reference: large rounded white cube, red `1` on the top face, black pips on front/side faces, and stronger depth.
+- Pips remain projected along the visible die faces and read as recessed holes rather than pasted circles.
 - Target preset `50` run completed at `50 / 50`.
 - Odd/even counts summed to the total run count.
 - Browser console errors: none observed.
