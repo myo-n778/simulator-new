@@ -4,6 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>サイコロ出目シミュレーター</title>
+  <link rel="icon" href="data:,">
   <link rel="stylesheet" href="../../assets/common-sim.css">
   <script src="../../assets/sim-shell.js"></script>
   <script src="../../assets/sim-clock.js"></script>
@@ -224,13 +225,41 @@
     }
 
     .dice-canvas {
+      display: none;
+    }
+
+    .die-image {
       position: relative;
       z-index: 3;
       display: block;
       width: min(86%, 560px);
-      height: min(64%, 430px);
-      min-height: 340px;
+      height: auto;
+      max-height: min(70%, 460px);
+      object-fit: contain;
       pointer-events: none;
+      transform-origin: 50% 62%;
+      filter:
+        drop-shadow(0 22px 24px rgba(0, 0, 0, .42))
+        drop-shadow(0 0 28px rgba(62, 231, 245, .12));
+      transition: transform .18s ease, filter .18s ease;
+    }
+
+    .die-image.rolling {
+      animation: rendered-roll .16s linear infinite, rendered-hop .62s ease-in-out infinite;
+      filter:
+        drop-shadow(0 28px 26px rgba(0, 0, 0, .48))
+        drop-shadow(0 0 34px rgba(62, 231, 245, .18));
+    }
+
+    @keyframes rendered-roll {
+      0% { rotate: -5deg; }
+      50% { rotate: 7deg; }
+      100% { rotate: -5deg; }
+    }
+
+    @keyframes rendered-hop {
+      0%, 100% { translate: 0 8px; scale: 1; }
+      46% { translate: 0 -34px; scale: 1.04; }
     }
 
     .die-wrap {
@@ -786,6 +815,11 @@
         min-height: 220px;
       }
 
+      .die-image {
+        width: min(88%, 340px);
+        max-height: 280px;
+      }
+
       .die-wrap {
         width: 116px;
         height: 116px;
@@ -866,6 +900,7 @@
           <div class="throw-lane"></div>
           <div class="table-ellipse"></div>
           <canvas class="dice-canvas" id="diceCanvas" aria-label="立方体のサイコロ表示"></canvas>
+          <img class="die-image" id="dieImage" src="assets/die-top-1.png" alt="上面に出目が表示された3Dサイコロ">
           <div class="die-wrap" id="dieWrap" aria-hidden="true">
             <div class="die" id="die">
               <div class="face front" data-face="1"><i class="dot p1"></i></div>
@@ -1027,6 +1062,7 @@
     const dieWrap = document.getElementById("dieWrap");
     const diceCanvas = document.getElementById("diceCanvas");
     const diceCtx = diceCanvas.getContext("2d");
+    const dieImage = document.getElementById("dieImage");
     const barsEl = document.getElementById("bars");
     const appWrap = document.getElementById("appWrap");
     const fitFrame = document.getElementById("fitFrame");
@@ -1091,6 +1127,11 @@
     let manualViewScale = 1;
     let currentViewScale = 1;
     const rollAnimationSeconds = 1;
+    const dieAssetPaths = [1, 2, 3, 4, 5, 6].map((face) => `assets/die-top-${face}.png`);
+    dieAssetPaths.forEach((src) => {
+      const image = new Image();
+      image.src = src;
+    });
 
     const faceRotations = {
       1: { x: 0, y: 0, z: 0 },
@@ -1174,6 +1215,7 @@
       controls.toggleRun.dataset.running = String(running);
       controls.toggleRun.textContent = running ? "停止" : "開始";
       dieWrap.classList.toggle("rolling", phase === "intro" || phase === "outro");
+      dieImage.classList.toggle("rolling", phase === "intro" || phase === "outro");
       const labels = {
         idle: "待機中",
         intro: "転がし中",
@@ -1522,112 +1564,15 @@
     }
 
     function drawCanvasDie() {
-      const rect = resizeDiceCanvas();
-      const width = rect.width;
-      const height = rect.height;
-      diceCtx.clearRect(0, 0, width, height);
-
       const rollingVisual = phase === "intro" || phase === "outro";
-      const bounce = rollingVisual ? Math.sin(visualTime * 15) * 30 : 0;
-      const sway = rollingVisual ? Math.sin(visualTime * 9) * 42 : 0;
-      const spin = rollingVisual ? visualTime * 9.5 : 0;
       const topFace = rollingVisual ? ((Math.floor(visualTime * 22) % 6) + 1) : (lastFace || 1);
-      const [frontFace, rightFace] = visibleFacesForTop(topFace);
-
-      const cx = width / 2 + sway;
-      const cy = height / 2 + 22 + bounce;
-      const size = Math.min(width, height) * .60;
-      const half = size * .47;
-      const depthX = size * (.43 + Math.sin(spin) * .026);
-      const depthY = size * (.34 + Math.cos(spin * .7) * .024);
-      const tilt = rollingVisual ? Math.sin(spin) * .045 : 0;
-      const frontLift = size * .05;
-
-      const front = [
-        { x: cx - half, y: cy - half + frontLift + tilt * size },
-        { x: cx + half, y: cy - half + frontLift - tilt * size },
-        { x: cx + half * .98, y: cy + half - tilt * size },
-        { x: cx - half * .98, y: cy + half + tilt * size }
-      ];
-      const top = [
-        { x: front[0].x, y: front[0].y },
-        { x: front[1].x, y: front[1].y },
-        { x: front[1].x + depthX, y: front[1].y - depthY },
-        { x: front[0].x + depthX, y: front[0].y - depthY }
-      ];
-      const right = [
-        { x: front[1].x, y: front[1].y },
-        { x: front[1].x + depthX, y: front[1].y - depthY },
-        { x: front[2].x + depthX, y: front[2].y - depthY },
-        { x: front[2].x, y: front[2].y }
-      ];
-
-      diceCtx.save();
-      diceCtx.filter = `blur(${Math.max(4, 6 * size / 150)}px)`;
-      diceCtx.globalAlpha = .30;
-      diceCtx.fillStyle = "#010305";
-      diceCtx.beginPath();
-      diceCtx.ellipse(width / 2 + size * .08, height * .82, size * 1.05, size * .19, -0.02, 0, Math.PI * 2);
-      diceCtx.fill();
-      diceCtx.filter = "none";
-      diceCtx.globalAlpha = .18;
-      const groundGlow = diceCtx.createRadialGradient(width / 2, height * .80, 4, width / 2, height * .80, size * .92);
-      groundGlow.addColorStop(0, "rgba(62,231,245,.34)");
-      groundGlow.addColorStop(1, "rgba(62,231,245,0)");
-      diceCtx.fillStyle = groundGlow;
-      diceCtx.beginPath();
-      diceCtx.ellipse(width / 2, height * .82, size * .86, size * .13, 0, 0, Math.PI * 2);
-      diceCtx.fill();
-      diceCtx.restore();
-
-      const scale = size / 150;
-      const hull = [top[3], top[2], right[2], front[2], front[3], front[0]];
-      diceCtx.save();
-      drawRoundPolygon(hull, 34 * scale);
-      const bodyGradient = diceCtx.createLinearGradient(top[3].x, top[3].y, front[2].x, front[2].y);
-      bodyGradient.addColorStop(0, "#ffffff");
-      bodyGradient.addColorStop(.48, "#eef1ee");
-      bodyGradient.addColorStop(1, "#aeb8b7");
-      diceCtx.fillStyle = bodyGradient;
-      diceCtx.shadowColor = "rgba(0,0,0,.28)";
-      diceCtx.shadowBlur = 20 * scale;
-      diceCtx.shadowOffsetY = 12 * scale;
-      diceCtx.fill();
-      diceCtx.restore();
-
-      drawFace(top, topFace, "#f4f5f2", scale, "top");
-      drawFace(right, rightFace, "#cdd1d1", scale, "right");
-      drawFace(front, frontFace, "#f7f7f4", scale, "front");
-      drawCubeEdges(front, top, right, scale);
-
-      if (rollingVisual) {
-        diceCtx.save();
-        diceCtx.globalAlpha = .18;
-        diceCtx.strokeStyle = "#45d8f5";
-        diceCtx.lineWidth = 4;
-        for (let i = 0; i < 4; i += 1) {
-          diceCtx.beginPath();
-          diceCtx.ellipse(cx - 14 - i * 18, cy + 2, size * (.58 + i * .12), size * (.16 + i * .035), -.12, Math.PI * .2, Math.PI * 1.25);
-          diceCtx.stroke();
-        }
-        diceCtx.restore();
-      }
+      dieImage.src = dieAssetPaths[topFace - 1];
+      dieImage.alt = `上面が${topFace}の3Dサイコロ`;
     }
 
     function updateDie(dt) {
       visualTime += dt;
       drawCanvasDie();
-      if (running) {
-        visualSpin.x += 720 * dt;
-        visualSpin.y += 1040 * dt;
-        visualSpin.z += 410 * dt;
-        dieWrap.style.transform = `rotateX(${visualSpin.x}deg) rotateY(${visualSpin.y}deg) rotateZ(${visualSpin.z}deg)`;
-        return;
-      }
-      if (lastFace) {
-        const r = faceRotations[lastFace];
-        dieWrap.style.transform = `rotateX(${r.x - 32}deg) rotateY(${r.y - 38}deg) rotateZ(${r.z - 6}deg)`;
-      }
     }
 
     function updateReadouts() {
