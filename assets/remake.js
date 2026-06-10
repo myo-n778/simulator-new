@@ -71,6 +71,26 @@
       select.value = String(state.zoom);
     });
     activeCanvasViewports().forEach((viewport) => applyZoomToViewport(viewport, state.zoom));
+    syncNativeZoom(state.zoom);
+  }
+
+  function syncNativeZoom(zoom) {
+    const nativeSelect = document.getElementById('zoomSelect');
+    if (!(nativeSelect instanceof HTMLSelectElement)) return;
+
+    const valueMap = {
+      75: '90',
+      100: 'fit',
+      125: '120',
+      150: '160',
+      200: '220'
+    };
+    const mapped = valueMap[zoom] || String(zoom);
+    if (!Array.from(nativeSelect.options).some((option) => option.value === mapped)) return;
+    if (nativeSelect.value === mapped) return;
+
+    nativeSelect.value = mapped;
+    nativeSelect.dispatchEvent(new Event('change', { bubbles: true }));
   }
 
   function resetView() {
