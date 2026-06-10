@@ -96,7 +96,8 @@
     const doc = document.documentElement;
     const viewportWidth = doc.clientWidth || window.innerWidth;
     const scrollWidth = Math.max(doc.scrollWidth, document.body.scrollWidth);
-    const raw = scrollWidth > viewportWidth ? ((viewportWidth - 8) / scrollWidth) * 100 : 100;
+    const widthFit = scrollWidth > viewportWidth ? ((viewportWidth - 8) / scrollWidth) * 100 : 100;
+    const raw = widthFit;
     const computed = Math.floor(Math.min(100, Math.max(50, raw)));
     document.body.style.zoom = String(computed / 100);
     document.body.dataset.remakeComputedZoom = String(computed);
