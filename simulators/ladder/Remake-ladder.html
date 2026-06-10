@@ -1,0 +1,610 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>床と壁の棒（はしご）シミュレーター v1.6.17（人だけジャンプ：着地高オフセット／即時着地）</title>
+<link rel="stylesheet" href="../../assets/common-sim.css">
+<script src="../../assets/sim-shell.js"></script>
+<script src="../../assets/sim-clock.js"></script>
+<style>
+  :root{ --w: 980px; --scene-h: 420px; --card-bg:#111; --card-fg:#eee; --accent-red:#f44336;
+         --play-bg:rgba(76,175,80,.12); --play-bd:#4caf50; --pause-bg:rgba(255,235,59,.14); --pause-bd:#ffeb3b; }
+  html,body{ font-size:14px; }
+  body{ margin:0; background:#0b0b0b; color:#eaeaea; font-family: ui-sans-serif, system-ui, -apple-system, "Hiragino Kaku Gothic ProN", Meiryo, sans-serif; line-height:1.3; }
+  .wrap{ max-width:var(--w); margin:16px auto; padding:0 10px; }
+  h1{ font-size:18px; font-weight:700; letter-spacing:.02em; margin:4px 0 10px; }
+  .row{ display:flex; gap:10px; align-items:stretch; flex-wrap:wrap; }
+  .col{ flex:1; min-width:420px; }
+  .card{ background:var(--card-bg); color:var(--card-fg); border:1px solid #222; border-radius:12px; padding:10px 12px; box-shadow:0 6px 18px rgba(0,0,0,.35); }
+  .title{ font-size:13px; opacity:.9; margin-bottom:6px; }
+  canvas{ width:100%; height: var(--scene-h); background:#0e0e12; border-radius:10px; display:block; cursor:crosshair; }
+
+  .kv{ display:grid; grid-template-columns:auto auto auto auto; gap:2px 6px; font-size:12px; line-height:1.15; align-items:center; margin:4px 0; padding:0; }
+  .kv div{ margin:0; padding:1px 0; } .kv div b{ color:#fff; }
+
+  .status{ padding:4px 6px; border-radius:9px; display:inline-block; font-weight:700; letter-spacing:.03em; font-size:12px; }
+  .ok{ background:#0e2; color:#041; } .ng{ background:#fdd; color:#600; }
+
+  .ctrl{ display:grid; gap:6px; }
+  .slider{ display:grid; grid-template-columns:112px 1fr 56px 68px; gap:4px; align-items:center; margin:0; }
+  .slider label{ line-height:1.0; margin:0; }
+  input[type=range]{ width:100%; margin:0; }
+  input[type=number]{ width:100%; padding:3px 5px; background:#0b0b0b; border:1px solid #333; color:#eee; border-radius:7px; font-size:12px; }
+  output{ font-size:12px; }
+  .tiny{ font-size:11px; opacity:.85; }
+  .eq{ font-family: ui-monospace, Menlo, Consolas, monospace; font-size:11px; background:#0a0a0a; padding:6px; border-radius:9px; border:1px solid #1c1c1c; overflow:auto; line-height:1.15; }
+  .muted{ opacity:.7; }
+  .footer{ margin-top:10px; font-size:12px; opacity:.75; }
+
+  .btnrow{ display:flex; gap:6px; flex-wrap:wrap; align-items:flex-start; }
+  button{ background:#181818; color:#ddd; border:1px solid #2b2b2b; border-radius:9px; padding:7px 10px; cursor:pointer; font-size:12px; }
+  button:hover{ border-color:#3b3b3b; }
+  #resetBtn,#playBtn,#fullBtn{ border:2px solid var(--accent-red); box-shadow:0 0 0 1px rgba(244,67,54,.25) inset; }
+  #controlFrame{ border:2px solid transparent; border-radius:10px; padding:6px; transition:background-color .15s,border-color .15s; }
+  #controlFrame.playing{ background:var(--play-bg); border-color:var(--play-bd); }
+  #controlFrame.paused{ background:var(--pause-bg); border-color:var(--pause-bd); }
+  .chk{ display:flex; align-items:center; gap:6px; margin-top:2px; font-size:12px; }
+  .chk.small{ font-size:11px; line-height:1.0; margin:0; }
+  .off{ opacity:.5; pointer-events:none; }
+  .sideopts{ display:flex; flex-direction:column; margin-left:8px; }
+
+  /* Friction sections ultra-tight */
+  .fric{ padding:4px !important; }
+  .fric .title{ margin-bottom:2px; }
+  .fric .slider{ grid-template-columns:100px 1fr 44px 50px; gap:0; margin:0; }
+  .fric .slider label{ line-height:1.0; font-size:11px; }
+  .fric input[type=range]{ margin:0; }
+  .fric input[type=number]{ padding:2px 4px; font-size:11px; }
+  .fric output{ font-size:11px; }
+</style>
+  <link rel="stylesheet" href="../../assets/remake.css">
+</head>
+<body class="remake-ui">
+  <div class="remake-badge-host"><span class="remake-ribbon">リメイク版</span></div>
+<script>
+  PhysicsSimShell.create({
+    title: 'たてかけはしご',
+    subtitle: '剛体のつり合い・摩擦・反力',
+    basePath: '../../'
+  });
+</script>
+<div class="wrap">
+  <h1>床と壁の棒（はしご）シミュレーター <span class="muted">v1.6.17（人だけジャンプ：着地オフセット）</span></h1>
+  <div class="row">
+    <div class="col">
+      <div class="card">
+        <div class="title">シーン</div>
+        <canvas id="scene" width="960" height="420" title="人ON時：はしご上ドラッグで s を調整（足=接点｜見た目=|￣|）"></canvas>
+        <div class="footer tiny">壁=左／床=下。倒壊時：通常は床上で水平静止。ジャンプON＆人ON時は人だけ上昇→即時下降で新しい床高さに着地。</div>
+      </div>
+    </div>
+    <div class="col">
+      <div class="card">
+        <div class="title">コントロール</div>
+        <div class="ctrl">
+          <div class="slider">
+            <label>角度 θ [deg]</label>
+            <input id="thetaRange" type="range" min="0" max="89.9" step="0.1" value="55">
+            <output id="theta_out">55.0°</output>
+            <input id="thetaNum" type="number" min="0" max="89.9" step="0.1" value="55.0">
+          </div>
+          <div class="slider">
+            <label>棒の質量 m<sub>L</sub> [kg]</label>
+            <input id="mRange" type="range" min="0" max="200" step="0.1" value="1.0">
+            <output id="m_out">1.0</output>
+            <input id="mNum" type="number" min="0" max="200" step="0.1" value="1.0">
+          </div>
+          <label class="chk"><input type="checkbox" id="personToggle"> 人を有効（描画＆力に反映）</label>
+          <div id="personBlock" class="off">
+            <div class="slider">
+              <label>人の質量 m<sub>p</sub> [kg]</label>
+              <input id="mpRange" type="range" min="0" max="200" step="0.1" value="60.0">
+              <output id="mp_out">60.0</output>
+              <input id="mpNum" type="number" min="0" max="200" step="0.1" value="60.0">
+            </div>
+            <div class="slider">
+              <label>人の位置 s_UI [1→0]</label>
+              <input id="spRange" type="range" min="0" max="1" step="0.01" value="0.50">
+              <output id="sp_out">0.50</output>
+              <input id="spNum" type="number" min="0" max="1" step="0.01" value="0.50">
+            </div>
+          </div>
+
+          <div class="card fric" style="margin-top:4px;">
+            <div class="title">静止摩擦 μ<sub>s</sub></div>
+            <div class="slider">
+              <label>床 μ<sub>s,床</sub></label>
+              <input id="mufsRange" type="range" min="0" max="1.5" step="0.01" value="0.40">
+              <output id="mufs_out">0.40</output>
+              <input id="mufsNum" type="number" min="0" max="1.5" step="0.01" value="0.40">
+            </div>
+            <div class="slider">
+              <label>壁 μ<sub>s,壁</sub></label>
+              <input id="muwsRange" type="range" min="0" max="1.5" step="0.01" value="0.00">
+              <output id="muws_out">0.00</output>
+              <input id="muwsNum" type="number" min="0" max="1.5" step="0.01" value="0.00">
+            </div>
+          </div>
+
+          <div class="card fric" style="margin-top:6px;">
+            <div class="title">動摩擦 μ<sub>k</sub></div>
+            <div class="slider">
+              <label>床 μ<sub>k,床</sub></label>
+              <input id="mufkRange" type="range" min="0" max="1.5" step="0.01" value="0.30">
+              <output id="mufk_out">0.30</output>
+              <input id="mufkNum" type="number" min="0" max="1.5" step="0.01" value="0.30">
+            </div>
+            <div class="slider">
+              <label>壁 μ<sub>k,壁</sub></label>
+              <input id="muwkRange" type="range" min="0" max="1.5" step="0.01" value="0.00">
+              <output id="muwk_out">0.00</output>
+              <input id="muwkNum" type="number" min="0" max="1.5" step="0.01" value="0.00">
+            </div>
+          </div>
+
+          <div id="controlFrame" style="margin-top:6px;">
+            <div class="btnrow">
+              <button id="resetBtn">初期化</button>
+              <button id="playBtn">常時再生</button>
+              <button id="fullBtn">全体表示</button>
+              <div class="sideopts">
+                <label class="chk small"><input type="checkbox" id="kineticToggle" checked> 動摩擦モードを有効</label>
+                <label class="chk small"><input type="checkbox" id="forceToggle"> 力ベクトルを表示（初期オフ）</label>
+                <label class="chk small"><input type="checkbox" id="bounceToggle"> ジャンプ</label>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:10px;">
+        <div class="title">判定・値</div>
+        <div id="statusBox" class="status ok">静止可能</div>
+        <div class="kv" id="reads"></div>
+        <div class="tiny">違反量は上限比較の簡易指標。加速は <code>viol/((m<sub>L</sub>+m<sub>p,eff</sub>)g)</code>。</div>
+      </div>
+
+      <div class="card" style="margin-top:10px;">
+        <div class="title">条件と式（概要）</div>
+        <div class="eq">
+          ΣF<sub>x</sub>: f<sub>床</sub> − N<sub>壁</sub> = 0（静止近似）<br>
+          ΣF<sub>y</sub>: N<sub>床</sub> − (m<sub>L</sub>+m<sub>p,eff</sub>)g − f<sub>壁</sub> = 0<br>
+          Στ<sub>底</sub>: N<sub>壁</sub>Lsinθ − f<sub>壁</sub>Lcosθ − m<sub>L</sub>g(L/2)cosθ − m<sub>p,eff</sub>g·s·cosθ = 0
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="footer">© ladder-sim v1.6.17</div>
+</div>
+
+<script>
+const S={m:1.0,mp:60.0,personOn:false,g:9.8,L:1,theta:55*Math.PI/180,sp:0.50,mu_s_f:0.40,mu_s_w:0.00,mu_k_f:0.30,mu_k_w:0.00,playing:true,minTheta:0,kinetic:true};
+const LPIX=380;
+const FIG={torsoLen:28, headR:8, gap:2, footW:12, footH:8}; // 描画寸法（| 高さ=footH）
+const cvs=document.getElementById('scene'),ctx=cvs.getContext('2d');
+const thetaRange=document.getElementById('thetaRange'),thetaNum=document.getElementById('thetaNum'),thetaOut=document.getElementById('theta_out');
+const mRange=document.getElementById('mRange'),mNum=document.getElementById('mNum'),mOut=document.getElementById('m_out');
+const mpRange=document.getElementById('mpRange'),mpNum=document.getElementById('mpNum'),mpOut=document.getElementById('mp_out');
+const spRange=document.getElementById('spRange'),spNum=document.getElementById('spNum'),spOut=document.getElementById('sp_out');
+const mufsRange=document.getElementById('mufsRange'),muwsRange=document.getElementById('muwsRange'),mufkRange=document.getElementById('mufkRange'),muwkRange=document.getElementById('muwkRange');
+const mufsNum=document.getElementById('mufsNum'),muwsNum=document.getElementById('muwsNum'),mufkNum=document.getElementById('mufkNum'),muwkNum=document.getElementById('muwkNum');
+const mufsOut=document.getElementById('mufs_out'),muwsOut=document.getElementById('muws_out'),mufkOut=document.getElementById('mufk_out'),muwkOut=document.getElementById('muwk_out');
+const statusBox=document.getElementById('statusBox'),reads=document.getElementById('reads');
+const resetBtn=document.getElementById('resetBtn'),playBtn=document.getElementById('playBtn'),fullBtn=document.getElementById('fullBtn');
+const controlFrame=document.getElementById('controlFrame'),forceToggle=document.getElementById('forceToggle'),kineticToggle=document.getElementById('kineticToggle');
+const personToggle=document.getElementById('personToggle'),personBlock=document.getElementById('personBlock'),bounceToggle=document.getElementById('bounceToggle');
+
+/* ====== Person-only jump (up->down) with landing offset ====== */
+let pMode='normal'; // 'normal' | 'p_up' | 'p_down'
+let pStart=0, pFootX=0, pFootY=0, pJumpH=60, landOffset=FIG.footH; // 最終着地は footH 分だけ高い位置（=足の「|」分）
+const upDur=600, downDur=450; // ms
+function easeOutCubic(x){return 1-Math.pow(1-x,3);}
+function easeInQuad(x){return x*x;}
+
+function resizeCanvas(){const dpr=window.devicePixelRatio||1,rect=cvs.getBoundingClientRect();cvs.width=Math.round(rect.width*dpr);cvs.height=Math.round(rect.height*dpr);ctx.setTransform(dpr,0,0,dpr,0,0);}window.addEventListener('resize',()=>{resizeCanvas();draw(0,false);});
+
+function solveAt(theta,m,mp,g,fw,s,personOn){const mpEff=personOn?mp:0,cot=Math.cos(theta)/Math.sin(theta),mg=m*g,mpg=mpEff*g;const Nw=cot*(fw+(mg*0.5+(mpg)*s)),Nf=mg+mpg+fw;return {Nw,Nf,mg,mpg};}
+function check(theta,mu_s_f,mu_s_w,mu_k_f,mu_k_w,m,mp,g,s,personOn){
+  if(theta<=0){const mg=m*g,mpg=(personOn?mp:0)*g;return {feasible:false,mode:'floor',fw:0,Nw:0,Nf:mg+mpg,mg,mpg,viol_s:1,viol_k:1};}
+  const mpEff=personOn?mp:0, fwMax=Math.max(8.0,2.5*(m+mpEff)*g), steps=2000;
+  let best=null;
+  for(let i=0;i<=steps;i++){
+    const fw=fwMax*i/steps;
+    const {Nw,Nf,mg,mpg}=solveAt(theta,m,mp,g,fw,s,personOn);
+    const viol_s=Math.max(0,Math.abs(fw)-mu_s_w*Math.max(0,Nw))+Math.max(0,Math.abs(Nw)-mu_s_f*Math.max(0,Nf));
+    const viol_k=Math.max(0,Math.abs(fw)-mu_k_w*Math.max(0,Nw))+Math.max(0,Math.abs(Nw)-mu_k_f*Math.max(0,Nf));
+    const rec={fw,Nw,Nf,mg,mpg,viol_s,viol_k};
+    if(!best||viol_s<best.viol_s)best=rec;
+    if(viol_s===0)break;
+  }
+  const feasible=best.viol_s===0;
+  return {feasible,mode:feasible?'static':'slip',...best};
+}
+
+function criticalAngle(mu_s_f,mu_s_w,m,mp,g,s,personOn){
+  let found=null;
+  for(let d=0.05; d<=89.9; d+=0.05){
+    const th=d*Math.PI/180;
+    if(check(th,mu_s_f,mu_s_w,S.mu_k_f,S.mu_k_w,m,mp,g,s,personOn).feasible){ found=d; break; }
+  }
+  if(found==null) return null;
+  let low=Math.max(0.0001,found-0.05),high=found;
+  for(let it=0; it<20; it++){
+    const mid=(low+high)/2;
+    if(check(mid*Math.PI/180,mu_s_f,mu_s_w,S.mu_k_f,S.mu_k_w,m,mp,g,s,personOn).feasible) high=mid; else low=mid;
+  }
+  return high;
+}
+
+let angVel=0;
+function mainLoop(dt){
+  const now=performance.now();
+
+  if(pMode==='p_up' || pMode==='p_down'){
+    S.theta = 0; // はしごは倒れたまま
+    let lift=0;
+    if(pMode==='p_up'){
+      const u=Math.min(1,(now-pStart)/upDur);
+      lift = pJumpH * easeOutCubic(u);
+      if(u>=1){ pMode='p_down'; pStart=now; }
+    }else if(pMode==='p_down'){
+      const u=Math.min(1,(now-pStart)/downDur);
+      lift = pJumpH * (1 - easeInQuad(u)); // 速やかに降下
+      if(u>=1){ pMode='normal'; S.playing=true; }
+    }
+    draw(lift,true);
+    updateReads(check(Math.max(S.theta,1e-4),S.mu_s_f,S.mu_s_w,S.mu_k_f,S.mu_k_w,S.m,S.mp,S.g,S.sp,S.personOn));
+    updateControlFrame();
+    return;
+  }
+
+  const C=check(S.theta,S.mu_s_f,S.mu_s_w,S.mu_k_f,S.mu_k_w,S.m,S.mp,S.g,S.sp,S.personOn);
+  if(C.feasible) setStatus(S.playing?'静止（再生中）':'静止可能','ok');
+  else setStatus('静止不可 → 滑り（'+(S.kinetic?'動摩擦':'簡易')+'）','ng');
+
+  if(S.playing){
+    if(C.feasible){ angVel*=0.85; if(Math.abs(angVel)<1e-3) angVel=0; }
+    else{
+      const mpEff=S.personOn?S.mp:0, norm=Math.max(1e-9,(S.m+mpEff)*S.g);
+      const drive=(S.kinetic?C.viol_k:C.viol_s)/norm;
+      angVel += 1.5*drive*dt;
+      angVel = Math.min(5.0, Math.max(0, angVel));
+    }
+    S.theta -= angVel*dt;
+    if(S.theta<=S.minTheta){
+      // 倒れ切った
+      S.theta=0; angVel=0;
+      if(S.personOn && bounceToggle.checked){
+        // 足位置を記録、ジャンプ高と着地オフセット確定
+        const xb=Math.cos(0)*LPIX;
+        const fx = xb - Math.cos(0)*LPIX*(S.sp);
+        const fy = 0; // θ=0 なので sinθ=0 → 足の計算上は 0
+        pFootX=fx; pFootY=fy;
+        const fullHeight = FIG.torsoLen + FIG.headR*2 + FIG.gap; // 足→頭上端
+        pJumpH = fullHeight/2; // “体の真ん中の高さ”
+        landOffset = FIG.footH; // 「|」の高さ分だけ上で着地
+        pMode='p_up'; pStart=now; S.playing=true;
+      }else{
+        S.playing=true;
+      }
+    }
+  }
+
+  draw(0,false); updateReads(C); updateControlFrame();
+}
+let lastFrameTime = performance.now();
+function animate(now){
+  const dt = Math.min((now - lastFrameTime) / 1000, 1 / 30);
+  lastFrameTime = now;
+  mainLoop(dt);
+  requestAnimationFrame(animate);
+}
+
+function draw(personLift=0, jumping=false){
+  const rect=cvs.getBoundingClientRect(), W=rect.width, H=rect.height;
+  ctx.clearRect(0,0,W,H); ctx.save(); ctx.translate(40, H-30);
+
+  // 壁・床
+  ctx.strokeStyle="#fff"; ctx.lineWidth=2;
+  ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(0,-H); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(0,0); ctx.lineTo(W,0); ctx.stroke();
+
+  // はしご
+  const xb=Math.cos(S.theta)*LPIX, yb=0;
+  const xt=0, yt=Math.sin(S.theta)*LPIX;
+  ctx.strokeStyle="#6ac8ff"; ctx.lineWidth=6;
+  ctx.beginPath(); ctx.moveTo(xb,-yb); ctx.lineTo(xt,-yt); ctx.stroke();
+
+  // 端点
+  ctx.fillStyle="#fff"; ctx.beginPath(); ctx.arc(xb,-yb,4,0,Math.PI*2); ctx.fill();
+  ctx.beginPath(); ctx.arc(xt,-yt,4,0,Math.PI*2); ctx.fill();
+
+  // 角度表示
+  ctx.fillStyle="#aaa"; ctx.font="11px ui-monospace,Menlo,Consolas,monospace";
+  ctx.fillText(`θ=${(S.theta*180/Math.PI).toFixed(1)}°`, 6, -16);
+
+  // 人の足接点（通常）
+  const phyx = (Math.cos(S.theta)*LPIX) - Math.cos(S.theta)*LPIX*(S.sp);
+  const phyy = - Math.sin(S.theta)*LPIX*(S.sp);
+
+  // 人の描画
+  if(S.personOn){
+    if(jumping){
+      // 着地点は現位置より footH 分上（= -landOffset）
+      const baseY = pFootY - landOffset;
+      drawStickManFootAnchored(pFootX, baseY - personLift);
+    }else{
+      drawStickManFootAnchored(phyx, phyy);
+    }
+  }
+
+  // 力ベクトル（ジャンプ演出中は抑制）
+  if(forceToggle.checked && !jumping){
+    const C=check(S.theta,S.mu_s_f,S.mu_s_w,S.mu_k_f,S.mu_k_w,S.m,S.mp,S.g,S.sp,S.personOn);
+    const Nw=Math.max(0,C.Nw), Nf=Math.max(0,C.Nf);
+    const fw_disp=(S.kinetic?S.mu_k_w:S.mu_s_w)*Nw; // 上向き
+    const ffloor_disp=Math.abs(Nw); // 左向き
+    const Fmax=Math.max(C.mg+C.mpg, Nw, Nf, fw_disp, ffloor_disp, 1);
+    const k=110/Fmax, off=6;
+
+    // f床（←）＋ラベルは床の下側
+    drawArrow(xb+off, -yb, xb - k*ffloor_disp, -yb, "rgba(255,204,102,0.95)");
+    ctx.save(); ctx.fillStyle="rgba(255,204,102,0.95)"; ctx.font="10px ui-monospace,Menlo,Consolas,monospace"; ctx.textAlign="center";
+    ctx.fillText("f床", xb - (k*ffloor_disp)/2, 12); ctx.restore();
+
+    // N床（↑）
+    drawArrow(xb, -yb+off, xb, -yb - k*Nf, "rgba(102,255,153,0.95)", "N床");
+
+    // N壁（→）
+    drawArrow(xt+off, -yt, xt + k*Nw, -yt, "rgba(255,153,102,0.95)", "N壁");
+
+    // f壁（↑）0なら非表示
+    if(fw_disp>1e-9){ drawArrow(xt, -yt-off, xt, -yt - k*fw_disp, "rgba(102,170,255,0.95)", "f壁"); }
+
+    // 重力：棒と人
+    const cx=(xb+xt)/2, cy=-(yb+yt)/2;
+    drawArrow(cx, cy-5, cx, cy + k*C.mg, "rgba(255,255,255,0.95)", "mg(棒)");
+    if(S.personOn && C.mpg>0){ drawArrow(phyx, phyy-20, phyx, phyy + k*C.mpg, "rgba(255,255,255,0.85)", "mg(人)"); }
+  }
+
+  ctx.restore();
+}
+
+/* 人：足先アンカー（|￣|） */
+function drawStickManFootAnchored(fx, fy){
+  ctx.save();
+  ctx.strokeStyle="#ffd54f"; ctx.fillStyle="#ffd54f"; ctx.lineWidth=2; ctx.lineCap='round';
+
+  const footW=FIG.footW, footH=FIG.footH;
+  // 足の「￣」
+  ctx.beginPath(); ctx.moveTo(fx-footW/2, fy); ctx.lineTo(fx+footW/2, fy); ctx.stroke();
+  // 足の「| |」
+  ctx.beginPath();
+  ctx.moveTo(fx-footW/2, fy); ctx.lineTo(fx-footW/2, fy+footH);
+  ctx.moveTo(fx+footW/2, fy); ctx.lineTo(fx+footW/2, fy+footH);
+  ctx.stroke();
+
+  // 胴（縦棒）
+  const torsoLen=FIG.torsoLen, headR=FIG.headR, gap=FIG.gap;
+  const torsoBottom = fy;
+  const torsoTop    = torsoBottom - torsoLen;
+  ctx.beginPath(); ctx.moveTo(fx, torsoBottom); ctx.lineTo(fx, torsoTop); ctx.stroke();
+
+  // 腕（∧形）
+  const shoulderY = torsoTop + 8;
+  const apexY = shoulderY - 10;
+  const armHalf = 14;
+  ctx.beginPath();
+  ctx.moveTo(fx - armHalf, shoulderY);
+  ctx.lineTo(fx, apexY);
+  ctx.lineTo(fx + armHalf, shoulderY);
+  ctx.stroke();
+
+  // 頭（◯）
+  const hy = torsoTop - headR - gap;
+  ctx.beginPath(); ctx.arc(fx, hy, headR, 0, Math.PI*2); ctx.stroke();
+
+  ctx.font="10px ui-monospace,Menlo,Consolas,monospace"; ctx.fillText("人", fx + 10, hy - 6);
+  ctx.restore();
+}
+
+// 矢印
+function drawArrow(x0,y0,x1,y1,color,label){
+  ctx.save();
+  ctx.strokeStyle=color; ctx.fillStyle=color; ctx.lineWidth=2; ctx.lineCap='round';
+  ctx.beginPath(); ctx.moveTo(x0,y0); ctx.lineTo(x1,y1); ctx.stroke();
+  const ang=Math.atan2(y1-y0,x1-x0), ah=8, aw=5;
+  ctx.beginPath();
+  ctx.moveTo(x1,y1);
+  ctx.lineTo(x1 - ah*Math.cos(ang) + aw*Math.sin(ang), y1 - ah*Math.sin(ang) - aw*Math.cos(ang));
+  ctx.lineTo(x1 - ah*Math.cos(ang) - aw*Math.sin(ang), y1 - ah*Math.sin(ang) + aw*Math.cos(ang));
+  ctx.closePath(); ctx.fill();
+  if(label){ ctx.font="10px ui-monospace,Menlo,Consolas,monospace"; ctx.fillText(label, x1 + 6, y1 + 3); }
+  ctx.restore();
+}
+
+/* ====== UI／表示 ====== */
+function setStatus(text, cls){ statusBox.textContent=text; statusBox.className="status "+(cls||""); }
+function updateReads(C){
+  const deg=(S.theta*180/Math.PI).toFixed(2);
+  const th_c = criticalAngle(S.mu_s_f, S.mu_s_w, S.m, S.mp, S.g, S.sp, S.personOn);
+  const tanv = Math.tan(S.theta||0.0001);
+  const inv2tan = (Number.isFinite(tanv) && tanv!==0) ? (1/(2*tanv)) : Infinity;
+  const Nf=C.Nf, Nw=C.Nw;
+  const f_floor = Math.abs(Nw);
+  const f_wall  = (S.kinetic ? S.mu_k_w : S.mu_s_w) * Math.max(0,Nw);
+
+  reads.innerHTML = `
+    <div><b>θ</b></div><div>${deg}°</div>
+    <div><b>θ<sub>c</sub></b></div><div>${th_c==null?'—':th_c.toFixed(2)+'°'}</div>
+    <div><b>tanθ</b></div><div>${Number.isFinite(tanv)?tanv.toFixed(3):'∞'}</div>
+    <div><b>1/2tanθ</b></div><div>${Number.isFinite(inv2tan)?inv2tan.toFixed(3):'∞'}</div>
+
+    <div><b>m<sub>L</sub></b></div><div>${S.m.toFixed(1)} kg</div>
+    <div><b>人</b></div><div>${S.personOn ? (S.mp.toFixed(1)+' kg, s_int='+S.sp.toFixed(2)) : 'なし'}</div>
+
+    <div><b>μ<sub>s,床</sub></b></div><div>${S.mu_s_f.toFixed(2)}</div>
+    <div><b>μ<sub>s,壁</sub></b></div><div>${S.mu_s_w.toFixed(2)}</div>
+    <div><b>μ<sub>k,床</sub></b></div><div>${S.mu_k_f.toFixed(2)}</div>
+    <div><b>μ<sub>k,壁</sub></b></div><div>${S.mu_k_w.toFixed(2)}</div>
+
+    <div><b>N<sub>床</sub></b></div><div>${Nf.toFixed(3)}</div>
+    <div><b>N<sub>壁</sub></b></div><div>${Nw.toFixed(3)}</div>
+    <div><b>|f<sub>床</sub>|</b></div><div>${f_floor.toFixed(3)}</div>
+    <div><b>|f<sub>壁</sub>|</b></div><div>${f_wall.toFixed(3)}</div>
+
+    <div><b>違反量<sub>s</sub></b></div><div>${C.viol_s.toFixed(4)}</div>
+    <div><b>違反量<sub>k</sub></b></div><div>${C.viol_k.toFixed(4)}</div>
+  `;
+}
+function updateControlFrame(){
+  controlFrame.classList.toggle('playing', S.playing);
+  controlFrame.classList.toggle('paused', !S.playing);
+  personBlock.classList.toggle('off', !S.personOn);
+  [mpRange, mpNum, spRange, spNum].forEach(el=>{ el.disabled = !S.personOn; });
+  personToggle.checked = S.personOn;
+}
+function clamp(v, lo, hi){ v = Number(v); if(!Number.isFinite(v)) v=lo; return Math.max(lo, Math.min(hi, v)); }
+function refreshAll(){
+  draw(0,false);
+  const C = check(Math.max(S.theta,0.0001), S.mu_s_f, S.mu_s_w, S.mu_k_f, S.mu_k_w, S.m, S.mp, S.g, S.sp, S.personOn);
+  updateReads(C);
+  setStatus(C.feasible ? (S.playing?'静止（再生中）':'静止可能') : ('静止不可 → 滑り（'+(S.kinetic?'動摩擦':'簡易')+'）'), C.feasible?'ok':'ng');
+}
+
+/* ====== 入力同期 ====== */
+function onTheta(v){
+  v = clamp(v, parseFloat(thetaNum.min), parseFloat(thetaNum.max));
+  thetaRange.value = String(v);
+  thetaNum.value   = v.toFixed(1);
+  thetaOut.value   = v.toFixed(1) + '°';
+  S.theta = v*Math.PI/180; refreshAll();
+}
+function onM(v){
+  v = clamp(v, parseFloat(mNum.min), parseFloat(mNum.max));
+  mRange.value = String(v); mNum.value = v.toFixed(1); mOut.textContent = v.toFixed(1);
+  S.m = v; refreshAll();
+}
+function onMp(v){
+  v = clamp(v, parseFloat(mpNum.min), parseFloat(mpNum.max));
+  mpRange.value = String(v); mpNum.value = v.toFixed(1); mpOut.textContent = v.toFixed(1);
+  S.mp = v; refreshAll();
+}
+
+/* ▼ 人の位置スライダー：UIは 1→0、内部は s = 1 - v_ui */
+function onSpUI(v_ui){
+  v_ui = clamp(v_ui, parseFloat(spNum.min), parseFloat(spNum.max));
+  spRange.value = String(v_ui); spNum.value = v_ui.toFixed(2); spOut.textContent = v_ui.toFixed(2);
+  S.sp = 1 - v_ui; // 内部
+  refreshAll();
+}
+
+/* 係数セット */
+function onMuPair(which, v){
+  if(which==='mufs'){ v = clamp(v, parseFloat(mufsNum.min), parseFloat(mufsNum.max)); mufsRange.value=String(v); mufsNum.value=v.toFixed(2); mufsOut.textContent=v.toFixed(2); S.mu_s_f=v; }
+  if(which==='muws'){ v = clamp(v, parseFloat(muwsNum.min), parseFloat(muwsNum.max)); muwsRange.value=String(v); muwsNum.value=v.toFixed(2); muwsOut.textContent=v.toFixed(2); S.mu_s_w=v; }
+  if(which==='mufk'){ v = clamp(v, parseFloat(mufkNum.min), parseFloat(mufkNum.max)); mufkRange.value=String(v); mufkNum.value=v.toFixed(2); mufkOut.textContent=v.toFixed(2); S.mu_k_f=v; }
+  if(which==='muwk'){ v = clamp(v, parseFloat(muwkNum.min), parseFloat(muwkNum.max)); muwkRange.value=String(v); muwkNum.value=v.toFixed(2); muwkOut.textContent=v.toFixed(2); S.mu_k_w=v; }
+  refreshAll();
+}
+
+/* ====== イベント ====== */
+thetaRange.addEventListener('input',e=>onTheta(parseFloat(e.target.value)));
+thetaRange.addEventListener('change',e=>onTheta(parseFloat(e.target.value)));
+thetaNum.addEventListener('input',e=>onTheta(parseFloat(e.target.value)));
+thetaNum.addEventListener('change',e=>onTheta(parseFloat(e.target.value)));
+
+mRange.addEventListener('input',e=>onM(parseFloat(e.target.value)));
+mRange.addEventListener('change',e=>onM(parseFloat(e.target.value)));
+mNum.addEventListener('input',e=>onM(parseFloat(e.target.value)));
+mNum.addEventListener('change',e=>onM(parseFloat(e.target.value)));
+
+mpRange.addEventListener('input',e=>onMp(parseFloat(e.target.value)));
+mpRange.addEventListener('change',e=>onMp(parseFloat(e.target.value)));
+mpNum.addEventListener('input',e=>onMp(parseFloat(e.target.value)));
+mpNum.addEventListener('change',e=>onMp(parseFloat(e.target.value)));
+
+spRange.addEventListener('input',e=>onSpUI(parseFloat(e.target.value)));
+spRange.addEventListener('change',e=>onSpUI(parseFloat(e.target.value)));
+spNum.addEventListener('input',e=>onSpUI(parseFloat(e.target.value)));
+spNum.addEventListener('change',e=>onSpUI(parseFloat(e.target.value)));
+
+mufsRange.addEventListener('input',e=>onMuPair('mufs',parseFloat(e.target.value)));
+mufsRange.addEventListener('change',e=>onMuPair('mufs',parseFloat(e.target.value)));
+mufsNum.addEventListener('input',e=>onMuPair('mufs',parseFloat(e.target.value)));
+mufsNum.addEventListener('change',e=>onMuPair('mufs',parseFloat(e.target.value)));
+
+muwsRange.addEventListener('input',e=>onMuPair('muws',parseFloat(e.target.value)));
+muwsRange.addEventListener('change',e=>onMuPair('muws',parseFloat(e.target.value)));
+muwsNum.addEventListener('input',e=>onMuPair('muws',parseFloat(e.target.value)));
+muwsNum.addEventListener('change',e=>onMuPair('muws',parseFloat(e.target.value)));
+
+mufkRange.addEventListener('input',e=>onMuPair('mufk',parseFloat(e.target.value)));
+mufkRange.addEventListener('change',e=>onMuPair('mufk',parseFloat(e.target.value)));
+mufkNum.addEventListener('input',e=>onMuPair('mufk',parseFloat(e.target.value)));
+mufkNum.addEventListener('change',e=>onMuPair('mufk',parseFloat(e.target.value)));
+
+muwkRange.addEventListener('input',e=>onMuPair('muwk',parseFloat(e.target.value)));
+muwkRange.addEventListener('change',e=>onMuPair('muwk',parseFloat(e.target.value)));
+muwkNum.addEventListener('input',e=>onMuPair('muwk',parseFloat(e.target.value)));
+muwkNum.addEventListener('change',e=>onMuPair('muwk',parseFloat(e.target.value)));
+
+forceToggle.addEventListener('change',()=>draw(0,false));
+kineticToggle.addEventListener('change',()=>{S.kinetic=kineticToggle.checked;});
+
+personToggle.addEventListener('change',()=>{S.personOn=personToggle.checked;updateControlFrame();refreshAll();});
+
+resetBtn.addEventListener('click',()=>{
+  const keepPerson = S.personOn; // 人ON/OFFは保持
+  S.playing = true;
+  onTheta(55); onM(1.0);
+  onMp(60.0);
+  onSpUI(0.50);
+  onMuPair('mufs',0.40); onMuPair('muws',0.00); onMuPair('mufk',0.30); onMuPair('muwk',0.00);
+  S.personOn = keepPerson;
+  pMode='normal'; // ジャンプ状態も解除
+  updateControlFrame(); refreshAll();
+});
+
+playBtn.addEventListener('click',()=>{ S.playing=true; updateControlFrame(); refreshAll(); });
+fullBtn.addEventListener('click',()=>{ draw(0,false); });
+
+/* ====== ドラッグ：内部 s は自然 0→1（底→頂点） ====== */
+let dragging=false;
+cvs.addEventListener('mousedown',e=>{ if(!S.personOn) return; const p=getMouseScenePos(e); if(hitLadder(p.x,p.y)){ dragging=true; setSfromPoint(p.x,p.y); }});
+cvs.addEventListener('mousemove',e=>{ if(!dragging||!S.personOn) return; const p=getMouseScenePos(e); setSfromPoint(p.x,p.y); });
+window.addEventListener('mouseup',()=>{ dragging=false; });
+
+function getMouseScenePos(e){ const rect=cvs.getBoundingClientRect(); const x=(e.clientX-rect.left), y=(e.clientY-rect.top); return {x:x-40, y:y-(rect.height-30)}; }
+function hitLadder(x,y){
+  const xb=Math.cos(S.theta)*LPIX, yb=0, xt=0, yt=-Math.sin(S.theta)*LPIX;
+  const dx=xt-xb, dy=yt-(-yb), len2=dx*dx+dy*dy;
+  const t=Math.max(0,Math.min(1, ((x-xb)*dx+(y-(-yb))*dy)/len2 ));
+  const nx=xb+t*dx, ny=(-yb)+t*dy;
+  const dist=Math.hypot(x-nx,y-ny);
+  return dist<=16;
+}
+function setSfromPoint(x,y){
+  const xb=Math.cos(S.theta)*LPIX, yb=0, xt=0, yt=-Math.sin(S.theta)*LPIX;
+  const dx=xt-xb, dy=yt-(-yb), len2=dx*dx+dy*dy;
+  let t=((x-xb)*dx+(y-(-yb))*dy)/len2; t=Math.max(0,Math.min(1,t));
+  S.sp = t; // 内部は自然 0→1
+  const v_ui = 1 - S.sp; // UIは逆表示
+  spRange.value = String(v_ui); spNum.value = v_ui.toFixed(2); spOut.textContent = v_ui.toFixed(2);
+  refreshAll();
+}
+
+/* ====== 初期化 ====== */
+(function init(){
+  resizeCanvas();
+  updateControlFrame();
+  refreshAll();
+  requestAnimationFrame((now)=>{
+    lastFrameTime = now;
+    animate(now);
+  });
+})();
+</script>
+</body>
+</html>

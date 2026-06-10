@@ -1,0 +1,1728 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>サイコロ出目シミュレーター</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="../../assets/common-sim.css">
+  <script src="../../assets/sim-shell.js"></script>
+  <script src="../../assets/sim-clock.js"></script>
+  <style>
+    :root {
+      --bg: #070d12;
+      --panel: #101820;
+      --panel-2: #17222b;
+      --ink: #f4f8fb;
+      --muted: #99a8b3;
+      --line: #2c3a45;
+      --line-soft: rgba(218, 232, 240, .16);
+      --cyan: #3ee7f5;
+      --blue: #2f74cc;
+      --amber: #ffc247;
+      --green: #7acb7d;
+      --red: #e5534b;
+      --shadow: rgba(0, 0, 0, .42);
+      --radius: 8px;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      margin: 0;
+      min-height: 100%;
+      background:
+        radial-gradient(circle at 52% 18%, rgba(62, 231, 245, .11), transparent 32%),
+        radial-gradient(circle at 78% 72%, rgba(255, 194, 71, .08), transparent 27%),
+        linear-gradient(180deg, #0b1218 0%, var(--bg) 58%, #030609 100%);
+      color: var(--ink);
+      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Hiragino Kaku Gothic ProN", Meiryo, sans-serif;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    button,
+    input,
+    select {
+      font: inherit;
+    }
+
+    .wrap {
+      --view-scale: 1;
+      display: grid;
+      grid-template-columns: 260px minmax(0, 1fr);
+      grid-template-areas: "controls stage";
+      gap: 16px;
+      width: min(1460px, calc(100% - 24px));
+      margin: 14px auto 24px;
+      align-items: start;
+      transform: scale(var(--view-scale));
+      transform-origin: top center;
+    }
+
+    .fit-frame {
+      width: 100%;
+      height: 100dvh;
+      overflow: hidden;
+      padding: 8px;
+    }
+
+    .view-tools {
+      position: fixed;
+      z-index: 30;
+      top: 8px;
+      right: 10px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      border: 1px solid rgba(218, 232, 240, .18);
+      border-radius: 8px;
+      background: rgba(5, 10, 15, .86);
+      box-shadow: 0 14px 32px rgba(0, 0, 0, .34);
+      padding: 5px;
+      backdrop-filter: blur(12px);
+    }
+
+    .view-tools span {
+      min-width: 46px;
+      color: #d8edff;
+      font-size: 12px;
+      font-variant-numeric: tabular-nums;
+      font-weight: 850;
+      text-align: center;
+    }
+
+    .view-button {
+      min-width: 34px;
+      min-height: 30px;
+      border: 1px solid rgba(218, 232, 240, .22);
+      border-radius: 6px;
+      background: rgba(23, 34, 43, .9);
+      color: var(--ink);
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 850;
+    }
+
+    .view-button:hover,
+    .view-button:focus-visible {
+      border-color: rgba(69, 216, 245, .62);
+      outline: none;
+    }
+
+    .stage-panel,
+    .control-panel {
+      min-width: 0;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background:
+        linear-gradient(rgba(255,255,255,.025) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,.018) 1px, transparent 1px),
+        linear-gradient(180deg, rgba(18, 27, 35, .96), rgba(7, 12, 17, .98));
+      background-size: 28px 28px, 28px 28px, auto;
+      box-shadow: 0 22px 58px var(--shadow);
+    }
+
+    .stage-panel {
+      grid-area: stage;
+    }
+
+    .control-panel {
+      grid-area: controls;
+    }
+
+    .panel-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      min-height: 84px;
+      padding: 18px 22px 16px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    h1,
+    h2,
+    h3 {
+      margin: 0;
+      letter-spacing: 0;
+    }
+
+    h1 {
+      font-size: 26px;
+      line-height: 1.25;
+    }
+
+    .lab-kicker {
+      margin-bottom: 4px;
+      color: var(--cyan);
+      font-size: 12px;
+      font-weight: 900;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+    }
+
+    .panel-note {
+      color: var(--muted);
+      font-size: 13px;
+      font-weight: 650;
+      white-space: nowrap;
+    }
+
+    .sim-grid {
+      display: grid;
+      grid-template-columns: minmax(330px, .9fr) minmax(420px, 1.1fr);
+      gap: 16px;
+      padding: 16px 22px;
+    }
+
+    .dice-stage,
+    .chart-panel {
+      min-width: 0;
+      border: 1px solid rgba(218, 232, 240, .14);
+      border-radius: var(--radius);
+      background: rgba(8, 14, 19, .62);
+    }
+
+    .dice-stage {
+      position: relative;
+      display: grid;
+      min-height: 640px;
+      overflow: hidden;
+      place-items: center;
+      background:
+        linear-gradient(rgba(218, 232, 240, .045) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(218, 232, 240, .045) 1px, transparent 1px),
+        radial-gradient(circle at 52% 44%, rgba(62, 231, 245, .11), transparent 38%),
+        radial-gradient(circle at 72% 70%, rgba(255, 194, 71, .1), transparent 28%),
+        #071017;
+      background-size: 30px 30px, 30px 30px, auto, auto, auto;
+      perspective: 980px;
+    }
+
+    .table-ellipse {
+      position: absolute;
+      width: min(74%, 420px);
+      height: 86px;
+      bottom: 112px;
+      border: 1px solid rgba(109, 181, 218, .22);
+      border-radius: 50%;
+      background: radial-gradient(ellipse, rgba(69, 216, 245, .18), rgba(6, 14, 22, .08) 58%, transparent 72%);
+      box-shadow: 0 24px 70px rgba(0, 0, 0, .38);
+      transform: rotateX(66deg);
+    }
+
+    .throw-lane {
+      position: absolute;
+      inset: 9%;
+      border: 1px solid rgba(166, 199, 226, .08);
+      border-radius: 8px;
+      transform: rotateX(56deg) translateY(20px);
+      transform-origin: 50% 65%;
+    }
+
+    .dice-canvas {
+      display: none;
+    }
+
+    .die-image {
+      position: relative;
+      z-index: 3;
+      display: block;
+      width: min(86%, 560px);
+      height: auto;
+      max-height: min(70%, 460px);
+      object-fit: contain;
+      pointer-events: none;
+      transform-origin: 50% 62%;
+      filter:
+        drop-shadow(0 22px 24px rgba(0, 0, 0, .42))
+        drop-shadow(0 0 28px rgba(62, 231, 245, .12));
+      transition: transform .18s ease, filter .18s ease;
+    }
+
+    .die-image.rolling {
+      animation: rendered-roll .16s linear infinite, rendered-hop .62s ease-in-out infinite;
+      filter:
+        drop-shadow(0 28px 26px rgba(0, 0, 0, .48))
+        drop-shadow(0 0 34px rgba(62, 231, 245, .18));
+    }
+
+    @keyframes rendered-roll {
+      0% { rotate: -5deg; }
+      50% { rotate: 7deg; }
+      100% { rotate: -5deg; }
+    }
+
+    @keyframes rendered-hop {
+      0%, 100% { translate: 0 8px; scale: 1; }
+      46% { translate: 0 -34px; scale: 1.04; }
+    }
+
+    .die-wrap {
+      position: relative;
+      width: 154px;
+      height: 154px;
+      display: none;
+      transform-style: preserve-3d;
+      transform-origin: 50% 50%;
+      transition: transform .18s linear;
+      filter: drop-shadow(0 34px 34px rgba(0, 0, 0, .42));
+    }
+
+    .die-wrap::before,
+    .die-wrap::after {
+      content: "";
+      position: absolute;
+      display: block;
+      border: 1px solid rgba(255, 255, 255, .48);
+      pointer-events: none;
+    }
+
+    .die-wrap::before {
+      z-index: 1;
+      top: -25px;
+      left: 18px;
+      width: 132px;
+      height: 40px;
+      border-radius: 22px 24px 10px 9px;
+      background: linear-gradient(135deg, rgba(255, 255, 255, .95), rgba(222, 235, 244, .96) 55%, rgba(165, 186, 202, .96));
+      box-shadow: inset 0 12px 14px rgba(255, 255, 255, .46);
+      transform: skewX(30deg);
+    }
+
+    .die-wrap::after {
+      z-index: 1;
+      top: 12px;
+      right: -31px;
+      width: 44px;
+      height: 128px;
+      border-radius: 8px 22px 24px 8px;
+      background: linear-gradient(90deg, rgba(203, 219, 231, .96), rgba(125, 148, 165, .96));
+      box-shadow: inset -12px 0 18px rgba(41, 64, 82, .2);
+      transform: skewY(26deg);
+    }
+
+    .die-wrap.rolling {
+      animation: hop .54s linear infinite;
+    }
+
+    @keyframes hop {
+      0%, 100% { translate: 0 18px; }
+      46% { translate: 0 -74px; }
+    }
+
+    .die {
+      position: absolute;
+      inset: 0;
+      z-index: 2;
+      transform-style: preserve-3d;
+    }
+
+    .face {
+      position: absolute;
+      inset: 0;
+      display: grid;
+      grid-template: repeat(3, 1fr) / repeat(3, 1fr);
+      gap: 18px;
+      padding: 22px;
+      border: 1px solid rgba(255, 255, 255, .72);
+      border-radius: 24px;
+      background:
+        radial-gradient(circle at 28% 18%, rgba(255, 255, 255, .98), rgba(235, 244, 250, .98) 42%, rgba(196, 213, 226, .98));
+      box-shadow:
+        inset 0 16px 22px rgba(255, 255, 255, .72),
+        inset 0 -18px 28px rgba(31, 55, 72, .2);
+      backface-visibility: hidden;
+    }
+
+    .front {
+      background: radial-gradient(circle at 26% 16%, #ffffff, #eef6fb 46%, #c6d8e5);
+    }
+
+    .right,
+    .left {
+      background: radial-gradient(circle at 32% 18%, #f3f8fb, #d9e8f0 45%, #9fb6c7);
+    }
+
+    .top {
+      background: radial-gradient(circle at 26% 16%, #ffffff, #f7fbfd 46%, #d7e5ee);
+    }
+
+    .bottom,
+    .back {
+      background: radial-gradient(circle at 34% 20%, #e9f2f7, #c7d9e5 48%, #839bad);
+    }
+
+    .face::before {
+      content: "";
+      position: absolute;
+      inset: 6px;
+      border-radius: 18px;
+      border: 1px solid rgba(255, 255, 255, .46);
+      pointer-events: none;
+    }
+
+    .dot {
+      width: 23px;
+      height: 23px;
+      align-self: center;
+      justify-self: center;
+      border-radius: 50%;
+      background: radial-gradient(circle at 34% 28%, #34465a, #07111b 72%);
+      box-shadow: inset 0 2px 3px rgba(255, 255, 255, .18);
+    }
+
+    .front { transform: translateZ(77px); }
+    .back { transform: rotateY(180deg) translateZ(77px); }
+    .right { transform: rotateY(90deg) translateZ(77px); }
+    .left { transform: rotateY(-90deg) translateZ(77px); }
+    .top { transform: rotateX(90deg) translateZ(77px); }
+    .bottom { transform: rotateX(-90deg) translateZ(77px); }
+
+    .p1 { grid-area: 2 / 2; }
+    .p2a { grid-area: 1 / 1; }
+    .p2b { grid-area: 3 / 3; }
+    .p3a { grid-area: 1 / 1; }
+    .p3b { grid-area: 2 / 2; }
+    .p3c { grid-area: 3 / 3; }
+    .p4a { grid-area: 1 / 1; }
+    .p4b { grid-area: 1 / 3; }
+    .p4c { grid-area: 3 / 1; }
+    .p4d { grid-area: 3 / 3; }
+    .p5a { grid-area: 1 / 1; }
+    .p5b { grid-area: 1 / 3; }
+    .p5c { grid-area: 2 / 2; }
+    .p5d { grid-area: 3 / 1; }
+    .p5e { grid-area: 3 / 3; }
+    .p6a { grid-area: 1 / 1; }
+    .p6b { grid-area: 1 / 3; }
+    .p6c { grid-area: 2 / 1; }
+    .p6d { grid-area: 2 / 3; }
+    .p6e { grid-area: 3 / 1; }
+    .p6f { grid-area: 3 / 3; }
+
+    .result-badge {
+      position: absolute;
+      right: 18px;
+      bottom: 18px;
+      min-width: 118px;
+      border: 1px solid rgba(69, 216, 245, .42);
+      border-radius: 8px;
+      background: rgba(5, 12, 17, .82);
+      padding: 10px 12px;
+      text-align: right;
+    }
+
+    .result-badge span {
+      display: block;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 800;
+    }
+
+    .result-badge strong {
+      display: block;
+      color: var(--amber);
+      font-size: 34px;
+      font-variant-numeric: tabular-nums;
+      line-height: 1;
+    }
+
+    .chart-panel {
+      display: grid;
+      grid-template-rows: auto 1fr;
+      min-height: 640px;
+      padding: 18px 18px 16px;
+    }
+
+    .chart-head {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+
+    .mini-stat {
+      min-width: 0;
+      border: 1px solid var(--line-soft);
+      border-radius: 7px;
+      background: rgba(19, 36, 52, .72);
+      padding: 8px 9px;
+    }
+
+    .mini-stat span {
+      display: block;
+      overflow: hidden;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 750;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .mini-stat strong {
+      display: block;
+      margin-top: 2px;
+      color: var(--ink);
+      font-size: 15px;
+      font-variant-numeric: tabular-nums;
+      font-weight: 850;
+      white-space: nowrap;
+    }
+
+    .bars {
+      display: grid;
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+      gap: 10px;
+      align-items: end;
+      min-height: 454px;
+      border: 1px solid rgba(218, 232, 240, .13);
+      border-radius: 8px;
+      background:
+        linear-gradient(rgba(218, 232, 240, .07) 1px, transparent 1px),
+        linear-gradient(180deg, rgba(255, 255, 255, .025), transparent);
+      background-size: 100% 20%;
+      padding: 16px 14px 12px;
+    }
+
+    .bar-cell {
+      display: grid;
+      grid-template-rows: 26px minmax(220px, 1fr) 52px;
+      gap: 8px;
+      min-width: 0;
+      height: 100%;
+      text-align: center;
+    }
+
+    .bar-count {
+      color: #dcefff;
+      font-size: 12px;
+      font-variant-numeric: tabular-nums;
+      font-weight: 850;
+      white-space: nowrap;
+    }
+
+    .bar-track {
+      position: relative;
+      display: flex;
+      align-items: flex-end;
+      justify-content: center;
+      min-height: 240px;
+      overflow: hidden;
+      border: 1px solid rgba(218, 232, 240, .12);
+      border-radius: 7px;
+      background: rgba(5, 13, 21, .36);
+    }
+
+    .bar-track::before {
+      content: "";
+      position: absolute;
+      right: 0;
+      bottom: 66.7%;
+      left: 0;
+      border-top: 1px dashed rgba(255, 198, 91, .48);
+      opacity: 0;
+      transition: opacity .16s ease;
+    }
+
+    .bars.show-theory .bar-track::before {
+      opacity: 1;
+    }
+
+    .bar {
+      width: min(70%, 52px);
+      min-height: 2px;
+      border-radius: 7px 7px 0 0;
+      background:
+        repeating-linear-gradient(180deg, rgba(255, 255, 255, .18) 0 1px, transparent 1px 12px),
+        linear-gradient(180deg, var(--bar-top), var(--bar-bottom));
+      box-shadow: 0 0 26px var(--bar-glow);
+      transition: height .12s ease-out;
+    }
+
+    .bar-cell.hot .bar-track {
+      border-color: rgba(255, 198, 91, .38);
+    }
+
+    .face-label {
+      display: grid;
+      gap: 2px;
+      color: #dcefff;
+      font-weight: 850;
+    }
+
+    .face-label span {
+      color: var(--muted);
+      font-size: 11px;
+      font-variant-numeric: tabular-nums;
+      font-weight: 750;
+    }
+
+    .control-panel {
+      position: sticky;
+      top: 72px;
+    }
+
+    .controls {
+      display: grid;
+      gap: 12px;
+      padding: 14px;
+    }
+
+    .button-row {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 8px;
+    }
+
+    .main-button,
+    .icon-button,
+    .small-button,
+    select {
+      min-height: 44px;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      color: var(--ink);
+    }
+
+    .main-button,
+    .icon-button,
+    .small-button {
+      cursor: pointer;
+    }
+
+    .main-button {
+      background: linear-gradient(180deg, #1d79df, #175aa8);
+      border-color: rgba(62, 231, 245, .72);
+      box-shadow: 0 0 22px rgba(62, 231, 245, .18);
+      color: #ecfbff;
+      font-size: 14px;
+      font-weight: 850;
+    }
+
+    .main-button[data-running="true"] {
+      background: linear-gradient(180deg, #179860, #0f7044);
+      border-color: rgba(126, 229, 166, .55);
+    }
+
+    .icon-button,
+    .small-button,
+    select {
+      background: var(--panel-2);
+      font-weight: 850;
+    }
+
+    .icon-button:hover,
+    .icon-button:focus-visible,
+    .small-button:hover,
+    .small-button:focus-visible,
+    select:focus-visible {
+      border-color: rgba(69, 216, 245, .58);
+      outline: none;
+    }
+
+    .control-group {
+      display: grid;
+      gap: 10px;
+      border: 1px solid var(--line-soft);
+      border-radius: var(--radius);
+      background: rgba(8, 14, 19, .56);
+      padding: 11px;
+    }
+
+    .group-title {
+      color: #d8edff;
+      font-size: 13px;
+      font-weight: 850;
+    }
+
+    .control {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 8px 10px;
+      align-items: center;
+    }
+
+    .control label {
+      min-width: 0;
+      color: #d7e7f7;
+      font-size: 12px;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+
+    .value {
+      color: var(--muted);
+      font-size: 12px;
+      font-variant-numeric: tabular-nums;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+
+    .control input[type="range"] {
+      grid-column: 1 / -1;
+      width: 100%;
+      accent-color: var(--cyan);
+    }
+
+    .select-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr);
+      gap: 8px;
+      align-items: center;
+    }
+
+    .number-line {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr);
+      gap: 8px;
+      align-items: center;
+    }
+
+    input[type="number"] {
+      width: 100%;
+      min-height: 34px;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: #070d12;
+      color: var(--ink);
+      font-variant-numeric: tabular-nums;
+      font-weight: 800;
+      padding: 0 8px;
+    }
+
+    .toggle {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      min-height: 38px;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: var(--panel-2);
+      color: #d7e7f7;
+      padding: 6px 8px 6px 10px;
+      font-size: 12px;
+      font-weight: 800;
+      cursor: pointer;
+    }
+
+    .toggle input {
+      width: 17px;
+      height: 17px;
+      accent-color: var(--cyan);
+    }
+
+    .readout-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .status-strip {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 8px;
+      padding: 0 22px 18px;
+    }
+
+    .stat {
+      min-width: 0;
+      border: 1px solid var(--line-soft);
+      border-radius: 7px;
+      background: rgba(10, 17, 23, .82);
+      padding: 14px 16px;
+    }
+
+    .stat-label {
+      overflow: hidden;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 750;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .stat-value {
+      margin-top: 2px;
+      color: var(--ink);
+      font-size: 24px;
+      font-variant-numeric: tabular-nums;
+      font-weight: 850;
+      white-space: nowrap;
+    }
+
+    @media (max-width: 820px) {
+      .wrap,
+      .sim-grid {
+        grid-template-columns: 1fr;
+        grid-template-areas:
+          "stage"
+          "controls";
+      }
+
+      .control-panel {
+        position: static;
+      }
+
+      .dice-stage,
+      .chart-panel {
+        min-height: 520px;
+      }
+    }
+
+    @media (max-width: 640px) {
+      .fit-frame {
+        padding: 7px;
+      }
+
+      .view-tools {
+        right: 7px;
+        left: 7px;
+        justify-content: flex-end;
+      }
+
+      .wrap {
+        width: min(100% - 14px, 560px);
+        margin-top: 8px;
+      }
+
+      .panel-head {
+        align-items: flex-start;
+        flex-direction: column;
+        gap: 4px;
+      }
+
+      .panel-note {
+        white-space: normal;
+      }
+
+      .sim-grid {
+        padding: 8px;
+      }
+
+      .dice-stage,
+      .chart-panel {
+        min-height: 440px;
+      }
+
+      .dice-canvas {
+        width: min(86%, 330px);
+        min-height: 220px;
+      }
+
+      .die-image {
+        width: min(88%, 340px);
+        max-height: 280px;
+      }
+
+      .die-wrap {
+        width: 116px;
+        height: 116px;
+      }
+
+      .die-wrap::before {
+        top: -18px;
+        left: 13px;
+        width: 100px;
+        height: 31px;
+        border-radius: 18px 19px 8px 8px;
+      }
+
+      .die-wrap::after {
+        top: 9px;
+        right: -23px;
+        width: 34px;
+        height: 96px;
+        border-radius: 7px 18px 19px 7px;
+      }
+
+      .front { transform: translateZ(58px); }
+      .back { transform: rotateY(180deg) translateZ(58px); }
+      .right { transform: rotateY(90deg) translateZ(58px); }
+      .left { transform: rotateY(-90deg) translateZ(58px); }
+      .top { transform: rotateX(90deg) translateZ(58px); }
+      .bottom { transform: rotateX(-90deg) translateZ(58px); }
+
+      .face {
+        gap: 12px;
+        padding: 18px;
+        border-radius: 18px;
+      }
+
+      .dot {
+        width: 17px;
+        height: 17px;
+      }
+
+      .chart-head,
+      .status-strip,
+      .readout-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .bars {
+        gap: 5px;
+        padding-inline: 7px;
+      }
+
+      .bar-cell {
+        grid-template-rows: 24px minmax(190px, 1fr) 48px;
+      }
+    }
+  </style>
+  <link rel="stylesheet" href="../../assets/remake.css">
+</head>
+<body class="remake-ui">
+  <div class="remake-badge-host"><span class="remake-ribbon">リメイク版</span></div>
+  <div class="view-tools" aria-label="表示倍率">
+    <button type="button" class="view-button" id="fitView">自動</button>
+    <button type="button" class="view-button" id="zoomOut" aria-label="縮小">−</button>
+    <span id="viewScale">100%</span>
+    <button type="button" class="view-button" id="zoomIn" aria-label="拡大">＋</button>
+  </div>
+  <div class="fit-frame" id="fitFrame">
+  <main class="wrap" id="appWrap">
+    <section class="stage-panel" aria-label="サイコロの出目と棒グラフ">
+      <div class="panel-head">
+        <div>
+          <div class="lab-kicker">PROBABILITY LAB</div>
+          <h1>サイコロ出目シミュレーター</h1>
+          <div class="panel-note">サイコロを振って出目の分布を観察しよう</div>
+        </div>
+        <div class="panel-note">理論値は各約16.7%（1/6）です</div>
+      </div>
+
+      <div class="sim-grid">
+        <section class="dice-stage" aria-label="3D風サイコロ表示">
+          <div class="throw-lane"></div>
+          <div class="table-ellipse"></div>
+          <canvas class="dice-canvas" id="diceCanvas" aria-label="立方体のサイコロ表示"></canvas>
+          <img class="die-image" id="dieImage" src="assets/die-top-1.png" alt="上面に出目が表示された3Dサイコロ">
+          <div class="die-wrap" id="dieWrap" aria-hidden="true">
+            <div class="die" id="die">
+              <div class="face front" data-face="1"><i class="dot p1"></i></div>
+              <div class="face right" data-face="2"><i class="dot p2a"></i><i class="dot p2b"></i></div>
+              <div class="face top" data-face="3"><i class="dot p3a"></i><i class="dot p3b"></i><i class="dot p3c"></i></div>
+              <div class="face bottom" data-face="4"><i class="dot p4a"></i><i class="dot p4b"></i><i class="dot p4c"></i><i class="dot p4d"></i></div>
+              <div class="face left" data-face="5"><i class="dot p5a"></i><i class="dot p5b"></i><i class="dot p5c"></i><i class="dot p5d"></i><i class="dot p5e"></i></div>
+              <div class="face back" data-face="6"><i class="dot p6a"></i><i class="dot p6b"></i><i class="dot p6c"></i><i class="dot p6d"></i><i class="dot p6e"></i><i class="dot p6f"></i></div>
+            </div>
+          </div>
+          <div class="result-badge">
+            <span>上面の出目</span>
+            <strong id="lastFace">-</strong>
+          </div>
+        </section>
+
+        <section class="chart-panel" aria-label="出目ごとの棒グラフ">
+          <div class="chart-head">
+          <div class="mini-stat">
+            <span>総試行</span>
+            <strong id="totalRolls">0</strong>
+          </div>
+          <div class="mini-stat">
+            <span>目標</span>
+            <strong id="targetRollsText">1,000</strong>
+          </div>
+          <div class="mini-stat">
+            <span>最多</span>
+            <strong id="peakFace">未記録</strong>
+          </div>
+          <div class="mini-stat">
+              <span>平均との差</span>
+              <strong id="spread">0個</strong>
+            </div>
+          </div>
+          <div class="bars" id="bars"></div>
+        </section>
+      </div>
+
+      <div class="status-strip" aria-live="polite">
+        <div class="stat">
+          <div class="stat-label">記録速度</div>
+          <div class="stat-value" id="rollRateText">500回/秒</div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">平均出目</div>
+          <div class="stat-value" id="averageFace">未記録</div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">1〜3</div>
+          <div class="stat-value" id="lowShare">0%</div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">4〜6</div>
+          <div class="stat-value" id="highShare">0%</div>
+        </div>
+      </div>
+    </section>
+
+    <aside class="control-panel" aria-label="操作パネル">
+      <div class="panel-head">
+        <h2 class="group-title">操作</h2>
+        <div class="panel-note" id="runState">待機中</div>
+      </div>
+      <div class="controls">
+        <div class="button-row">
+          <button type="button" class="main-button" id="toggleRun" data-running="false">開始</button>
+          <button type="button" class="icon-button" id="rollOnce" title="1回だけ振る">+1</button>
+          <button type="button" class="icon-button" id="reset" title="リセット">↺</button>
+        </div>
+
+        <section class="control-group">
+          <h3 class="group-title">記録条件</h3>
+          <div class="control">
+            <label for="rollRate">記録速度</label>
+            <span class="value" id="rollRateValue">500回/秒</span>
+            <input type="range" id="rollRate" min="10" max="5000" step="10" value="500">
+          </div>
+          <div class="control">
+            <div class="number-line">
+              <label for="targetRolls">目標回数</label>
+              <input type="number" id="targetRollsNumber" min="1" max="100000" step="1" value="1000">
+            </div>
+            <span class="value" id="targetRollsValue">1,000回</span>
+            <input type="range" id="targetRolls" min="1" max="10000" step="1" value="1000">
+          </div>
+          <div class="select-row">
+            <label for="targetPreset">回数プリセット</label>
+            <select id="targetPreset">
+              <option value="">入力値</option>
+              <option value="50">50回</option>
+              <option value="100">100回</option>
+              <option value="500">500回</option>
+              <option value="1000" selected>1000回</option>
+              <option value="5000">5000回</option>
+              <option value="10000">10000回</option>
+            </select>
+          </div>
+          <label class="toggle">
+            <span>理論値 16.7% の目安線</span>
+            <input type="checkbox" id="showTheory" checked>
+          </label>
+        </section>
+
+        <section class="control-group">
+          <h3 class="group-title">現在の分布</h3>
+          <div class="readout-grid">
+            <div class="mini-stat">
+              <span>1の割合</span>
+              <strong id="face1Share">0%</strong>
+            </div>
+            <div class="mini-stat">
+              <span>6の割合</span>
+              <strong id="face6Share">0%</strong>
+            </div>
+            <div class="mini-stat">
+              <span>最大回数</span>
+              <strong id="maxCount">0</strong>
+            </div>
+            <div class="mini-stat">
+              <span>最小回数</span>
+              <strong id="minCount">0</strong>
+            </div>
+          </div>
+        </section>
+
+        <section class="control-group">
+          <h3 class="group-title">奇数・偶数</h3>
+          <div class="readout-grid">
+            <div class="mini-stat">
+              <span>奇数回数</span>
+              <strong id="oddCount">0</strong>
+            </div>
+            <div class="mini-stat">
+              <span>偶数回数</span>
+              <strong id="evenCount">0</strong>
+            </div>
+            <div class="mini-stat">
+              <span>奇数割合</span>
+              <strong id="oddShare">0%</strong>
+            </div>
+            <div class="mini-stat">
+              <span>偶数割合</span>
+              <strong id="evenShare">0%</strong>
+            </div>
+          </div>
+        </section>
+      </div>
+    </aside>
+  </main>
+  </div>
+
+  <script>
+    PhysicsSimShell.create({
+      title: "サイコロ出目シミュレーター",
+      subtitle: "高速にサイコロを振り、1〜6の出目の分布を棒グラフで観察する"
+    });
+
+    const dieWrap = document.getElementById("dieWrap");
+    const diceCanvas = document.getElementById("diceCanvas");
+    const diceCtx = diceCanvas.getContext("2d");
+    const dieImage = document.getElementById("dieImage");
+    const barsEl = document.getElementById("bars");
+    const appWrap = document.getElementById("appWrap");
+    const fitFrame = document.getElementById("fitFrame");
+    const viewScaleText = document.getElementById("viewScale");
+    const fitViewButton = document.getElementById("fitView");
+    const zoomOutButton = document.getElementById("zoomOut");
+    const zoomInButton = document.getElementById("zoomIn");
+    const counts = [0, 0, 0, 0, 0, 0];
+    const colors = [
+      ["#2f79d9", "#ffc247", "rgba(62, 231, 245, .32)"],
+      ["#2f79d9", "#ffc247", "rgba(62, 231, 245, .32)"],
+      ["#2f79d9", "#ffc247", "rgba(62, 231, 245, .32)"],
+      ["#2f79d9", "#ffc247", "rgba(62, 231, 245, .32)"],
+      ["#2f79d9", "#ffc247", "rgba(62, 231, 245, .32)"],
+      ["#2f79d9", "#ffc247", "rgba(62, 231, 245, .32)"]
+    ];
+
+    const controls = {
+      toggleRun: document.getElementById("toggleRun"),
+      rollOnce: document.getElementById("rollOnce"),
+      reset: document.getElementById("reset"),
+      rollRate: document.getElementById("rollRate"),
+      targetRolls: document.getElementById("targetRolls"),
+      targetRollsNumber: document.getElementById("targetRollsNumber"),
+      targetPreset: document.getElementById("targetPreset"),
+      showTheory: document.getElementById("showTheory")
+    };
+
+    const readouts = {
+      runState: document.getElementById("runState"),
+      lastFace: document.getElementById("lastFace"),
+      totalRolls: document.getElementById("totalRolls"),
+      targetRollsText: document.getElementById("targetRollsText"),
+      peakFace: document.getElementById("peakFace"),
+      spread: document.getElementById("spread"),
+      rollRateText: document.getElementById("rollRateText"),
+      rollRateValue: document.getElementById("rollRateValue"),
+      targetRollsValue: document.getElementById("targetRollsValue"),
+      averageFace: document.getElementById("averageFace"),
+      lowShare: document.getElementById("lowShare"),
+      highShare: document.getElementById("highShare"),
+      face1Share: document.getElementById("face1Share"),
+      face6Share: document.getElementById("face6Share"),
+      maxCount: document.getElementById("maxCount"),
+      minCount: document.getElementById("minCount"),
+      oddCount: document.getElementById("oddCount"),
+      evenCount: document.getElementById("evenCount"),
+      oddShare: document.getElementById("oddShare"),
+      evenShare: document.getElementById("evenShare")
+    };
+
+    let running = false;
+    let total = 0;
+    let lastFace = null;
+    let pendingRolls = 0;
+    let renderAccumulator = 0;
+    let visualSpin = { x: -32, y: -38, z: -6 };
+    let visualTime = 0;
+    let phase = "idle";
+    let phaseTime = 0;
+    let autoFitView = true;
+    let manualViewScale = 1;
+    let currentViewScale = 1;
+    const rollAnimationSeconds = 1;
+    const dieAssetPaths = [1, 2, 3, 4, 5, 6].map((face) => `assets/die-top-${face}.png`);
+    dieAssetPaths.forEach((src) => {
+      const image = new Image();
+      image.src = src;
+    });
+
+    const faceRotations = {
+      1: { x: 0, y: 0, z: 0 },
+      2: { x: 0, y: -90, z: 0 },
+      3: { x: -90, y: 0, z: 0 },
+      4: { x: 90, y: 0, z: 0 },
+      5: { x: 0, y: 90, z: 0 },
+      6: { x: 0, y: 180, z: 0 }
+    };
+
+    function formatNumber(value) {
+      return Math.round(value).toLocaleString("ja-JP");
+    }
+
+    function percent(value, denom = total) {
+      if (denom <= 0) return "0%";
+      return `${(value / denom * 100).toFixed(1)}%`;
+    }
+
+    function getTargetRolls() {
+      return Math.max(1, Math.min(100000, Number(controls.targetRollsNumber.value || controls.targetRolls.value) || 1000));
+    }
+
+    function clamp(value, min, max) {
+      return Math.max(min, Math.min(max, value));
+    }
+
+    function updateViewportScale() {
+      appWrap.style.setProperty("--view-scale", "1");
+      const frameTop = fitFrame.getBoundingClientRect().top;
+      fitFrame.style.height = `${Math.max(320, window.innerHeight - frameTop)}px`;
+      const naturalWidth = appWrap.scrollWidth;
+      const naturalHeight = appWrap.scrollHeight;
+      const availableWidth = Math.max(320, fitFrame.clientWidth - 16);
+      const availableHeight = Math.max(300, fitFrame.clientHeight - 32);
+      const minScale = window.innerWidth <= 640 ? 0.24 : 0.52;
+      const fitScale = clamp(Math.min(availableWidth / naturalWidth, availableHeight / naturalHeight, 1), minScale, 1);
+      const nextScale = autoFitView ? fitScale : clamp(manualViewScale, minScale, 1.2);
+      currentViewScale = nextScale;
+      appWrap.style.setProperty("--view-scale", nextScale.toFixed(3));
+      viewScaleText.textContent = `${Math.round(nextScale * 100)}%`;
+    }
+
+    function createBars() {
+      barsEl.innerHTML = "";
+      for (let i = 0; i < 6; i += 1) {
+        const cell = document.createElement("div");
+        cell.className = "bar-cell";
+        cell.style.setProperty("--bar-top", colors[i][0]);
+        cell.style.setProperty("--bar-bottom", colors[i][1]);
+        cell.style.setProperty("--bar-glow", colors[i][2]);
+        cell.innerHTML = `
+          <div class="bar-count" id="count${i + 1}">0</div>
+          <div class="bar-track">
+            <div class="bar" id="bar${i + 1}" style="height: 2px"></div>
+          </div>
+          <div class="face-label">${i + 1}<span id="share${i + 1}">0%</span></div>
+        `;
+        barsEl.append(cell);
+      }
+    }
+
+    function rollDie() {
+      if (total >= getTargetRolls()) return lastFace;
+      const face = Math.floor(Math.random() * 6) + 1;
+      counts[face - 1] += 1;
+      total += 1;
+      lastFace = face;
+      return face;
+    }
+
+    function rollMany(amount) {
+      const rollable = Math.min(amount, Math.max(0, getTargetRolls() - total));
+      for (let i = 0; i < rollable; i += 1) {
+        rollDie();
+      }
+      return rollable;
+    }
+
+    function updateRunUi() {
+      controls.toggleRun.dataset.running = String(running);
+      controls.toggleRun.textContent = running ? "停止" : "開始";
+      dieWrap.classList.toggle("rolling", phase === "intro" || phase === "outro");
+      dieImage.classList.toggle("rolling", phase === "intro" || phase === "outro");
+      const labels = {
+        idle: "待機中",
+        intro: "転がし中",
+        recording: "集計中",
+        outro: "最後の一振り",
+        complete: "完了"
+      };
+      readouts.runState.textContent = labels[phase] || "待機中";
+    }
+
+    function startRun() {
+      if (phase === "intro" || phase === "outro") {
+        running = false;
+        phase = total >= getTargetRolls() ? "complete" : "idle";
+        updateRunUi();
+        return;
+      }
+      counts.fill(0);
+      total = 0;
+      lastFace = null;
+      pendingRolls = 0;
+      phase = "intro";
+      phaseTime = 0;
+      running = true;
+      updateReadouts();
+      updateRunUi();
+    }
+
+    function reset() {
+      counts.fill(0);
+      total = 0;
+      lastFace = null;
+      pendingRolls = 0;
+      phase = "idle";
+      phaseTime = 0;
+      running = false;
+      visualSpin = { x: -32, y: -38, z: -6 };
+      dieWrap.style.transform = "rotateX(-32deg) rotateY(-38deg) rotateZ(-6deg)";
+      updateRunUi();
+      updateReadouts();
+    }
+
+    function updateRateText() {
+      const rate = Number(controls.rollRate.value);
+      readouts.rollRateValue.textContent = `${formatNumber(rate)}回/秒`;
+      readouts.rollRateText.textContent = `${formatNumber(rate)}回/秒`;
+    }
+
+    function updateTargetText() {
+      const target = getTargetRolls();
+      controls.targetRolls.value = String(target);
+      controls.targetRollsNumber.value = String(target);
+      readouts.targetRollsValue.textContent = `${formatNumber(target)}回`;
+      readouts.targetRollsText.textContent = formatNumber(target);
+      const presetValues = [...controls.targetPreset.options].map((option) => option.value);
+      controls.targetPreset.value = presetValues.includes(String(target)) ? String(target) : "";
+      updateReadouts();
+    }
+
+    function resizeDiceCanvas() {
+      const rect = diceCanvas.getBoundingClientRect();
+      const dpr = window.devicePixelRatio || 1;
+      const width = Math.max(1, Math.round(rect.width * dpr));
+      const height = Math.max(1, Math.round(rect.height * dpr));
+      if (diceCanvas.width !== width || diceCanvas.height !== height) {
+        diceCanvas.width = width;
+        diceCanvas.height = height;
+      }
+      diceCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      return rect;
+    }
+
+    function shadeColor(hex, amount) {
+      const value = Number.parseInt(hex.slice(1), 16);
+      const r = Math.max(0, Math.min(255, (value >> 16) + amount));
+      const g = Math.max(0, Math.min(255, ((value >> 8) & 255) + amount));
+      const b = Math.max(0, Math.min(255, (value & 255) + amount));
+      return `rgb(${r}, ${g}, ${b})`;
+    }
+
+    function drawRoundPolygon(points, radius) {
+      const ctx = diceCtx;
+      ctx.beginPath();
+      points.forEach((point, index) => {
+        const prev = points[(index - 1 + points.length) % points.length];
+        const next = points[(index + 1) % points.length];
+        const fromAngle = Math.atan2(prev.y - point.y, prev.x - point.x);
+        const toAngle = Math.atan2(next.y - point.y, next.x - point.x);
+        const p1 = {
+          x: point.x + Math.cos(fromAngle) * radius,
+          y: point.y + Math.sin(fromAngle) * radius
+        };
+        const p2 = {
+          x: point.x + Math.cos(toAngle) * radius,
+          y: point.y + Math.sin(toAngle) * radius
+        };
+        if (index === 0) ctx.moveTo(p1.x, p1.y);
+        else ctx.lineTo(p1.x, p1.y);
+        ctx.quadraticCurveTo(point.x, point.y, p2.x, p2.y);
+      });
+      ctx.closePath();
+    }
+
+    function pointInQuad(quad, u, v) {
+      const top = {
+        x: quad[0].x + (quad[1].x - quad[0].x) * u,
+        y: quad[0].y + (quad[1].y - quad[0].y) * u
+      };
+      const bottom = {
+        x: quad[3].x + (quad[2].x - quad[3].x) * u,
+        y: quad[3].y + (quad[2].y - quad[3].y) * u
+      };
+      return {
+        x: top.x + (bottom.x - top.x) * v,
+        y: top.y + (bottom.y - top.y) * v
+      };
+    }
+
+    function dotPositions(face) {
+      const map = {
+        1: [[.5, .5]],
+        2: [[.28, .28], [.72, .72]],
+        3: [[.28, .28], [.5, .5], [.72, .72]],
+        4: [[.28, .28], [.72, .28], [.28, .72], [.72, .72]],
+        5: [[.28, .28], [.72, .28], [.5, .5], [.28, .72], [.72, .72]],
+        6: [[.28, .25], [.72, .25], [.28, .5], [.72, .5], [.28, .75], [.72, .75]]
+      };
+      return map[face] || map[1];
+    }
+
+    function normalizedVector(from, to) {
+      const dx = to.x - from.x;
+      const dy = to.y - from.y;
+      const length = Math.hypot(dx, dy) || 1;
+      return { x: dx / length, y: dy / length };
+    }
+
+    function drawProjectedPip(quad, u, v, face, radiusScale) {
+      const ctx = diceCtx;
+      const p = pointInQuad(quad, u, v);
+      const uDir = normalizedVector(pointInQuad(quad, Math.max(.02, u - .05), v), pointInQuad(quad, Math.min(.98, u + .05), v));
+      const vDir = normalizedVector(pointInQuad(quad, u, Math.max(.02, v - .05)), pointInQuad(quad, u, Math.min(.98, v + .05)));
+      const radius = (face === 1 ? 14.2 : 10.2) * radiusScale;
+      const ringRadius = radius * 1.58;
+      const isRed = face === 1;
+
+      function ellipsePath(scale = 1) {
+        ctx.beginPath();
+        ctx.save();
+        ctx.transform(
+          uDir.x * radius * scale,
+          uDir.y * radius * scale,
+          vDir.x * radius * scale,
+          vDir.y * radius * scale,
+          p.x,
+          p.y
+        );
+        ctx.arc(0, 0, 1, 0, Math.PI * 2);
+        ctx.restore();
+      }
+
+      ellipsePath(1.34);
+      ctx.fillStyle = isRed ? "rgba(95, 8, 8, .18)" : "rgba(4, 7, 9, .22)";
+      ctx.fill();
+
+      ellipsePath(1.14);
+      const lip = ctx.createRadialGradient(p.x - radius * .3, p.y - radius * .38, 1, p.x, p.y, ringRadius);
+      lip.addColorStop(0, "rgba(255,255,255,.34)");
+      lip.addColorStop(.42, isRed ? "rgba(210,38,28,.46)" : "rgba(46,50,54,.50)");
+      lip.addColorStop(1, "rgba(0,0,0,.42)");
+      ctx.fillStyle = lip;
+      ctx.fill();
+
+      ellipsePath(1);
+      const recess = ctx.createRadialGradient(p.x, p.y, 1, p.x, p.y, ringRadius);
+      if (isRed) {
+        recess.addColorStop(0, "#f06a52");
+        recess.addColorStop(.42, "#cc211a");
+        recess.addColorStop(.78, "#6f0908");
+        recess.addColorStop(1, "#210303");
+      } else {
+        recess.addColorStop(0, "#373b3e");
+        recess.addColorStop(.38, "#111417");
+        recess.addColorStop(.78, "#030405");
+        recess.addColorStop(1, "#000000");
+      }
+      ctx.fillStyle = recess;
+      ctx.fill();
+      ctx.lineWidth = Math.max(.8, .8 * radiusScale);
+      ctx.strokeStyle = isRed ? "rgba(92, 5, 5, .54)" : "rgba(0,0,0,.58)";
+      ctx.stroke();
+
+      ctx.save();
+      ctx.transform(
+        uDir.x * radius,
+        uDir.y * radius,
+        vDir.x * radius,
+        vDir.y * radius,
+        p.x,
+        p.y
+      );
+      ctx.beginPath();
+      ctx.arc(-.08, -.12, .82, Math.PI * 1.05, Math.PI * 1.82);
+      ctx.strokeStyle = isRed ? "rgba(255, 210, 190, .16)" : "rgba(255,255,255,.16)";
+      ctx.lineWidth = Math.max(.08, .65 * radiusScale / radius);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    function drawFace(quad, face, base, radiusScale = 1, role = "front") {
+      const ctx = diceCtx;
+      const cornerRadius = (role === "top" ? 30 : 34) * radiusScale;
+      drawRoundPolygon(quad, cornerRadius);
+      const gradient = ctx.createLinearGradient(quad[0].x, quad[0].y, quad[2].x, quad[2].y);
+      if (role === "right") {
+        gradient.addColorStop(0, "#edf2f2");
+        gradient.addColorStop(.38, "#cfd5d3");
+        gradient.addColorStop(1, "#7f8b8c");
+      } else if (role === "top") {
+        gradient.addColorStop(0, "#ffffff");
+        gradient.addColorStop(.46, "#f3f4f0");
+        gradient.addColorStop(1, "#cfd5d0");
+      } else {
+        gradient.addColorStop(0, "#ffffff");
+        gradient.addColorStop(.42, base);
+        gradient.addColorStop(1, "#c8cfcb");
+      }
+      ctx.fillStyle = gradient;
+      ctx.fill();
+      ctx.lineWidth = Math.max(.8, .85 * radiusScale);
+      ctx.strokeStyle = "rgba(255,255,255,.24)";
+      ctx.stroke();
+
+      ctx.save();
+      drawRoundPolygon(quad, cornerRadius);
+      ctx.clip();
+      ctx.globalAlpha = role === "right" ? .22 : .52;
+      ctx.fillStyle = "#fff";
+      ctx.beginPath();
+      const highlightPoint = pointInQuad(quad, role === "right" ? .18 : .32, role === "top" ? .22 : .14);
+      ctx.ellipse(highlightPoint.x, highlightPoint.y, (role === "top" ? 92 : 70) * radiusScale, (role === "top" ? 30 : 25) * radiusScale, -0.18, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.globalAlpha = role === "right" ? .12 : .10;
+      const shade = ctx.createRadialGradient(
+        pointInQuad(quad, .62, .54).x,
+        pointInQuad(quad, .62, .54).y,
+        12 * radiusScale,
+        pointInQuad(quad, .72, .72).x,
+        pointInQuad(quad, .72, .72).y,
+        142 * radiusScale
+      );
+      shade.addColorStop(0, "rgba(255,255,255,0)");
+      shade.addColorStop(1, role === "right" ? "rgba(0,0,0,.68)" : "rgba(0,0,0,.46)");
+      ctx.fillStyle = shade;
+      ctx.fillRect(
+        Math.min(...quad.map((point) => point.x)) - 10,
+        Math.min(...quad.map((point) => point.y)) - 10,
+        Math.max(...quad.map((point) => point.x)) - Math.min(...quad.map((point) => point.x)) + 20,
+        Math.max(...quad.map((point) => point.y)) - Math.min(...quad.map((point) => point.y)) + 20
+      );
+
+      ctx.globalAlpha = .018;
+      ctx.strokeStyle = role === "right" ? "rgba(255,255,255,.72)" : "rgba(62,70,74,.9)";
+      ctx.lineWidth = Math.max(.7, .8 * radiusScale);
+      for (let i = 0; i < 8; i += 1) {
+        ctx.beginPath();
+        const y = .16 + i * .1;
+        const a = pointInQuad(quad, .08, y);
+        const b = pointInQuad(quad, .92, y + .015);
+        ctx.moveTo(a.x, a.y);
+        ctx.lineTo(b.x, b.y);
+        ctx.stroke();
+      }
+      ctx.restore();
+
+      ctx.save();
+      drawRoundPolygon(quad, cornerRadius);
+      ctx.clip();
+
+      dotPositions(face).forEach(([u, v]) => {
+        drawProjectedPip(quad, u, v, face, radiusScale);
+      });
+      ctx.restore();
+    }
+
+    function drawCubeEdges(front, top, right, radiusScale = 1) {
+      const ctx = diceCtx;
+      ctx.save();
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+      ctx.lineWidth = Math.max(5, 9 * radiusScale);
+      ctx.strokeStyle = "rgba(250,252,248,.62)";
+      ctx.beginPath();
+      ctx.moveTo(front[0].x + 2 * radiusScale, front[0].y + 1 * radiusScale);
+      ctx.lineTo(front[1].x - 2 * radiusScale, front[1].y + 1 * radiusScale);
+      ctx.stroke();
+
+      ctx.lineWidth = Math.max(4, 7 * radiusScale);
+      ctx.strokeStyle = "rgba(225,231,228,.46)";
+      ctx.beginPath();
+      ctx.moveTo(front[1].x, front[1].y + 3 * radiusScale);
+      ctx.lineTo(front[2].x, front[2].y - 5 * radiusScale);
+      ctx.stroke();
+
+      ctx.lineWidth = Math.max(1.1, 2.1 * radiusScale);
+      ctx.strokeStyle = "rgba(255,255,255,.42)";
+      [
+        [front[3], front[0]],
+        [top[2], top[3]],
+        [top[3], top[0]]
+      ].forEach(([a, b]) => {
+        ctx.beginPath();
+        ctx.moveTo(a.x, a.y);
+        ctx.lineTo(b.x, b.y);
+        ctx.stroke();
+      });
+
+      ctx.lineWidth = Math.max(1, 1.8 * radiusScale);
+      ctx.strokeStyle = "rgba(72,78,78,.22)";
+      [
+        [front[2], front[3]],
+        [top[1], top[2]],
+        [right[0], right[1]],
+        [right[1], right[2]],
+        [right[2], right[3]]
+      ].forEach(([a, b]) => {
+        ctx.beginPath();
+        ctx.moveTo(a.x, a.y);
+        ctx.lineTo(b.x, b.y);
+        ctx.stroke();
+      });
+      ctx.restore();
+    }
+
+    function visibleFacesForTop(topFace) {
+      const pairs = {
+        1: [5, 3],
+        2: [6, 3],
+        3: [5, 1],
+        4: [2, 6],
+        5: [1, 4],
+        6: [2, 5]
+      };
+      return pairs[topFace] || [5, 3];
+    }
+
+    function drawCanvasDie() {
+      const rollingVisual = phase === "intro" || phase === "outro";
+      const topFace = rollingVisual ? ((Math.floor(visualTime * 22) % 6) + 1) : (lastFace || 1);
+      dieImage.src = dieAssetPaths[topFace - 1];
+      dieImage.alt = `上面が${topFace}の3Dサイコロ`;
+    }
+
+    function updateDie(dt) {
+      visualTime += dt;
+      drawCanvasDie();
+    }
+
+    function updateReadouts() {
+      const target = getTargetRolls();
+      const max = Math.max(...counts);
+      const min = Math.min(...counts);
+      const expected = total / 6;
+      const spread = total > 0 ? Math.max(...counts.map((count) => Math.abs(count - expected))) : 0;
+      const weighted = counts.reduce((sum, count, index) => sum + count * (index + 1), 0);
+      const peakIndex = counts.indexOf(max);
+      const low = counts[0] + counts[1] + counts[2];
+      const high = counts[3] + counts[4] + counts[5];
+      const odd = counts[0] + counts[2] + counts[4];
+      const even = counts[1] + counts[3] + counts[5];
+
+      readouts.lastFace.textContent = lastFace ?? "-";
+      readouts.totalRolls.textContent = `${formatNumber(total)} / ${formatNumber(target)}`;
+      readouts.peakFace.textContent = total > 0 ? `${peakIndex + 1}が最多` : "未記録";
+      readouts.spread.textContent = `${formatNumber(spread)}個`;
+      readouts.averageFace.textContent = total > 0 ? (weighted / total).toFixed(2) : "未記録";
+      readouts.lowShare.textContent = percent(low);
+      readouts.highShare.textContent = percent(high);
+      readouts.face1Share.textContent = percent(counts[0]);
+      readouts.face6Share.textContent = percent(counts[5]);
+      readouts.maxCount.textContent = formatNumber(max);
+      readouts.minCount.textContent = formatNumber(min);
+      readouts.oddCount.textContent = formatNumber(odd);
+      readouts.evenCount.textContent = formatNumber(even);
+      readouts.oddShare.textContent = percent(odd);
+      readouts.evenShare.textContent = percent(even);
+
+      counts.forEach((count, index) => {
+        const bar = document.getElementById(`bar${index + 1}`);
+        const countEl = document.getElementById(`count${index + 1}`);
+        const shareEl = document.getElementById(`share${index + 1}`);
+        const cell = bar.closest(".bar-cell");
+        const expectedTop = target / 4;
+        const height = total > 0 ? Math.max(2, Math.min(100, count / expectedTop * 100)) : 2;
+        bar.style.height = `${height}%`;
+        countEl.textContent = formatNumber(count);
+        shareEl.textContent = percent(count);
+        cell.classList.toggle("hot", total > 0 && count === max);
+      });
+    }
+
+    function tick(dt) {
+      if (running) {
+        phaseTime += dt;
+        if (phase === "intro" && phaseTime >= rollAnimationSeconds) {
+          rollDie();
+          phaseTime = 0;
+          phase = total >= getTargetRolls() ? "complete" : "recording";
+          running = phase !== "complete";
+          updateRunUi();
+        } else if (phase === "recording") {
+          pendingRolls += Number(controls.rollRate.value) * dt;
+          const amount = Math.floor(pendingRolls);
+          if (amount > 0) {
+            const reserveForFinalRoll = Math.max(0, getTargetRolls() - 1);
+            const allowed = Math.max(0, reserveForFinalRoll - total);
+            const rolled = rollMany(Math.min(amount, 25000, allowed));
+            pendingRolls = rolled < amount ? 0 : pendingRolls - amount;
+          }
+          if (total >= Math.max(0, getTargetRolls() - 1)) {
+            phase = "outro";
+            phaseTime = 0;
+            pendingRolls = 0;
+            updateRunUi();
+          }
+        } else if (phase === "outro" && phaseTime >= rollAnimationSeconds) {
+          rollDie();
+          phase = "complete";
+          phaseTime = 0;
+          running = false;
+          pendingRolls = 0;
+          updateRunUi();
+        }
+      }
+      updateDie(dt);
+      renderAccumulator += dt;
+      if (renderAccumulator >= 1 / 30 || !running) {
+        updateReadouts();
+        renderAccumulator = 0;
+      }
+    }
+
+    controls.toggleRun.addEventListener("click", startRun);
+    controls.rollOnce.addEventListener("click", () => {
+      rollDie();
+      phase = total >= getTargetRolls() ? "complete" : "idle";
+      running = false;
+      updateRunUi();
+      updateReadouts();
+    });
+    controls.reset.addEventListener("click", reset);
+    controls.rollRate.addEventListener("input", updateRateText);
+    controls.targetPreset.addEventListener("change", () => {
+      if (!controls.targetPreset.value) return;
+      controls.targetRolls.value = controls.targetPreset.value;
+      controls.targetRollsNumber.value = controls.targetPreset.value;
+      updateTargetText();
+    });
+    controls.targetRolls.addEventListener("input", () => {
+      controls.targetRollsNumber.value = controls.targetRolls.value;
+      updateTargetText();
+    });
+    function syncTargetFromNumber() {
+      const next = Math.max(1, Math.min(100000, Number(controls.targetRollsNumber.value) || 1));
+      controls.targetRollsNumber.value = String(Math.round(next));
+      controls.targetRolls.value = String(Math.min(10000, Math.round(next)));
+      updateTargetText();
+    }
+    controls.targetRollsNumber.addEventListener("input", syncTargetFromNumber);
+    controls.targetRollsNumber.addEventListener("change", syncTargetFromNumber);
+    controls.showTheory.addEventListener("change", () => {
+      barsEl.classList.toggle("show-theory", controls.showTheory.checked);
+    });
+    fitViewButton.addEventListener("click", () => {
+      autoFitView = true;
+      updateViewportScale();
+    });
+    zoomOutButton.addEventListener("click", () => {
+      autoFitView = false;
+      manualViewScale = currentViewScale - .05;
+      updateViewportScale();
+    });
+    zoomInButton.addEventListener("click", () => {
+      autoFitView = false;
+      manualViewScale = currentViewScale + .05;
+      updateViewportScale();
+    });
+
+    createBars();
+    barsEl.classList.toggle("show-theory", controls.showTheory.checked);
+    updateRateText();
+    updateTargetText();
+    reset();
+    updateViewportScale();
+    window.addEventListener("resize", () => {
+      updateViewportScale();
+      drawCanvasDie();
+    });
+
+    const clock = new PhysicsSimClock.FixedStepClock({
+      step: 1 / 60,
+      onStep: tick
+    });
+    clock.start();
+  </script>
+</body>
+</html>

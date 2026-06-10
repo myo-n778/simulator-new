@@ -1,0 +1,940 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ボウリング理屈シミュレータ</title>
+<link rel="stylesheet" href="../../assets/common-sim.css">
+<script src="../../assets/sim-shell.js"></script>
+<script src="../../assets/sim-clock.js"></script>
+<style>
+  :root{
+    --bg:#081017;
+    --panel:#101923;
+    --panel2:#0b141d;
+    --line:#1d2b39;
+    --ink:#eaf1f7;
+    --mut:#9eb0bf;
+    --lane:#c78a45;
+    --lane2:#e1b06c;
+    --teal:#31d8c1;
+    --orange:#ff9d43;
+    --red:#ff6b64;
+    --blue:#68a8ff;
+    --ok:#7ddd81;
+  }
+  html,body{margin:0;background:var(--bg);color:var(--ink);font-family:system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans JP","Hiragino Kaku Gothic ProN",sans-serif;}
+  .wrap{max-width:1220px;margin:0 auto;padding:12px;}
+  .top{display:flex;justify-content:space-between;gap:12px;align-items:flex-end;margin-bottom:10px;}
+  h1{font-size:20px;line-height:1.2;margin:0;font-weight:800;letter-spacing:0;}
+  .sub{font-size:12px;color:var(--mut);line-height:1.45;margin-top:4px;}
+  .quick-actions{display:grid;grid-template-columns:112px 84px 112px;gap:8px;align-items:center;flex:0 0 auto;}
+  .layout{display:grid;grid-template-columns:minmax(520px,1fr) 360px;gap:12px;align-items:start;}
+  .stage,.panel,.meter{background:var(--panel);border:1px solid var(--line);border-radius:8px;box-shadow:0 18px 38px rgba(0,0,0,.28);}
+  .stage{padding:10px;}
+  .views{display:grid;grid-template-columns:minmax(0,1fr) 230px;gap:10px;}
+  canvas{display:block;width:100%;height:640px;background:linear-gradient(#111d28,#071018);border-radius:6px;}
+  #topView{height:640px;background:#071018;}
+  .panel{padding:12px;display:grid;gap:10px;}
+  .section-title{font-size:12px;color:#c9d7e4;font-weight:800;letter-spacing:0;margin:2px 0 0;}
+  .controls{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+  .ctrl{background:var(--panel2);border:1px solid #152434;border-radius:8px;padding:8px;display:grid;gap:5px;min-width:0;}
+  label{font-size:11px;color:var(--mut);display:flex;justify-content:space-between;gap:8px;line-height:1.2;}
+  label b{color:var(--ink);font-weight:700;white-space:nowrap;}
+  input[type=range]{width:100%;accent-color:var(--teal);}
+  select,input[type=number]{background:#0d1822;border:1px solid #203244;color:var(--ink);border-radius:6px;padding:5px 7px;font-size:12px;}
+  .buttons{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;}
+  button{background:#0c1721;border:1px solid #223447;color:var(--ink);border-radius:8px;padding:9px 10px;font-size:12px;font-weight:700;cursor:pointer;}
+  button:hover{border-color:#3d5a73;}
+  button.primary{background:#10332f;border-color:#1e6d62;color:#dbfffa;}
+  .quick-actions button{min-height:42px;font-size:13px;}
+  .quick-actions .primary{background:#0e6b61;border-color:#35d8c4;color:#f0fffc;box-shadow:0 0 0 1px rgba(49,216,193,.25),0 10px 24px rgba(0,0,0,.3);}
+  .toggles{display:grid;grid-template-columns:1fr 1fr;gap:6px;}
+  .toggle{display:flex;align-items:center;gap:6px;background:var(--panel2);border:1px solid #152434;border-radius:8px;padding:8px;font-size:12px;color:#dce8f2;}
+  .readouts{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:10px;}
+  .meter{padding:10px;min-height:58px;}
+  .meter .name{font-size:11px;color:var(--mut);line-height:1.2;}
+  .meter .value{font-size:18px;font-weight:800;line-height:1.35;margin-top:3px;}
+  .meter .hint{font-size:11px;color:#8ea1b1;line-height:1.25;}
+  .legend{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px;color:var(--mut);font-size:11px;}
+  .chip{display:inline-flex;align-items:center;gap:5px;background:#0b141d;border:1px solid #152434;border-radius:999px;padding:4px 7px;}
+  .sw{width:10px;height:10px;border-radius:50%;background:var(--teal);}
+  .summary{background:#0b141d;border:1px solid #152434;border-radius:8px;padding:10px;color:#cdd9e3;font-size:12px;line-height:1.5;}
+  .summary b{color:#fff;}
+  @media (max-width:980px){
+    .top{align-items:stretch;flex-direction:column;}
+    .quick-actions{grid-template-columns:1fr 1fr 1fr;}
+    .layout{grid-template-columns:1fr;}
+    .views{grid-template-columns:1fr;}
+    canvas,#topView{height:520px;}
+    .readouts{grid-template-columns:repeat(2,1fr);}
+  }
+  @media (max-width:560px){
+    .wrap{padding:8px;}
+    .controls{grid-template-columns:1fr;}
+    .toggles,.buttons{grid-template-columns:1fr;}
+    .quick-actions{position:sticky;top:8px;z-index:5;}
+    .readouts{grid-template-columns:1fr;}
+    canvas,#topView{height:460px;}
+  }
+</style>
+  <link rel="stylesheet" href="../../assets/remake.css">
+</head>
+<body class="remake-ui">
+  <div class="remake-badge-host"><span class="remake-ribbon">リメイク版</span></div>
+<script>
+  PhysicsSimShell.create({
+    title: 'ボウリング理屈シミュレータ',
+    subtitle: '立ち位置・手元のズレ・角度・重さ・速さ・スピンで、通す場所と1番ピンへの当たり方を見る',
+    basePath: '../../'
+  });
+</script>
+<div class="wrap">
+  <div class="top">
+    <div>
+      <h1>ボウリング理屈シミュレータ</h1>
+      <div class="sub">「まっすぐ投げたつもり」でも、手元が中心から右へズレたり、体の向きが斜めになると、ボールは別の板目を通ります。</div>
+    </div>
+    <div class="quick-actions">
+      <button class="primary" id="playTop">投げる</button>
+      <button id="resetTop">戻す</button>
+      <button id="pocketTop">1番ピン狙い</button>
+    </div>
+  </div>
+
+  <div class="layout">
+    <div>
+      <div class="stage">
+        <div class="views">
+          <canvas id="view" width="980" height="760" aria-label="疑似3Dボウリングレーン"></canvas>
+          <canvas id="topView" width="300" height="760" aria-label="真上から見たボウリングレーン"></canvas>
+        </div>
+        <div class="legend">
+          <span class="chip"><span class="sw" style="background:var(--teal)"></span>実際の軌道</span>
+          <span class="chip"><span class="sw" style="background:var(--orange)"></span>1番ピンへ向かう目安ライン</span>
+          <span class="chip"><span class="sw" style="background:var(--blue)"></span>スパット通過点</span>
+          <span class="chip"><span class="sw" style="background:var(--red)"></span>ガター・外れ</span>
+        </div>
+      </div>
+
+      <div class="readouts">
+        <div class="meter"><div class="name">1番ピン位置での板目</div><div class="value" id="impactBoard">--</div><div class="hint" id="impactHint">--</div></div>
+        <div class="meter"><div class="name">通すべきスパット</div><div class="value" id="spotTarget">--</div><div class="hint">ファウルラインから約4.6 m</div></div>
+        <div class="meter"><div class="name">運動量 / 運動エネルギー</div><div class="value" id="energy">--</div><div class="hint">重さと速さの効き方</div></div>
+        <div class="meter"><div class="name">曲がり量</div><div class="value" id="curve">--</div><div class="hint">スピン・速さ・重さで変化</div></div>
+      </div>
+    </div>
+
+    <aside class="panel">
+      <div class="section-title">投げ手と構え</div>
+      <div class="controls">
+        <div class="ctrl"><label>立ち位置 <b><span id="standingVal"></span> board</b></label><input id="standing" type="range" min="8" max="32" step="0.1"></div>
+        <div class="ctrl"><label>手元の左右ズレ <b><span id="handVal"></span> board</b></label><input id="handOffset" type="range" min="-7" max="7" step="0.1"></div>
+        <div class="ctrl"><label>身長 <b><span id="heightVal"></span> cm</b></label><input id="bodyHeight" type="range" min="145" max="180" step="1"></div>
+        <div class="ctrl"><label>腕の長さ <b><span id="armVal"></span> cm</b></label><input id="armLength" type="range" min="48" max="72" step="1"></div>
+      </div>
+
+      <div class="section-title">投球</div>
+      <div class="controls">
+        <div class="ctrl"><label>投げ出し角度 <b><span id="angleVal"></span> deg</b></label><input id="angle" type="range" min="-8" max="8" step="0.1"></div>
+        <div class="ctrl"><label>球速 <b><span id="speedVal"></span> km/h</b></label><input id="speed" type="range" min="12" max="34" step="0.5"></div>
+        <div class="ctrl"><label>ボール重量 <b><span id="massVal"></span> kg</b></label><input id="mass" type="range" min="3.6" max="7.3" step="0.1"></div>
+        <div class="ctrl"><label>スピン量 <b><span id="spinVal"></span> rpm</b></label><input id="spin" type="range" min="-450" max="450" step="10"></div>
+        <div class="ctrl"><label>再生倍率 <b><span id="playbackVal"></span> x</b></label><input id="playback" type="range" min="0.25" max="4" step="0.25"></div>
+      </div>
+
+      <div class="section-title">表示</div>
+      <div class="toggles">
+        <label class="toggle"><input id="spinOn" type="checkbox">スピンを反映</label>
+        <label class="toggle"><input id="targetOn" type="checkbox" checked>目安ライン</label>
+        <label class="toggle"><input id="ghostOn" type="checkbox" checked>ずれ比較</label>
+        <label class="toggle"><input id="pinOn" type="checkbox" checked>ピン判定</label>
+      </div>
+
+      <div class="buttons">
+        <button class="primary" id="play">投げる</button>
+        <button id="reset">戻す</button>
+        <button id="pocket">1番ピン狙い</button>
+      </div>
+
+      <div class="summary" id="summary"></div>
+    </aside>
+  </div>
+</div>
+
+<script>
+'use strict';
+const $ = (id)=>document.getElementById(id);
+const canvas = $('view');
+const ctx = canvas.getContext('2d');
+const topCanvas = $('topView');
+const topCtx = topCanvas.getContext('2d');
+const lane = { boardMin: 1, boardMax: 39, length: 19.2, widthM: 1.054, spotY: 4.57, headBoard: 20 };
+const pinDeck = { frontY: 18.29, rowGap: 0.22 };
+const pinLayout = [
+  { id: 1, board: 20.0, row: 0 },
+  { id: 2, board: 18.8, row: 1 },
+  { id: 3, board: 21.2, row: 1 },
+  { id: 4, board: 17.6, row: 2 },
+  { id: 5, board: 20.0, row: 2 },
+  { id: 6, board: 22.4, row: 2 },
+  { id: 7, board: 16.4, row: 3 },
+  { id: 8, board: 18.8, row: 3 },
+  { id: 9, board: 21.2, row: 3 },
+  { id: 10, board: 23.6, row: 3 }
+];
+const state = {
+  standing: 20,
+  handOffset: 5.5,
+  bodyHeight: 158,
+  armLength: 58,
+  angle: -5.7,
+  speed: 24,
+  mass: 5.4,
+  spin: 0,
+  playback: 1,
+  spinOn: false,
+  targetOn: true,
+  ghostOn: true,
+  pinOn: true,
+  progress: 0,
+  playing: false
+};
+const defaults = {...state};
+const ids = ['standing','handOffset','bodyHeight','armLength','angle','speed','mass','spin','playback'];
+const toggles = ['spinOn','targetOn','ghostOn','pinOn'];
+let dpr = 1;
+let metrics = null;
+let clock = null;
+const bowlerImage = new Image();
+bowlerImage.src = 'assets/bowler.png?v=20260607-throw2';
+bowlerImage.onload = () => draw();
+bowlerImage.onerror = () => draw();
+const bowlerReleaseImage = new Image();
+bowlerReleaseImage.src = 'assets/bowler-release.png?v=20260607-release1';
+bowlerReleaseImage.onload = () => draw();
+bowlerReleaseImage.onerror = () => draw();
+const releaseProgress = 0.18;
+
+function fitCanvas(){
+  const rect = canvas.getBoundingClientRect();
+  dpr = Math.max(1, Math.min(2.5, window.devicePixelRatio || 1));
+  canvas.width = Math.round(rect.width * dpr);
+  canvas.height = Math.round(rect.height * dpr);
+  ctx.setTransform(dpr,0,0,dpr,0,0);
+  const topRect = topCanvas.getBoundingClientRect();
+  topCanvas.width = Math.round(topRect.width * dpr);
+  topCanvas.height = Math.round(topRect.height * dpr);
+  topCtx.setTransform(dpr,0,0,dpr,0,0);
+  draw();
+}
+
+function clamp(v,min,max){ return Math.max(min, Math.min(max, v)); }
+function lerp(a,b,t){ return a + (b-a)*t; }
+function boardLabel(x){ return x.toFixed(1); }
+function speedMs(){ return state.speed / 3.6; }
+function releaseBoard(){
+  return clamp(state.standing + state.handOffset * 0.78, lane.boardMin, lane.boardMax);
+}
+function curveAt(y, spinEnabled = state.spinOn){
+  if(!spinEnabled) return 0;
+  const v = speedMs();
+  const spin = state.spin / 450;
+  const massFactor = 5.4 / state.mass;
+  const speedFactor = Math.pow(6.7 / v, 1.35);
+  const t = clamp(y / pinDeck.frontY, 0, 1);
+  const hookStart = 0.48;
+  const hookT = clamp((t - hookStart) / (1 - hookStart), 0, 1);
+  const hookShape = hookT * hookT * (3 - 2 * hookT);
+  return -spin * massFactor * speedFactor * 4.8 * hookShape;
+}
+function pathBoardAt(y, angleOverride = state.angle, releaseOverride = releaseBoard(), spinEnabled = state.spinOn){
+  return releaseOverride + Math.tan(angleOverride * Math.PI / 180) * y * 2.35 + curveAt(y, spinEnabled);
+}
+function targetSpotForHead(){
+  const release = releaseBoard();
+  const desiredAtSpot = release + (lane.headBoard - release - curveAt(pinDeck.frontY)) * (lane.spotY / pinDeck.frontY);
+  return clamp(desiredAtSpot, lane.boardMin, lane.boardMax);
+}
+function requiredAngleToHead(){
+  const release = releaseBoard();
+  const lateral = lane.headBoard - release - curveAt(pinDeck.frontY);
+  return Math.atan(lateral / (pinDeck.frontY * 2.35)) * 180 / Math.PI;
+}
+function compute(){
+  const release = releaseBoard();
+  const pinBoard = pathBoardAt(pinDeck.frontY);
+  const spotBoard = pathBoardAt(lane.spotY);
+  const targetSpot = targetSpotForHead();
+  const gutterAt = sampleGutter();
+  const v = speedMs();
+  const p = state.mass * v;
+  const ke = 0.5 * state.mass * v * v;
+  const curve = curveAt(pinDeck.frontY);
+  const required = requiredAngleToHead();
+  const miss = pinBoard - lane.headBoard;
+  const pinHits = computePinHits(pinBoard, gutterAt);
+  return {release,pinBoard,spotBoard,targetSpot,gutterAt,p,ke,curve,required,miss,pinHits};
+}
+function sampleGutter(){
+  for(let i=0;i<=120;i++){
+    const y = pinDeck.frontY * i / 120;
+    const x = pathBoardAt(y);
+    if(x < lane.boardMin || x > lane.boardMax) return {y,x};
+  }
+  return null;
+}
+
+function computePinHits(pinBoard, gutterAt){
+  if(gutterAt) return new Set();
+  const hits = new Set();
+  for(const pin of pinLayout){
+    const y = pinDeck.frontY + pin.row * pinDeck.rowGap;
+    const ballBoard = pathBoardAt(y);
+    const lateral = Math.abs(ballBoard - pin.board);
+    const threshold = pin.row === 0 ? 1.15 : 0.82;
+    if(lateral <= threshold) hits.add(pin.id);
+  }
+  if(hits.has(1)){
+    if(pinBoard < 20) {
+      [2,4,5,8].forEach(id=>hits.add(id));
+    } else if(pinBoard > 20) {
+      [3,5,6,9].forEach(id=>hits.add(id));
+    } else {
+      [2,3,5].forEach(id=>hits.add(id));
+    }
+  }
+  for(const id of [...hits]){
+    if(id === 2) [4,7,8].forEach(next=>hits.add(next));
+    if(id === 3) [6,9,10].forEach(next=>hits.add(next));
+    if(id === 5) [8,9].forEach(next=>hits.add(next));
+  }
+  return hits;
+}
+
+function project(board, y){
+  const w = canvas.clientWidth;
+  const h = canvas.clientHeight;
+  const topY = 58;
+  const bottomY = h - 76;
+  const t = clamp(y / lane.length, -0.08, 1.08);
+  const centerX = w * 0.5;
+  const halfBottom = Math.min(w * 0.28, 245);
+  const halfTop = Math.max(34, halfBottom * 0.19);
+  const z0 = (halfTop * lane.length) / Math.max(1, halfBottom - halfTop);
+  const q = 1 / (z0 + lane.length * t);
+  const nearQ = 1 / z0;
+  const farQ = 1 / (z0 + lane.length);
+  const s = (q - farQ) / (nearQ - farQ);
+  const py = lerp(topY, bottomY, s);
+  const half = halfBottom * z0 / (z0 + lane.length * t);
+  const x = centerX + ((board - lane.headBoard) / ((lane.boardMax - lane.boardMin) / 2)) * half;
+  return {x,y:py,half,centerX,scale:lerp(1.15,.24,clamp(t,0,1)),t};
+}
+
+function draw(){
+  const w = canvas.clientWidth;
+  const h = canvas.clientHeight;
+  ctx.clearRect(0,0,w,h);
+  metrics = compute();
+  drawBackground(w,h);
+  drawLane(w,h);
+  drawPins();
+  drawSpots();
+  if(state.targetOn) drawTargetLine();
+  if(state.ghostOn) drawGhostLine();
+  drawTrajectory();
+  drawBall();
+  drawBowler();
+  drawOverlays();
+  drawTopView();
+  updateReadouts();
+}
+
+function drawBackground(w,h){
+  const g = ctx.createLinearGradient(0,0,0,h);
+  g.addColorStop(0,'#12202c');
+  g.addColorStop(.48,'#09131d');
+  g.addColorStop(1,'#061018');
+  ctx.fillStyle = g;
+  ctx.fillRect(0,0,w,h);
+  ctx.fillStyle = 'rgba(255,255,255,.04)';
+  ctx.fillRect(0, h-116, w, 116);
+}
+
+function drawLane(){
+  const nearL = project(lane.boardMin,0), nearR = project(lane.boardMax,0), farL = project(lane.boardMin,lane.length), farR = project(lane.boardMax,lane.length);
+  const laneGrad = ctx.createLinearGradient(0,farL.y,0,nearL.y);
+  laneGrad.addColorStop(0,'#e0af6b');
+  laneGrad.addColorStop(.35,'#c78642');
+  laneGrad.addColorStop(1,'#e6bd7b');
+  ctx.beginPath();
+  ctx.moveTo(farL.x,farL.y);
+  ctx.lineTo(farR.x,farR.y);
+  ctx.lineTo(nearR.x,nearR.y);
+  ctx.lineTo(nearL.x,nearL.y);
+  ctx.closePath();
+  ctx.fillStyle = laneGrad;
+  ctx.fill();
+  ctx.lineWidth = 2;
+  ctx.strokeStyle = 'rgba(64,35,13,.65)';
+  ctx.stroke();
+
+  drawGutter(nearL, farL, -1);
+  drawGutter(nearR, farR, 1);
+
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo(farL.x,farL.y);
+  ctx.lineTo(farR.x,farR.y);
+  ctx.lineTo(nearR.x,nearR.y);
+  ctx.lineTo(nearL.x,nearL.y);
+  ctx.closePath();
+  ctx.clip();
+  for(let b=5;b<40;b+=5){
+    const a = project(b,0), z = project(b,lane.length);
+    ctx.beginPath();
+    ctx.moveTo(a.x,a.y);
+    ctx.lineTo(z.x,z.y);
+    ctx.strokeStyle = b === 20 ? 'rgba(255,255,255,.32)' : 'rgba(80,44,18,.28)';
+    ctx.lineWidth = b === 20 ? 1.8 : 1;
+    ctx.stroke();
+  }
+  for(let y=2;y<lane.length;y+=2){
+    const l = project(0,y), r = project(40,y);
+    ctx.beginPath();
+    ctx.moveTo(l.x,l.y);
+    ctx.lineTo(r.x,r.y);
+    ctx.strokeStyle = 'rgba(255,255,255,.08)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function drawGutter(near, far, side){
+  const offNear = 34 * side;
+  const offFar = 8 * side;
+  ctx.beginPath();
+  ctx.moveTo(far.x,far.y);
+  ctx.lineTo(far.x + offFar, far.y + 2);
+  ctx.lineTo(near.x + offNear, near.y + 18);
+  ctx.lineTo(near.x,near.y);
+  ctx.closePath();
+  const grad = ctx.createLinearGradient(near.x,near.y,near.x + offNear,near.y);
+  grad.addColorStop(0,'#51300f');
+  grad.addColorStop(1,'#141b20');
+  ctx.fillStyle = grad;
+  ctx.fill();
+}
+
+function drawSpots(){
+  const boards = [5,10,15,20,25,30,35];
+  boards.forEach((b,i)=>{
+    const p = project(b,lane.spotY);
+    ctx.beginPath();
+    ctx.moveTo(p.x, p.y - 9*p.scale);
+    ctx.lineTo(p.x - 8*p.scale, p.y + 8*p.scale);
+    ctx.lineTo(p.x + 8*p.scale, p.y + 8*p.scale);
+    ctx.closePath();
+    ctx.fillStyle = b === 20 ? 'rgba(58,216,193,.82)' : 'rgba(42,88,112,.66)';
+    ctx.fill();
+  });
+  const target = project(metrics.targetSpot, lane.spotY);
+  ctx.beginPath();
+  ctx.arc(target.x,target.y,12*target.scale,0,Math.PI*2);
+  ctx.strokeStyle = '#68a8ff';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+}
+
+function drawPins(){
+  const lp = laneProgress();
+  const impactT = clamp((lp - 0.9) / 0.1, 0, 1);
+  [...pinLayout].reverse().forEach((pin)=>{
+    const y = pinDeck.frontY + pin.row * pinDeck.rowGap;
+    const p = project(pin.board, y);
+    const hit = state.pinOn && metrics.pinHits.has(pin.id);
+    const s = p.scale * 2.7 + 0.12;
+    const fall = hit ? easeOutBack(impactT) : 0;
+    const side = pin.board >= metrics.pinBoard ? 1 : -1;
+    ctx.save();
+    ctx.translate(p.x + side * 20 * fall * s, p.y + 12 * fall * s);
+    ctx.rotate(side * fall * 1.25);
+    ctx.fillStyle = 'rgba(0,0,0,.23)';
+    ctx.beginPath();
+    ctx.ellipse(0, 13*s, 8*s, 3*s, 0,0,Math.PI*2);
+    ctx.fill();
+    ctx.fillStyle = hit ? '#ffd9d2' : '#fff7ec';
+    roundPin(0,0,7*s,24*s);
+    ctx.fillStyle = hit ? '#ff6b64' : '#c93131';
+    ctx.fillRect(-5*s,-1*s,10*s,4*s);
+    ctx.fillStyle = 'rgba(8,14,20,.75)';
+    ctx.font = `${Math.max(9, 8*s)}px system-ui, sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.fillText(String(pin.id), 0, -18*s);
+    ctx.restore();
+  });
+}
+function easeOutBack(t){
+  const c1 = 1.7;
+  const c3 = c1 + 1;
+  return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2);
+}
+function roundPin(x,y,w,h){
+  ctx.beginPath();
+  ctx.moveTo(x, y-h*.48);
+  ctx.bezierCurveTo(x+w*.55,y-h*.38,x+w*.45,y-h*.05,x+w*.28,y+h*.12);
+  ctx.bezierCurveTo(x+w*.7,y+h*.36,x+w*.28,y+h*.54,x,y+h*.52);
+  ctx.bezierCurveTo(x-w*.28,y+h*.54,x-w*.7,y+h*.36,x-w*.28,y+h*.12);
+  ctx.bezierCurveTo(x-w*.45,y-h*.05,x-w*.55,y-h*.38,x,y-h*.48);
+  ctx.fill();
+}
+
+function drawPolyline(points, color, width, dash){
+  ctx.save();
+  if(dash) ctx.setLineDash(dash);
+  ctx.beginPath();
+  points.forEach((pt,i)=>{
+    const p = project(pt.x,pt.y);
+    if(i===0) ctx.moveTo(p.x,p.y); else ctx.lineTo(p.x,p.y);
+  });
+  ctx.strokeStyle = color;
+  ctx.lineWidth = width;
+  ctx.lineCap = 'round';
+  ctx.lineJoin = 'round';
+  ctx.stroke();
+  ctx.restore();
+}
+function trajectoryPoints(angle = state.angle, release = releaseBoard(), spinEnabled = state.spinOn){
+  const pts = [];
+  for(let i=0;i<=110;i++){
+    const y = pinDeck.frontY * i / 110;
+    pts.push({x:pathBoardAt(y, angle, release, spinEnabled), y});
+  }
+  return pts;
+}
+function drawTrajectory(){
+  const pts = trajectoryPoints();
+  const visible = metrics.gutterAt ? pts.filter(pt=>pt.y <= metrics.gutterAt.y) : pts;
+  drawPolyline(visible, '#31d8c1', 4);
+  drawPolyline(visible, 'rgba(255,255,255,.65)', 1.2);
+}
+function drawTargetLine(){
+  drawPolyline(trajectoryPoints(metrics.required, metrics.release), '#ff9d43', 2.5, [7,6]);
+}
+function drawGhostLine(){
+  const release = state.standing;
+  const pts = trajectoryPoints(0, release, false);
+  drawPolyline(pts, 'rgba(255,255,255,.28)', 2, [4,7]);
+}
+function drawBall(){
+  const lp = laneProgress();
+  if(lp <= 0) return;
+  const y = pinDeck.frontY * lp;
+  const gutterLimit = metrics.gutterAt ? metrics.gutterAt.y : pinDeck.frontY;
+  const drawY = Math.min(y, gutterLimit);
+  const p = project(pathBoardAt(drawY), drawY);
+  const r = 15 * p.scale + 4;
+  const grad = ctx.createRadialGradient(p.x-r*.35,p.y-r*.4,2,p.x,p.y,r);
+  grad.addColorStop(0,'#b5fff4');
+  grad.addColorStop(.35,'#25b7a7');
+  grad.addColorStop(1,'#063c43');
+  ctx.beginPath();
+  ctx.arc(p.x,p.y,r,0,Math.PI*2);
+  ctx.fillStyle = grad;
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(255,255,255,.5)';
+  ctx.lineWidth = 1.2;
+  ctx.stroke();
+}
+
+function drawBowler(){
+  const p = project(state.standing, -0.15);
+  const scale = 0.72 + (state.bodyHeight - 145) / 90;
+  const arm = 1 + (state.armLength - 58) / 85;
+  const throwPhase = clamp(state.progress / releaseProgress, 0, 1);
+  const img = throwPhase < 1 ? bowlerImage : bowlerReleaseImage;
+  if(img.complete && img.naturalWidth){
+    drawImageBowler(img, p, scale, throwPhase);
+  }else{
+    drawFallbackBowler(p, scale, arm, throwPhase);
+  }
+}
+
+function drawImageBowler(img, p, scale, throwPhase){
+  const releaseP = project(releaseBoard(), 0);
+  const imgW = 290 * scale;
+  const imgH = 435 * scale;
+  const swing = easeInOut(throwPhase);
+  const x = p.x - imgW * 0.60 + (releaseP.x - p.x) * 0.10 * swing;
+  const y = p.y - imgH + 132 - 18 * swing;
+  ctx.save();
+  ctx.globalAlpha = 0.98;
+  ctx.fillStyle = 'rgba(0,0,0,.28)';
+  ctx.beginPath();
+  ctx.ellipse(p.x - 6, p.y + 83 * scale, 52 * scale, 14 * scale, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.drawImage(img, x, y, imgW, imgH);
+  ctx.restore();
+}
+
+function drawFallbackBowler(p, scale, arm, throwPhase){
+  const releaseP = project(releaseBoard(), 0);
+  const held = throwPhase < 1;
+  const swing = easeInOut(throwPhase);
+  const handStartX = p.x + (releaseP.x - p.x) * 0.35;
+  const handStartY = p.y + 18;
+  const handEndX = releaseP.x;
+  const handEndY = releaseP.y - 10;
+  const handX = lerp(handStartX, handEndX, swing);
+  const handY = lerp(handStartY, handEndY, swing);
+
+  ctx.save();
+  ctx.fillStyle = 'rgba(0,0,0,.28)';
+  ctx.beginPath();
+  ctx.ellipse(p.x, p.y + 82 * scale, 44 * scale, 13 * scale, 0,0,Math.PI*2);
+  ctx.fill();
+
+  // Rear-facing, lane-aligned classroom-safe bowler.
+  ctx.fillStyle = '#d8c3ae';
+  ctx.beginPath();
+  ctx.arc(p.x, p.y - 112 * scale, 14 * scale, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#2a211e';
+  ctx.beginPath();
+  ctx.arc(p.x, p.y - 119 * scale, 16 * scale, Math.PI, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.ellipse(p.x + 7 * scale, p.y - 100 * scale, 8 * scale, 24 * scale, -0.12, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = '#24384b';
+  ctx.beginPath();
+  ctx.roundRect(p.x - 24 * scale, p.y - 98 * scale, 48 * scale, 72 * scale, 13 * scale);
+  ctx.fill();
+  ctx.fillStyle = '#162331';
+  ctx.beginPath();
+  ctx.roundRect(p.x - 17 * scale, p.y - 34 * scale, 34 * scale, 15 * scale, 8 * scale);
+  ctx.fill();
+  ctx.strokeStyle = '#8fb8c8';
+  ctx.lineWidth = 4 * scale;
+  ctx.beginPath();
+  ctx.moveTo(p.x - 15 * scale, p.y - 88 * scale);
+  ctx.lineTo(p.x - 7 * scale, p.y - 34 * scale);
+  ctx.moveTo(p.x + 15 * scale, p.y - 88 * scale);
+  ctx.lineTo(p.x + 7 * scale, p.y - 34 * scale);
+  ctx.stroke();
+
+  ctx.strokeStyle = '#1e2d3c';
+  ctx.lineWidth = 12 * scale;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(p.x - 10 * scale, p.y - 28 * scale);
+  ctx.lineTo(p.x - 20 * scale, p.y + 62 * scale);
+  ctx.moveTo(p.x + 10 * scale, p.y - 28 * scale);
+  ctx.lineTo(p.x + 20 * scale, p.y + 62 * scale);
+  ctx.stroke();
+
+  ctx.strokeStyle = '#d8c3ae';
+  ctx.lineWidth = 7 * scale;
+  ctx.beginPath();
+  ctx.moveTo(p.x - 22 * scale, p.y - 82 * scale);
+  ctx.lineTo(p.x - 46 * scale, p.y - 32 * scale);
+  ctx.moveTo(p.x + 22 * scale, p.y - 82 * scale);
+  ctx.quadraticCurveTo(
+    lerp(p.x + 42 * scale, handX, 0.45),
+    lerp(p.y - 35 * scale, handY, 0.45),
+    handX,
+    handY
+  );
+  ctx.stroke();
+  if(held){
+    const r = 14 * scale;
+    const grad = ctx.createRadialGradient(handX-r*.35,handY-r*.4,2,handX,handY,r);
+    grad.addColorStop(0,'#b5fff4');
+    grad.addColorStop(.35,'#25b7a7');
+    grad.addColorStop(1,'#063c43');
+    ctx.beginPath();
+    ctx.arc(handX, handY, r, 0, Math.PI*2);
+    ctx.fillStyle = grad;
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(255,255,255,.5)';
+    ctx.lineWidth = 1.2;
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+function topProject(board, y){
+  const w = topCanvas.clientWidth;
+  const h = topCanvas.clientHeight;
+  const padX = Math.max(18, w * 0.16);
+  const padY = 22;
+  const x = lerp(padX, w - padX, (board - lane.boardMin) / (lane.boardMax - lane.boardMin));
+  const yy = lerp(h - padY, padY, y / lane.length);
+  return {x, y: yy};
+}
+
+function drawTopView(){
+  const w = topCanvas.clientWidth;
+  const h = topCanvas.clientHeight;
+  topCtx.clearRect(0,0,w,h);
+  topCtx.fillStyle = '#071018';
+  topCtx.fillRect(0,0,w,h);
+  topCtx.fillStyle = '#d09a55';
+  const a = topProject(lane.boardMin,0);
+  const b = topProject(lane.boardMax,0);
+  const c = topProject(lane.boardMax,lane.length);
+  const d = topProject(lane.boardMin,lane.length);
+  topCtx.beginPath();
+  topCtx.moveTo(a.x,a.y); topCtx.lineTo(b.x,b.y); topCtx.lineTo(c.x,c.y); topCtx.lineTo(d.x,d.y); topCtx.closePath();
+  topCtx.fill();
+  topCtx.strokeStyle = 'rgba(255,255,255,.45)';
+  topCtx.lineWidth = 1;
+  topCtx.stroke();
+  for(let board=5; board<=35; board+=5){
+    const p0 = topProject(board,0), p1 = topProject(board,lane.length);
+    topCtx.beginPath();
+    topCtx.moveTo(p0.x,p0.y); topCtx.lineTo(p1.x,p1.y);
+    topCtx.strokeStyle = board === 20 ? 'rgba(255,255,255,.55)' : 'rgba(80,44,18,.45)';
+    topCtx.stroke();
+  }
+  const spotLeft = topProject(lane.boardMin,lane.spotY);
+  const spotRight = topProject(lane.boardMax,lane.spotY);
+  topCtx.fillStyle = 'rgba(104,168,255,.10)';
+  topCtx.fillRect(spotLeft.x, spotLeft.y - 18, spotRight.x - spotLeft.x, 36);
+  topCtx.strokeStyle = 'rgba(104,168,255,.55)';
+  topCtx.setLineDash([4,4]);
+  topCtx.beginPath();
+  topCtx.moveTo(spotLeft.x, spotLeft.y);
+  topCtx.lineTo(spotRight.x, spotRight.y);
+  topCtx.stroke();
+  topCtx.setLineDash([]);
+  const arrowBoards = [5,10,15,20,25,30,35];
+  arrowBoards.forEach(board=>{
+    const ap = topProject(board,lane.spotY);
+    topCtx.beginPath();
+    topCtx.moveTo(ap.x, ap.y - 9);
+    topCtx.lineTo(ap.x - 7, ap.y + 7);
+    topCtx.lineTo(ap.x + 7, ap.y + 7);
+    topCtx.closePath();
+    topCtx.fillStyle = board === 10 ? 'rgba(255,157,67,.95)' : board === 20 ? 'rgba(49,216,193,.9)' : 'rgba(38,76,96,.9)';
+    topCtx.fill();
+    topCtx.fillStyle = '#dce8f2';
+    topCtx.font = '9px system-ui, sans-serif';
+    topCtx.textAlign = 'center';
+    topCtx.fillText(String(board), ap.x, ap.y + 20);
+  });
+  const basic = topProject(10,lane.spotY);
+  topCtx.fillStyle = '#ffcf9a';
+  topCtx.font = '10px system-ui, sans-serif';
+  topCtx.textAlign = 'center';
+  topCtx.fillText('右投げ基本', basic.x, basic.y - 14);
+  const targetArrow = topProject(metrics.targetSpot,lane.spotY);
+  const actualSpot = topProject(metrics.spotBoard,lane.spotY);
+  topCtx.strokeStyle = '#ff9d43';
+  topCtx.lineWidth = 2;
+  topCtx.beginPath();
+  topCtx.arc(targetArrow.x,targetArrow.y,12,0,Math.PI*2);
+  topCtx.stroke();
+  topCtx.strokeStyle = '#31d8c1';
+  topCtx.beginPath();
+  topCtx.arc(actualSpot.x,actualSpot.y,8,0,Math.PI*2);
+  topCtx.stroke();
+  const actualPts = trajectoryPoints();
+  const visiblePts = metrics.gutterAt ? actualPts.filter(pt=>pt.y <= metrics.gutterAt.y) : actualPts;
+  drawTopPath(visiblePts, '#31d8c1', 4);
+  if(state.targetOn){
+    drawTopPath(trajectoryPoints(metrics.required, metrics.release), '#ff9d43', 2, [6,5]);
+  }
+  const lp = laneProgress();
+  if(lp > 0){
+    const gutterLimit = metrics.gutterAt ? metrics.gutterAt.y : pinDeck.frontY;
+    const by = Math.min(pinDeck.frontY * lp, gutterLimit);
+    const bp = topProject(pathBoardAt(by), by);
+    topCtx.fillStyle = '#12363d';
+    topCtx.strokeStyle = '#b5fff4';
+    topCtx.lineWidth = 2;
+    topCtx.beginPath();
+    topCtx.arc(bp.x,bp.y,8,0,Math.PI*2);
+    topCtx.fill();
+    topCtx.stroke();
+  }
+  pinLayout.forEach(pin=>{
+    const y = pinDeck.frontY + pin.row * pinDeck.rowGap;
+    const pp = topProject(pin.board,y);
+    const hit = state.pinOn && metrics.pinHits.has(pin.id) && lp > .9;
+    topCtx.fillStyle = hit ? '#ff6b64' : '#fff7ec';
+    topCtx.beginPath();
+    topCtx.arc(pp.x,pp.y,5,0,Math.PI*2);
+    topCtx.fill();
+    topCtx.fillStyle = '#0b141d';
+    topCtx.font = '9px system-ui, sans-serif';
+    topCtx.textAlign = 'center';
+    topCtx.fillText(String(pin.id), pp.x, pp.y + 3);
+  });
+  topCtx.fillStyle = '#eaf1f7';
+  topCtx.font = '12px system-ui, sans-serif';
+  topCtx.textAlign = 'left';
+  topCtx.fillText('真上表示', 12, 18);
+  topCtx.fillStyle = '#9eb0bf';
+  topCtx.fillText('等速直線運動', 12, 36);
+  topCtx.fillText('スパット 15ft / 4.57m', 12, 54);
+  topCtx.fillText('右投げ基本: 2番スパット/10枚目', 12, 72);
+  topCtx.fillText(`実線: ${boardLabel(metrics.release)} → ${boardLabel(metrics.spotBoard)} → ${boardLabel(metrics.pinBoard)}`, 12, h - 10);
+}
+
+function drawTopPath(points, color, width, dash){
+  topCtx.save();
+  if(dash) topCtx.setLineDash(dash);
+  topCtx.lineWidth = width;
+  topCtx.strokeStyle = color;
+  topCtx.lineCap = 'round';
+  topCtx.lineJoin = 'round';
+  topCtx.beginPath();
+  points.forEach((pt,i)=>{
+    const p = topProject(pt.x, pt.y);
+    if(i === 0) topCtx.moveTo(p.x,p.y); else topCtx.lineTo(p.x,p.y);
+  });
+  topCtx.stroke();
+  topCtx.restore();
+}
+function easeInOut(t){
+  return t < .5 ? 2*t*t : 1 - Math.pow(-2*t+2,2)/2;
+}
+
+function laneProgress(){
+  return clamp((state.progress - releaseProgress) / (1 - releaseProgress), 0, 1);
+}
+
+function drawOverlays(){
+  if(metrics.gutterAt){
+    const p = project(clamp(metrics.gutterAt.x,0,40), metrics.gutterAt.y);
+    ctx.fillStyle = '#ff6b64';
+    ctx.beginPath();
+    ctx.arc(p.x,p.y,9,0,Math.PI*2);
+    ctx.fill();
+    textBox('ガター', p.x + 12, p.y - 22, '#ff6b64');
+  }
+  const head = project(lane.headBoard,pinDeck.frontY);
+  textBox('1番ピン（手前）', head.x + 12, head.y - 30, '#ff9d43');
+  const spot = project(metrics.spotBoard,lane.spotY);
+  textBox('通過 ' + boardLabel(metrics.spotBoard), spot.x + 10, spot.y - 28, '#31d8c1');
+}
+function textBox(text,x,y,color){
+  ctx.font = '12px system-ui, sans-serif';
+  const m = ctx.measureText(text).width;
+  ctx.fillStyle = 'rgba(5,12,18,.76)';
+  ctx.fillRect(x-6,y-15,m+12,22);
+  ctx.strokeStyle = color;
+  ctx.strokeRect(x-6,y-15,m+12,22);
+  ctx.fillStyle = '#eef7ff';
+  ctx.fillText(text,x,y);
+}
+
+function updateReadouts(){
+  const impact = metrics.gutterAt ? 'ガター' : boardLabel(metrics.pinBoard);
+  $('impactBoard').textContent = impact;
+  const missAbs = Math.abs(metrics.miss);
+  $('impactHint').textContent = metrics.gutterAt ? `${metrics.gutterAt.y.toFixed(1)} m付近で外れ` :
+    missAbs < .7 ? '1番ピン付近' : `${metrics.miss > 0 ? '右' : '左'}へ ${missAbs.toFixed(1)} board`;
+  $('spotTarget').textContent = boardLabel(metrics.targetSpot);
+  $('energy').textContent = `${metrics.p.toFixed(1)} Ns / ${metrics.ke.toFixed(0)} J`;
+  $('curve').textContent = `${metrics.curve.toFixed(1)} board`;
+  const realTime = pinDeck.frontY / speedMs();
+  $('summary').innerHTML =
+    `現在の投げ方では、リリース位置は <b>${boardLabel(metrics.release)} board</b>、スパット付近は <b>${boardLabel(metrics.spotBoard)} board</b> を通ります。` +
+    ` 1番ピンへ合わせるなら、投げ出し角度はおよそ <b>${metrics.required.toFixed(1)} deg</b>、またはスパット <b>${boardLabel(metrics.targetSpot)} board</b> が目安です。` +
+    ` ファウルラインから1番ピン中心まで <b>${pinDeck.frontY.toFixed(2)} m</b>、現在の球速なら実時間で約 <b>${realTime.toFixed(2)} s</b> です。`;
+}
+
+function syncControls(){
+  ids.forEach(id=>{
+    $(id).value = state[id];
+    const label = $(id + 'Val');
+    if(label) label.textContent = Number(state[id]).toFixed(id === 'mass' || id === 'angle' || id === 'standing' || id === 'handOffset' || id === 'playback' ? 1 : 0);
+  });
+  toggles.forEach(id=>$(id).checked = state[id]);
+}
+function hookControls(){
+  ids.forEach(id=>{
+    $(id).addEventListener('input', e=>{
+      state[id] = Number(e.target.value);
+      state.progress = 0;
+      syncControls();
+      draw();
+    });
+  });
+  toggles.forEach(id=>{
+    $(id).addEventListener('change', e=>{
+      state[id] = e.target.checked;
+      state.progress = 0;
+      draw();
+    });
+  });
+  $('play').onclick = ()=>{
+    state.playing = !state.playing;
+    updatePlayLabels();
+  };
+  $('reset').onclick = ()=>{
+    Object.assign(state, defaults);
+    state.progress = 0;
+    state.playing = false;
+    updatePlayLabels();
+    syncControls();
+    draw();
+  };
+  $('pocket').onclick = ()=>{
+    state.spinOn = false;
+    state.spin = 0;
+    state.angle = Number(requiredAngleToHead().toFixed(1));
+    state.progress = 0;
+    syncControls();
+    draw();
+  };
+  $('playTop').onclick = ()=>$('play').click();
+  $('resetTop').onclick = ()=>$('reset').click();
+  $('pocketTop').onclick = ()=>$('pocket').click();
+}
+
+function updatePlayLabels(){
+  const label = state.playing ? '停止' : '投げる';
+  $('play').textContent = label;
+  $('playTop').textContent = label;
+}
+
+function tick(dt){
+  if(state.playing){
+    const releaseTime = 0.35;
+    const dur = releaseTime + pinDeck.frontY / speedMs();
+    state.progress += (dt * state.playback) / dur;
+    if(state.progress >= 1){
+      state.progress = 1;
+      state.playing = false;
+      updatePlayLabels();
+    }
+    draw();
+  }
+}
+
+hookControls();
+syncControls();
+updatePlayLabels();
+fitCanvas();
+window.addEventListener('resize', fitCanvas);
+if(window.PhysicsSimClock && PhysicsSimClock.FixedStepClock){
+  clock = new PhysicsSimClock.FixedStepClock({step:1/60, onStep:tick});
+  clock.start();
+}else{
+  let last = performance.now();
+  function loop(now){
+    tick(Math.min(.05,(now-last)/1000));
+    last = now;
+    requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
+}
+</script>
+</body>
+</html>

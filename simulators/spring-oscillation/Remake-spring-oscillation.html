@@ -1,0 +1,1652 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ばね単振動シミュレーター</title>
+  <link rel="stylesheet" href="../../assets/common-sim.css">
+  <script src="../../assets/sim-shell.js"></script>
+  <script src="../../assets/sim-clock.js"></script>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f3f6fa;
+      --surface: #ffffff;
+      --surface-2: #edf3f8;
+      --surface-3: #f8fbfd;
+      --ink: #172232;
+      --muted: #5f6f82;
+      --line: #d5dee9;
+      --line-strong: #a8b8ca;
+      --accent: #2478b8;
+      --accent-2: #2b9b78;
+      --warn: #b7791f;
+      --red: #c85050;
+      --grid: #dce6f0;
+      --canvas-1: #f8fbff;
+      --canvas-2: #edf4fa;
+      --shadow: 0 14px 34px rgba(26, 43, 64, 0.12);
+    }
+
+    body.theme-dark {
+      color-scheme: dark;
+      --bg: #080d14;
+      --surface: #0f1722;
+      --surface-2: #121d2a;
+      --surface-3: #0b121b;
+      --ink: #e8eef6;
+      --muted: #9aa8b8;
+      --line: #243346;
+      --line-strong: #33465e;
+      --accent: #70c7ff;
+      --accent-2: #8ee7c8;
+      --warn: #ffd166;
+      --red: #ff7d7d;
+      --grid: #1b2635;
+      --canvas-1: #0c1420;
+      --canvas-2: #09111a;
+      --shadow: 0 18px 44px rgba(0, 0, 0, 0.3);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.5;
+    }
+
+    .sim-shell-header {
+      border-bottom-color: var(--line);
+      background: color-mix(in srgb, var(--surface) 92%, transparent);
+      color: var(--ink);
+    }
+
+    .sim-shell-back {
+      border-color: var(--line);
+      background: var(--surface);
+      color: var(--accent);
+    }
+
+    .sim-shell-subtitle {
+      color: var(--muted);
+    }
+
+    button,
+    input,
+    select {
+      font: inherit;
+    }
+
+    .wrap {
+      width: min(1200px, calc(100% - 28px));
+      margin: 0 auto;
+      padding: 14px 0 22px;
+    }
+
+    .topbar {
+      display: flex;
+      align-items: flex-end;
+      justify-content: space-between;
+      gap: 14px;
+      margin-bottom: 12px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(22px, 3vw, 34px);
+      line-height: 1.12;
+      letter-spacing: 0;
+    }
+
+    .lead {
+      margin: 7px 0 0;
+      max-width: 720px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1.35fr) minmax(300px, 0.65fr);
+      gap: 12px;
+      align-items: start;
+    }
+
+    .stage,
+    .panel,
+    .graph-panel,
+    .readout {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--surface);
+      box-shadow: var(--shadow);
+    }
+
+    .stage {
+      min-width: 0;
+      padding: 10px;
+    }
+
+    .stage-toolbar,
+    .mode-strip,
+    .switch-row,
+    .toggles {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .stage-toolbar {
+      justify-content: space-between;
+      margin-bottom: 8px;
+    }
+
+    .tool-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .btn,
+    .seg-btn,
+    .select,
+    .mini-btn {
+      min-height: 36px;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: var(--surface-2);
+      color: var(--ink);
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .btn {
+      padding: 0 14px;
+      background: var(--accent);
+      color: #ffffff;
+      border-color: transparent;
+    }
+
+    .btn.secondary,
+    .mini-btn {
+      background: var(--surface-2);
+      color: var(--ink);
+      border-color: var(--line);
+    }
+
+    .segmented {
+      display: inline-flex;
+      gap: 4px;
+      padding: 4px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: var(--surface-3);
+    }
+
+    .seg-btn {
+      min-width: 72px;
+      padding: 0 12px;
+      border-color: transparent;
+      color: var(--muted);
+      background: transparent;
+    }
+
+    .seg-btn.is-active {
+      background: var(--accent);
+      color: #ffffff;
+    }
+
+    .select {
+      min-width: 92px;
+      padding: 0 10px;
+      color: var(--ink);
+    }
+
+    .canvas-shell {
+      position: relative;
+      overflow: hidden;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: linear-gradient(180deg, var(--canvas-1), var(--canvas-2));
+    }
+
+    #scene {
+      display: block;
+      width: 100%;
+      height: clamp(330px, 47vh, 520px);
+    }
+
+    .overlay-status {
+      position: absolute;
+      left: 10px;
+      right: 10px;
+      bottom: 10px;
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 6px;
+      pointer-events: none;
+    }
+
+    .status-item {
+      min-width: 0;
+      border: 1px solid color-mix(in srgb, var(--accent) 22%, transparent);
+      border-radius: 7px;
+      background: color-mix(in srgb, var(--surface) 84%, transparent);
+      padding: 6px 8px;
+      backdrop-filter: blur(8px);
+    }
+
+    .status-item .k {
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    .status-item .v {
+      overflow: hidden;
+      font-size: 15px;
+      font-weight: 800;
+      line-height: 1.25;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .below-stage {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(260px, 0.7fr);
+      gap: 10px;
+      margin-top: 10px;
+    }
+
+    .graph-panel,
+    .readout {
+      min-width: 0;
+      padding: 10px;
+      box-shadow: none;
+    }
+
+    .graph-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .graph-title {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      margin-bottom: 4px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .graph-box {
+      height: 116px;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: var(--surface-3);
+    }
+
+    .graph-box canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+    }
+
+    .readout-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 7px;
+    }
+
+    .metric {
+      min-width: 0;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: var(--surface-3);
+      padding: 7px 8px;
+    }
+
+    .metric .k {
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    .metric .v {
+      overflow: hidden;
+      font-size: 14px;
+      font-weight: 800;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .panel {
+      padding: 12px;
+    }
+
+    .section-title {
+      margin: 0 0 8px;
+      font-size: 15px;
+      line-height: 1.25;
+    }
+
+    .control-stack {
+      display: grid;
+      gap: 10px;
+    }
+
+    .field {
+      display: grid;
+      gap: 5px;
+    }
+
+    .field-top {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 84px;
+      gap: 8px;
+      align-items: center;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .field-top strong {
+      color: var(--ink);
+      font-weight: 700;
+    }
+
+    .field input[type="number"] {
+      width: 84px;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: var(--surface-3);
+      color: var(--ink);
+      padding: 5px 7px;
+      text-align: right;
+      font-size: 12px;
+    }
+
+    .field input[type="range"] {
+      width: 100%;
+      height: 20px;
+      accent-color: var(--accent);
+    }
+
+    .hint {
+      margin: 9px 0 0;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .toggles {
+      margin-top: 10px;
+    }
+
+    .check {
+      display: inline-flex;
+      gap: 6px;
+      align-items: center;
+      color: var(--muted);
+      font-size: 12px;
+      white-space: nowrap;
+    }
+
+    .check input {
+      accent-color: var(--accent);
+    }
+
+    .formula {
+      margin-top: 10px;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: var(--surface-3);
+      padding: 8px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .formula strong {
+      color: var(--ink);
+    }
+
+    [hidden] {
+      display: none !important;
+    }
+
+    @media (max-width: 980px) {
+      .layout,
+      .below-stage {
+        grid-template-columns: 1fr;
+      }
+
+      #scene {
+        height: clamp(320px, 50vh, 470px);
+      }
+    }
+
+    @media (max-width: 720px) {
+      .topbar,
+      .stage-toolbar {
+        align-items: stretch;
+        flex-direction: column;
+      }
+
+      .segmented,
+      .tool-group,
+      .mode-strip,
+      .switch-row {
+        width: 100%;
+      }
+
+      .seg-btn,
+      .btn,
+      .select,
+      .mini-btn {
+        flex: 1 1 auto;
+      }
+
+      .overlay-status,
+      .graph-grid,
+      .readout-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width: 520px) {
+      .wrap {
+        width: min(100% - 18px, 1200px);
+      }
+
+      #scene {
+        height: 360px;
+      }
+
+      .overlay-status {
+        position: static;
+        margin-top: 8px;
+      }
+
+      .field-top {
+        grid-template-columns: minmax(0, 1fr) 78px;
+      }
+
+      .field input[type="number"] {
+        width: 78px;
+      }
+    }
+  </style>
+  <link rel="stylesheet" href="../../assets/remake.css">
+</head>
+<body class="remake-ui">
+  <div class="remake-badge-host"><span class="remake-ribbon">リメイク版</span></div>
+  <script>
+    PhysicsSimShell.create({
+      title: 'ばね単振動',
+      subtitle: '水平/鉛直、1本/2本、並列/直列の統合リメイク',
+      basePath: '../../'
+    });
+  </script>
+
+  <main class="wrap">
+    <div class="topbar">
+      <div>
+        <h1>ばね単振動</h1>
+        <p class="lead">水平・鉛直、ばね1本・2本を同じ画面で切り替えます。鉛直では重力による静的伸びと、つり合い位置まわりの単振動を分けて表示します。</p>
+      </div>
+      <div class="mode-strip" aria-label="表示モード">
+        <div class="segmented" aria-label="テーマ">
+          <button class="seg-btn is-active" type="button" data-theme="light">標準</button>
+          <button class="seg-btn" type="button" data-theme="dark">ダーク</button>
+        </div>
+        <div class="segmented" aria-label="向き">
+          <button class="seg-btn is-active" type="button" data-mode="orientation" data-value="horizontal">水平</button>
+          <button class="seg-btn" type="button" data-mode="orientation" data-value="vertical">鉛直</button>
+        </div>
+        <div class="segmented" aria-label="ばね本数">
+          <button class="seg-btn is-active" type="button" data-mode="springCount" data-value="one">1本</button>
+          <button class="seg-btn" type="button" data-mode="springCount" data-value="two">2本</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="layout">
+      <section class="stage" aria-label="シミュレーション">
+        <div class="stage-toolbar">
+          <div class="tool-group">
+            <button id="playBtn" class="btn" type="button">再生</button>
+            <button id="stepBtn" class="mini-btn" type="button">1ステップ</button>
+            <button id="resetBtn" class="btn secondary" type="button">リセット</button>
+          </div>
+          <div class="tool-group">
+            <select id="speedSelect" class="select" aria-label="再生速度">
+              <option value="0.25">0.25x</option>
+              <option value="0.5">0.5x</option>
+              <option value="1" selected>1.0x</option>
+              <option value="1.5">1.5x</option>
+              <option value="2">2.0x</option>
+            </select>
+            <select id="zoomSelect" class="select" aria-label="表示倍率">
+              <option value="fit" selected>全体</option>
+              <option value="90">90%</option>
+              <option value="120">120%</option>
+              <option value="160">160%</option>
+              <option value="220">220%</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="canvas-shell">
+          <canvas id="scene"></canvas>
+          <div class="overlay-status">
+            <div class="status-item"><div class="k">時刻</div><div class="v" id="timeReadout">0.00 s / 1.0x</div></div>
+            <div class="status-item"><div class="k">変位 q</div><div class="v" id="qReadout">0.250 m</div></div>
+            <div class="status-item"><div class="k">速度 v</div><div class="v" id="vReadout">0.000 m/s</div></div>
+            <div class="status-item"><div class="k">復元力</div><div class="v" id="forceReadout">-3.00 N</div></div>
+          </div>
+        </div>
+
+        <div class="below-stage">
+          <div class="graph-panel">
+            <div class="graph-grid">
+              <div>
+                <div class="graph-title"><span>変位 q(t)</span><span id="qRange">m</span></div>
+                <div class="graph-box"><canvas id="qGraph"></canvas></div>
+              </div>
+              <div>
+                <div class="graph-title"><span>速度 v(t)</span><span id="vRange">m/s</span></div>
+                <div class="graph-box"><canvas id="vGraph"></canvas></div>
+              </div>
+              <div>
+                <div class="graph-title"><span>エネルギー E(t)</span><span id="eRange">J</span></div>
+                <div class="graph-box"><canvas id="eGraph"></canvas></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="readout">
+            <div class="readout-grid">
+              <div class="metric"><div class="k">合成ばね定数</div><div class="v" id="keffReadout">12.00 N/m</div></div>
+              <div class="metric"><div class="k">周期 T</div><div class="v" id="periodReadout">1.28 s</div></div>
+              <div class="metric"><div class="k">角振動数 ω</div><div class="v" id="omegaReadout">4.90 rad/s</div></div>
+              <div class="metric"><div class="k">静的伸び</div><div class="v" id="staticReadout">0.000 m</div></div>
+              <div class="metric"><div class="k">加速度 a</div><div class="v" id="accelReadout">-3.00 m/s²</div></div>
+              <div class="metric"><div class="k">全エネルギー</div><div class="v" id="energyReadout">0.375 J</div></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <aside class="panel" aria-label="パラメータ">
+        <h2 class="section-title">パラメータ</h2>
+        <div class="switch-row" id="connectionGroup">
+          <div class="segmented" aria-label="ばね2本の接続">
+            <button id="connectionParallel" class="seg-btn is-active" type="button" data-mode="connection" data-value="parallel">並列/左右</button>
+            <button id="connectionSeries" class="seg-btn" type="button" data-mode="connection" data-value="series">直列</button>
+            <button id="connectionSandwich" class="seg-btn" type="button" data-mode="connection" data-value="sandwich">上下挟み</button>
+          </div>
+        </div>
+
+        <div class="control-stack">
+          <div class="field">
+            <div class="field-top"><label for="mass">質量 <strong>m</strong> [kg] = <span id="massText">1.00</span></label><input id="massNumber" type="number" min="0.1" max="8" step="0.01" value="1"></div>
+            <input id="mass" type="range" min="0.1" max="8" step="0.01" value="1">
+          </div>
+          <div class="field">
+            <div class="field-top"><label for="k1">ばね定数 <strong>k1</strong> [N/m] = <span id="k1Text">12.0</span></label><input id="k1Number" type="number" min="0.5" max="120" step="0.1" value="12"></div>
+            <input id="k1" type="range" min="0.5" max="120" step="0.1" value="12">
+          </div>
+          <div class="field" id="k2Field">
+            <div class="field-top"><label for="k2">ばね定数 <strong>k2</strong> [N/m] = <span id="k2Text">18.0</span></label><input id="k2Number" type="number" min="0.5" max="120" step="0.1" value="18"></div>
+            <input id="k2" type="range" min="0.5" max="120" step="0.1" value="18">
+          </div>
+          <div class="field">
+            <div class="field-top"><label for="damping">減衰 <strong>c</strong> [N s/m] = <span id="dampingText">0.00</span></label><input id="dampingNumber" type="number" min="0" max="6" step="0.01" value="0"></div>
+            <input id="damping" type="range" min="0" max="6" step="0.01" value="0">
+          </div>
+          <div class="field" id="frictionField">
+            <div class="field-top"><label for="friction">摩擦係数 <strong>μ</strong> = <span id="frictionText">0.00</span></label><input id="frictionNumber" type="number" min="0" max="1.5" step="0.01" value="0"></div>
+            <input id="friction" type="range" min="0" max="1.5" step="0.01" value="0">
+          </div>
+          <div class="field">
+            <div class="field-top"><label for="gravity">重力 <strong>g</strong> [m/s^2] = <span id="gravityText">9.80</span></label><input id="gravityNumber" type="number" min="0" max="20" step="0.01" value="9.8"></div>
+            <input id="gravity" type="range" min="0" max="20" step="0.01" value="9.8">
+          </div>
+          <div class="field">
+            <div class="field-top"><label for="q0">初期変位 <strong>q0</strong> [m] = <span id="q0Text">0.250</span></label><input id="q0Number" type="number" min="-1.2" max="1.2" step="0.001" value="0.25"></div>
+            <input id="q0" type="range" min="-1.2" max="1.2" step="0.001" value="0.25">
+          </div>
+          <div class="field">
+            <div class="field-top"><label for="v0">初期速度 <strong>v0</strong> [m/s] = <span id="v0Text">0.000</span></label><input id="v0Number" type="number" min="-5" max="5" step="0.001" value="0"></div>
+            <input id="v0" type="range" min="-5" max="5" step="0.001" value="0">
+          </div>
+          <div class="field">
+            <div class="field-top"><label for="windowSec">グラフ幅 [s] = <span id="windowText">10</span></label><input id="windowNumber" type="number" min="4" max="30" step="1" value="10"></div>
+            <input id="windowSec" type="range" min="4" max="30" step="1" value="10">
+          </div>
+        </div>
+
+        <div class="toggles">
+          <label class="check"><input id="showForces" type="checkbox" checked> 力</label>
+          <label class="check"><input id="showTrail" type="checkbox" checked> 軌跡</label>
+          <label class="check"><input id="showEnergy" type="checkbox" checked> エネルギー</label>
+          <label class="check"><input id="showNatural" type="checkbox" checked> 自然長</label>
+        </div>
+
+        <div class="formula">
+          <div><strong id="formulaTitle">1本ばね</strong></div>
+          <div id="formulaBody">k_eff = k1、m q'' + c q' + k_eff q = 0</div>
+          <div class="hint">鉛直表示の q は、つり合い位置から下向きを正に取った変位です。</div>
+        </div>
+      </aside>
+    </div>
+  </main>
+
+  <script>
+(() => {
+  const state = {
+    theme: 'light',
+    orientation: 'horizontal',
+    springCount: 'one',
+    connection: 'parallel',
+    running: false,
+    t: 0,
+    q: 0.25,
+    v: 0,
+    q0: 0.25,
+    v0: 0,
+    mass: 1,
+    k1: 12,
+    k2: 18,
+    damping: 0,
+    friction: 0,
+    gravity: 9.8,
+    speed: 1,
+    zoom: 'fit',
+    graphWindow: 10,
+    samples: [],
+    trail: []
+  };
+
+  const ids = [
+    'scene', 'qGraph', 'vGraph', 'eGraph', 'playBtn', 'stepBtn', 'resetBtn', 'speedSelect',
+    'zoomSelect', 'connectionGroup', 'connectionParallel', 'connectionSeries', 'connectionSandwich',
+    'k2Field', 'frictionField', 'mass', 'massNumber', 'k1', 'k1Number',
+    'k2', 'k2Number', 'damping', 'dampingNumber', 'friction', 'frictionNumber', 'gravity', 'gravityNumber', 'q0',
+    'q0Number', 'v0', 'v0Number', 'windowSec', 'windowNumber', 'showForces', 'showTrail',
+    'showEnergy', 'showNatural', 'timeReadout', 'qReadout', 'vReadout', 'forceReadout',
+    'keffReadout', 'periodReadout', 'omegaReadout', 'staticReadout', 'accelReadout',
+    'energyReadout', 'qRange', 'vRange', 'eRange', 'massText', 'k1Text', 'k2Text',
+    'dampingText', 'frictionText', 'gravityText', 'q0Text', 'v0Text', 'windowText', 'formulaTitle',
+    'formulaBody'
+  ];
+  const el = Object.fromEntries(ids.map((id) => [id, document.getElementById(id)]));
+
+  const canvasContexts = new Map();
+
+  function clamp(value, min, max) {
+    return Math.min(max, Math.max(min, value));
+  }
+
+  function fmt(value, digits = 2) {
+    if (!Number.isFinite(value)) return '--';
+    return value.toFixed(digits);
+  }
+
+  function isDark() {
+    return state.theme === 'dark';
+  }
+
+  function scenePalette() {
+    return isDark()
+      ? {
+        bg0: '#0d1622',
+        bg1: '#09111a',
+        grid: 'rgba(126, 154, 186, 0.12)',
+        gridMajor: 'rgba(126, 154, 186, 0.22)',
+        rail: '#3b5069',
+        railLight: '#5d7490',
+        guide: '#7f91a8',
+        guideText: '#c9d7e8',
+        spring: '#70c7ff',
+        springCore: '#d8f4ff',
+        massA: '#7fd0ff',
+        massB: '#2f83bf',
+        massStroke: '#c5ecff',
+        massText: '#06111c',
+        shadow: 'rgba(0, 0, 0, 0.38)',
+        tagBg: 'rgba(7, 13, 21, 0.86)',
+        tagBorder: 'rgba(112, 199, 255, 0.2)',
+        trail: 'rgba(142, 231, 200, 0.46)',
+        connector: '#b7e6ff',
+        connectorStroke: '#07111d',
+        energyBg: 'rgba(7, 13, 21, 0.84)'
+      }
+      : {
+        bg0: '#f9fcff',
+        bg1: '#edf4fa',
+        grid: 'rgba(118, 145, 174, 0.18)',
+        gridMajor: 'rgba(83, 107, 132, 0.28)',
+        rail: '#91a5ba',
+        railLight: '#d8e3ee',
+        guide: '#8294a8',
+        guideText: '#34475c',
+        spring: '#287fbd',
+        springCore: '#8dd8ff',
+        massA: '#67b8e9',
+        massB: '#2675ad',
+        massStroke: '#155b89',
+        massText: '#ffffff',
+        shadow: 'rgba(26, 43, 64, 0.18)',
+        tagBg: 'rgba(255, 255, 255, 0.88)',
+        tagBorder: 'rgba(36, 120, 184, 0.2)',
+        trail: 'rgba(43, 155, 120, 0.46)',
+        connector: '#2478b8',
+        connectorStroke: '#ffffff',
+        energyBg: 'rgba(255, 255, 255, 0.86)'
+      };
+  }
+
+  function fitCanvas(canvas) {
+    const dpr = window.devicePixelRatio || 1;
+    const rect = canvas.getBoundingClientRect();
+    const cssW = Math.max(1, rect.width);
+    const cssH = Math.max(1, rect.height);
+    canvas.width = Math.round(cssW * dpr);
+    canvas.height = Math.round(cssH * dpr);
+    canvas._cssW = cssW;
+    canvas._cssH = cssH;
+    canvas._dpr = dpr;
+    const ctx = canvas.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    canvasContexts.set(canvas, ctx);
+    return ctx;
+  }
+
+  function ctxFor(canvas) {
+    return canvasContexts.get(canvas) || fitCanvas(canvas);
+  }
+
+  function kEff() {
+    if (state.springCount === 'one') return state.k1;
+    if (state.connection === 'parallel') return state.k1 + state.k2;
+    if (state.connection === 'sandwich') return state.k1 + state.k2;
+    return (state.k1 * state.k2) / (state.k1 + state.k2);
+  }
+
+  function staticStretch() {
+    return state.orientation === 'vertical' ? (state.mass * state.gravity) / kEff() : 0;
+  }
+
+  function omega0() {
+    return Math.sqrt(kEff() / state.mass);
+  }
+
+  function period() {
+    const w = omega0();
+    return w > 0 ? (2 * Math.PI) / w : Infinity;
+  }
+
+  function acceleration(q, v) {
+    const springViscous = -(kEff() * q) - (state.damping * v);
+    return (springViscous + frictionForce(q, v)) / state.mass;
+  }
+
+  function frictionForce(q, v) {
+    if (state.orientation !== 'horizontal' || state.friction <= 0 || state.gravity <= 0) return 0;
+    const springViscous = -(kEff() * q) - (state.damping * v);
+    const maxFriction = state.friction * state.mass * state.gravity;
+    if (Math.abs(v) > 0.002) return -maxFriction * Math.sign(v);
+    if (Math.abs(springViscous) <= maxFriction) return -springViscous;
+    return -maxFriction * Math.sign(springViscous);
+  }
+
+  function motionAmplitudeEstimate() {
+    const w = omega0();
+    return Math.max(0.08, Math.abs(state.q0), w > 0 ? Math.abs(state.v0 / w) : 0);
+  }
+
+  function forcePixelScale(limitPx = 88) {
+    const ke = kEff();
+    const amp = motionAmplitudeEstimate();
+    const gravityForce = state.mass * state.gravity;
+    const maxSpring = state.orientation === 'vertical'
+      ? gravityForce + ke * amp
+      : ke * amp + state.friction * state.mass * state.gravity;
+    const maxForce = Math.max(1, gravityForce, maxSpring, ke * amp);
+    return limitPx / maxForce;
+  }
+
+  function forceLabel(name, force, digits = 1) {
+    return `${name} ${fmt(Math.abs(force), digits)} N`;
+  }
+
+  function energy() {
+    return 0.5 * state.mass * state.v * state.v + 0.5 * kEff() * state.q * state.q;
+  }
+
+  function resetSamples() {
+    state.samples = [{ t: state.t, q: state.q, v: state.v, a: acceleration(state.q, state.v), e: energy() }];
+    state.trail = [{ q: state.q, t: state.t }];
+  }
+
+  function resetMotion() {
+    state.t = 0;
+    state.q = state.q0;
+    state.v = state.v0;
+    clock.reset();
+    resetSamples();
+    render();
+  }
+
+  function stepRK4(dt) {
+    const q0 = state.q;
+    const v0 = state.v;
+    const a = (q, v) => acceleration(q, v);
+    const k1q = v0;
+    const k1v = a(q0, v0);
+    const k2q = v0 + 0.5 * dt * k1v;
+    const k2v = a(q0 + 0.5 * dt * k1q, v0 + 0.5 * dt * k1v);
+    const k3q = v0 + 0.5 * dt * k2v;
+    const k3v = a(q0 + 0.5 * dt * k2q, v0 + 0.5 * dt * k2v);
+    const k4q = v0 + dt * k3v;
+    const k4v = a(q0 + dt * k3q, v0 + dt * k3v);
+    state.q += (dt / 6) * (k1q + 2 * k2q + 2 * k3q + k4q);
+    state.v += (dt / 6) * (k1v + 2 * k2v + 2 * k3v + k4v);
+    const springViscous = -(kEff() * state.q) - (state.damping * state.v);
+    const maxFriction = state.friction * state.mass * state.gravity;
+    if (state.orientation === 'horizontal' && maxFriction > 0 && Math.abs(state.v) < 0.002 && Math.abs(springViscous) <= maxFriction) {
+      state.v = 0;
+    }
+  }
+
+  function pushSample() {
+    const sample = { t: state.t, q: state.q, v: state.v, a: acceleration(state.q, state.v), e: energy() };
+    state.samples.push(sample);
+    state.trail.push({ q: state.q, t: state.t });
+    const keepFrom = state.t - Math.max(state.graphWindow, 8) * 1.2;
+    while (state.samples.length > 2 && state.samples[0].t < keepFrom) state.samples.shift();
+    while (state.trail.length > 80) state.trail.shift();
+  }
+
+  function simStep(dt) {
+    const scaled = dt * state.speed;
+    const maxStep = 1 / 240;
+    let remain = scaled;
+    while (remain > 0) {
+      const h = Math.min(maxStep, remain);
+      stepRK4(h);
+      state.t += h;
+      remain -= h;
+    }
+    pushSample();
+  }
+
+  const clock = new PhysicsSimClock.FixedStepClock({
+    step: 1 / 60,
+    maxFrameTime: 0.08,
+    maxStepsPerFrame: 8,
+    onStep: simStep,
+    onRender: render
+  });
+
+  function drawGrid(ctx, W, H) {
+    const pal = scenePalette();
+    const bg = ctx.createLinearGradient(0, 0, 0, H);
+    bg.addColorStop(0, pal.bg0);
+    bg.addColorStop(1, pal.bg1);
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, W, H);
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = pal.grid;
+    ctx.beginPath();
+    for (let x = 40; x < W; x += 40) {
+      ctx.moveTo(x + 0.5, 0);
+      ctx.lineTo(x + 0.5, H);
+    }
+    for (let y = 40; y < H; y += 40) {
+      ctx.moveTo(0, y + 0.5);
+      ctx.lineTo(W, y + 0.5);
+    }
+    ctx.stroke();
+
+    ctx.strokeStyle = pal.gridMajor;
+    ctx.beginPath();
+    for (let x = 80; x < W; x += 160) {
+      ctx.moveTo(x + 0.5, 0);
+      ctx.lineTo(x + 0.5, H);
+    }
+    for (let y = 80; y < H; y += 160) {
+      ctx.moveTo(0, y + 0.5);
+      ctx.lineTo(W, y + 0.5);
+    }
+    ctx.stroke();
+  }
+
+  function drawSpring(ctx, x0, y0, x1, y1, turns = 12, amp = 13) {
+    const dx = x1 - x0;
+    const dy = y1 - y0;
+    const len = Math.hypot(dx, dy);
+    if (len < 1) return;
+    const ux = dx / len;
+    const uy = dy / len;
+    const px = -uy;
+    const py = ux;
+    const lead = Math.min(18, len * 0.18);
+    ctx.beginPath();
+    ctx.moveTo(x0, y0);
+    ctx.lineTo(x0 + ux * lead, y0 + uy * lead);
+    const bodyLen = Math.max(2, len - 2 * lead);
+    const segments = Math.max(32, Math.round(turns * 8));
+    for (let i = 0; i <= segments; i += 1) {
+      const p = i / segments;
+      const along = lead + bodyLen * p;
+      const taper = Math.sin(Math.PI * p);
+      const side = Math.sin(p * turns * Math.PI * 2) * amp * taper;
+      ctx.lineTo(x0 + ux * along + px * side, y0 + uy * along + py * side);
+    }
+    ctx.lineTo(x1 - ux * lead, y1 - uy * lead);
+    ctx.lineTo(x1, y1);
+    ctx.stroke();
+  }
+
+  function drawArrow(ctx, fromX, fromY, toX, toY, color, label) {
+    const dx = toX - fromX;
+    const dy = toY - fromY;
+    const len = Math.hypot(dx, dy);
+    if (len < 5) return;
+    const ux = dx / len;
+    const uy = dy / len;
+    ctx.strokeStyle = color;
+    ctx.fillStyle = color;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(fromX, fromY);
+    ctx.lineTo(toX, toY);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(toX, toY);
+    ctx.lineTo(toX - ux * 11 - uy * 5, toY - uy * 11 + ux * 5);
+    ctx.lineTo(toX - ux * 11 + uy * 5, toY - uy * 11 - ux * 5);
+    ctx.closePath();
+    ctx.fill();
+    if (label) {
+      ctx.font = '12px system-ui, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText(label, toX + uy * 16, toY - ux * 16);
+    }
+  }
+
+  function drawForceArrow(ctx, fromX, fromY, toX, toY, color, label, side = 'right', lift = 0) {
+    const dx = toX - fromX;
+    const dy = toY - fromY;
+    const len = Math.hypot(dx, dy);
+    if (len >= 5) {
+      drawArrow(ctx, fromX, fromY, toX, toY, color, '');
+    } else {
+      ctx.save();
+      ctx.fillStyle = color;
+      ctx.beginPath();
+      ctx.arc(fromX, fromY, 3, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    }
+    const isVertical = Math.abs(dy) >= Math.abs(dx);
+    const midX = (fromX + toX) / 2;
+    const midY = (fromY + toY) / 2;
+    const tagX = side === 'left' ? midX - 12 : midX + 12;
+    const tagY = isVertical ? midY + lift : midY - 22 - lift;
+    drawLabelTag(ctx, label, tagX, tagY, side === 'left' ? 'right' : 'left');
+  }
+
+  function drawScene() {
+    const canvas = el.scene;
+    const ctx = ctxFor(canvas);
+    const W = canvas._cssW || canvas.clientWidth;
+    const H = canvas._cssH || canvas.clientHeight;
+    drawGrid(ctx, W, H);
+
+    const ke = kEff();
+    const stretch = staticStretch();
+    const range = Math.max(0.8, Math.abs(state.q0) * 2.2, Math.abs(state.q) * 2.2, stretch * 0.55 + 0.45);
+    const baseScale = state.zoom === 'fit' ? Math.min(W, H) / (range * 3.1) : Number(state.zoom);
+    const pxPerM = state.zoom === 'fit' ? clamp(baseScale, 8, 260) : clamp(baseScale, 45, 260);
+    const blockW = 62;
+    const blockH = 46;
+
+    ctx.save();
+    ctx.font = '12px system-ui, sans-serif';
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+
+    if (state.orientation === 'horizontal') {
+      drawHorizontal(ctx, W, H, pxPerM, blockW, blockH, ke);
+    } else {
+      drawVertical(ctx, W, H, pxPerM, blockW, blockH, stretch, ke);
+    }
+
+    ctx.restore();
+  }
+
+  function drawHorizontal(ctx, W, H, pxPerM, blockW, blockH, ke) {
+    const pal = scenePalette();
+    const cy = H * 0.48;
+    const center = W * 0.5;
+    const x = center + state.q * pxPerM;
+    const wallL = Math.max(32, W * 0.1);
+    const wallR = W - wallL;
+    const groundY = cy + blockH * 0.5;
+    const leftFace = x - blockW / 2;
+    const rightFace = x + blockW / 2;
+
+    ctx.save();
+    ctx.shadowColor = pal.shadow;
+    ctx.shadowBlur = 10;
+    ctx.shadowOffsetY = 4;
+    ctx.strokeStyle = pal.rail;
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.moveTo(wallL, groundY);
+    ctx.lineTo(wallR, groundY);
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+    ctx.strokeStyle = pal.railLight;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(wallL, groundY - 2);
+    ctx.lineTo(wallR, groundY - 2);
+    ctx.stroke();
+    ctx.strokeStyle = isDark() ? 'rgba(145, 162, 183, 0.35)' : 'rgba(91, 111, 130, 0.28)';
+    ctx.lineWidth = 1;
+    for (let gx = wallL + 10; gx < wallR; gx += 20) {
+      ctx.beginPath();
+      ctx.moveTo(gx, groundY + 2);
+      ctx.lineTo(gx - 10, groundY + 12);
+      ctx.stroke();
+    }
+    ctx.restore();
+
+    drawWall(ctx, wallL, cy - 88, 14, 176, 'left');
+    if (state.springCount === 'two' && state.connection === 'parallel') {
+      drawWall(ctx, wallR - 7, cy - 88, 14, 176, 'right');
+    }
+
+    if (el.showTrail.checked && state.trail.length > 1) {
+      ctx.strokeStyle = pal.trail;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      state.trail.forEach((p, i) => {
+        const tx = center + p.q * pxPerM;
+        if (i === 0) ctx.moveTo(tx, groundY + 20);
+        else ctx.lineTo(tx, groundY + 20);
+      });
+      ctx.stroke();
+    }
+
+    ctx.setLineDash([5, 6]);
+    ctx.strokeStyle = pal.guide;
+    ctx.beginPath();
+    ctx.moveTo(center, cy - 90);
+    ctx.lineTo(center, groundY + 38);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    drawLabelTag(ctx, 'q = 0', center, groundY + 54, 'center');
+
+    ctx.strokeStyle = pal.spring;
+    ctx.lineWidth = 3;
+    if (state.springCount === 'one') {
+      drawSpring(ctx, wallL + 5, cy, leftFace, cy, 12, 13);
+      drawConnectorDot(ctx, leftFace, cy);
+      labelSpring(ctx, (wallL + leftFace) / 2, cy - 30, 'k1');
+    } else if (state.connection === 'parallel') {
+      drawSpring(ctx, wallL + 5, cy, leftFace, cy, 10, 12);
+      drawSpring(ctx, rightFace, cy, wallR - 5, cy, 10, 12);
+      drawConnectorDot(ctx, leftFace, cy);
+      drawConnectorDot(ctx, rightFace, cy);
+      labelSpring(ctx, (wallL + leftFace) / 2, cy - 30, 'k1');
+      labelSpring(ctx, (wallR + rightFace) / 2, cy - 30, 'k2');
+    } else {
+      const joint = wallL + (leftFace - wallL) * (state.k2 / (state.k1 + state.k2));
+      ctx.fillStyle = pal.connector;
+      ctx.beginPath();
+      ctx.arc(joint, cy, 7, 0, Math.PI * 2);
+      ctx.fill();
+      drawSpring(ctx, wallL + 5, cy, joint - 8, cy, 8, 10);
+      drawSpring(ctx, joint + 8, cy, leftFace, cy, 8, 10);
+      drawConnectorDot(ctx, leftFace, cy);
+      labelSpring(ctx, (wallL + joint) / 2, cy - 31, 'k1');
+      labelSpring(ctx, (joint + leftFace) / 2, cy - 31, 'k2');
+    }
+
+    drawMass(ctx, x, cy, blockW, blockH);
+    if (el.showForces.checked) {
+      const force = -ke * state.q;
+      const fScale = forcePixelScale(88);
+      const arrow = clamp(force * fScale, -92, 92);
+      const forceX = force < 0 ? leftFace : rightFace;
+      drawForceArrow(ctx, forceX, cy, forceX + arrow, cy, isDark() ? '#ffd166' : '#b7791f', forceLabel('復元力', force), force < 0 ? 'left' : 'right');
+      const vel = clamp(state.v * 24, -76, 76);
+      drawForceArrow(ctx, x, cy + blockH / 2 + 22, x + vel, cy + blockH / 2 + 22, isDark() ? '#8ee7c8' : '#2b9b78', 'v', vel < 0 ? 'left' : 'right');
+      const netForce = force + frictionForce(state.q, state.v) - state.damping * state.v;
+      const net = clamp(netForce * fScale, -92, 92);
+      const netX = net < 0 ? leftFace - 8 : rightFace + 8;
+      drawForceArrow(ctx, netX, cy, netX + net, cy, isDark() ? '#f7b267' : '#a65f1c', forceLabel('合力', netForce), net < 0 ? 'left' : 'right', 24);
+      if (state.friction > 0) {
+        const friction = frictionForce(state.q, state.v);
+        const frictionArrow = clamp(friction * fScale, -82, 82);
+        drawForceArrow(ctx, x, groundY + 26, x + frictionArrow, groundY + 26, isDark() ? '#ff9f7d' : '#c86b46', forceLabel('摩擦', friction), frictionArrow < 0 ? 'left' : 'right');
+      }
+    }
+    drawLabelTag(ctx, `床 μ=${fmt(state.friction, 2)}`, wallR - 18, groundY + 26, 'right');
+    if (el.showEnergy.checked && W >= 520) drawEnergyBar(ctx, W - 145, 22, 110, 70);
+  }
+
+  function drawVertical(ctx, W, H, pxPerM, blockW, blockH, stretch, ke) {
+    const pal = scenePalette();
+    const anchorY = 48;
+    const centerX = W * 0.5;
+    const naturalLength = Math.max(82, H * 0.23);
+    const isSandwich = state.springCount === 'two' && state.connection === 'sandwich';
+    const eqY = isSandwich ? H * 0.52 : anchorY + naturalLength + stretch * pxPerM;
+    const massY = eqY + state.q * pxPerM;
+    const topBarW = Math.min(260, W * 0.52);
+    const bottomAnchorY = H - 48;
+
+    ctx.save();
+    ctx.shadowColor = pal.shadow;
+    ctx.shadowBlur = 10;
+    ctx.shadowOffsetY = 4;
+    const barGrad = ctx.createLinearGradient(centerX - topBarW / 2, anchorY - 10, centerX + topBarW / 2, anchorY + 8);
+    barGrad.addColorStop(0, pal.railLight);
+    barGrad.addColorStop(0.5, pal.rail);
+    barGrad.addColorStop(1, pal.railLight);
+    ctx.fillStyle = barGrad;
+    ctx.beginPath();
+    ctx.roundRect(centerX - topBarW / 2, anchorY - 10, topBarW, 16, 6);
+    ctx.fill();
+    ctx.restore();
+
+    if (isSandwich) {
+      ctx.save();
+      ctx.shadowColor = pal.shadow;
+      ctx.shadowBlur = 10;
+      ctx.shadowOffsetY = -2;
+      const lowerGrad = ctx.createLinearGradient(centerX - topBarW / 2, bottomAnchorY - 8, centerX + topBarW / 2, bottomAnchorY + 10);
+      lowerGrad.addColorStop(0, pal.railLight);
+      lowerGrad.addColorStop(0.5, pal.rail);
+      lowerGrad.addColorStop(1, pal.railLight);
+      ctx.fillStyle = lowerGrad;
+      ctx.beginPath();
+      ctx.roundRect(centerX - topBarW / 2, bottomAnchorY - 8, topBarW, 16, 6);
+      ctx.fill();
+      ctx.restore();
+    }
+
+    if (el.showNatural.checked && !isSandwich) {
+      ctx.setLineDash([4, 6]);
+      ctx.strokeStyle = pal.rail;
+      ctx.beginPath();
+      ctx.moveTo(40, anchorY + naturalLength);
+      ctx.lineTo(W - 40, anchorY + naturalLength);
+      ctx.stroke();
+      drawLabelTag(ctx, '自然長', 48, anchorY + naturalLength - 8, 'left');
+      ctx.setLineDash([]);
+    }
+
+    ctx.setLineDash([5, 6]);
+    ctx.strokeStyle = pal.guide;
+    ctx.beginPath();
+    ctx.moveTo(40, eqY);
+    ctx.lineTo(W - 40, eqY);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    drawLabelTag(ctx, 'つり合い位置 q = 0', 48, eqY - 9, 'left');
+
+    ctx.strokeStyle = pal.spring;
+    ctx.lineWidth = 3;
+    if (state.springCount === 'one') {
+      drawSpring(ctx, centerX, anchorY + 3, centerX, massY - blockH / 2, 13, 13);
+      labelSpring(ctx, centerX + 28, (anchorY + massY - blockH / 2) / 2, 'k1');
+    } else if (state.connection === 'parallel') {
+      const dx = Math.min(48, W * 0.09);
+      drawSpring(ctx, centerX - dx, anchorY + 3, centerX - dx, massY - blockH / 2, 11, 10);
+      drawSpring(ctx, centerX + dx, anchorY + 3, centerX + dx, massY - blockH / 2, 11, 10);
+      labelSpring(ctx, centerX - dx - 30, (anchorY + massY - blockH / 2) / 2, 'k1');
+      labelSpring(ctx, centerX + dx + 30, (anchorY + massY - blockH / 2) / 2, 'k2');
+    } else if (state.connection === 'sandwich') {
+      drawSpring(ctx, centerX, anchorY + 3, centerX, massY - blockH / 2, 11, 12);
+      drawSpring(ctx, centerX, massY + blockH / 2, centerX, bottomAnchorY - 3, 11, 12);
+      drawConnectorDot(ctx, centerX, massY - blockH / 2);
+      drawConnectorDot(ctx, centerX, massY + blockH / 2);
+      labelSpring(ctx, centerX + 34, (anchorY + massY - blockH / 2) / 2, 'k1');
+      labelSpring(ctx, centerX + 34, (massY + blockH / 2 + bottomAnchorY) / 2, 'k2');
+    } else {
+      const totalLen = massY - blockH / 2 - (anchorY + 3);
+      const firstLen = totalLen * (state.k2 / (state.k1 + state.k2));
+      const jointY = anchorY + 3 + firstLen;
+      ctx.fillStyle = pal.connector;
+      ctx.beginPath();
+      ctx.arc(centerX, jointY, 7, 0, Math.PI * 2);
+      ctx.fill();
+      drawSpring(ctx, centerX, anchorY + 3, centerX, jointY - 8, 8, 10);
+      drawSpring(ctx, centerX, jointY + 8, centerX, massY - blockH / 2, 8, 10);
+      labelSpring(ctx, centerX + 30, (anchorY + jointY) / 2, 'k1');
+      labelSpring(ctx, centerX + 30, (jointY + massY - blockH / 2) / 2, 'k2');
+    }
+
+    drawMass(ctx, centerX, massY, blockW, blockH);
+    if (el.showTrail.checked && state.trail.length > 1) {
+      ctx.strokeStyle = pal.trail;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      state.trail.forEach((p, i) => {
+        const ty = eqY + p.q * pxPerM;
+        if (i === 0) ctx.moveTo(centerX + blockW / 2 + 18, ty);
+        else ctx.lineTo(centerX + blockW / 2 + 18, ty);
+      });
+      ctx.stroke();
+    }
+    if (el.showForces.checked) {
+      const gravityForce = state.mass * state.gravity;
+      const dampingForce = -state.damping * state.v;
+      const combinedSpringForce = -(gravityForce + ke * state.q);
+      const resultantForce = combinedSpringForce + gravityForce + dampingForce;
+      const forceScale = forcePixelScale(88);
+      const restore = clamp(combinedSpringForce * forceScale, -96, 96);
+      const forceOffset = isSandwich ? 68 : 52;
+      const springColor = isDark() ? '#ffd166' : '#b7791f';
+      if (isSandwich) {
+        const topSpringForce = combinedSpringForce * (state.k1 / ke);
+        const bottomSpringForce = combinedSpringForce * (state.k2 / ke);
+        const topRestore = clamp(topSpringForce * forceScale, -82, 82);
+        const bottomRestore = clamp(bottomSpringForce * forceScale, -82, 82);
+        drawForceArrow(ctx, centerX - forceOffset, massY - blockH / 2, centerX - forceOffset, massY - blockH / 2 + topRestore, springColor, forceLabel('上ばね', topSpringForce), 'left');
+        drawForceArrow(ctx, centerX - forceOffset, massY + blockH / 2, centerX - forceOffset, massY + blockH / 2 + bottomRestore, springColor, forceLabel('下ばね', bottomSpringForce), 'left');
+      } else {
+        drawForceArrow(ctx, centerX - forceOffset, massY - blockH / 2, centerX - forceOffset, massY - blockH / 2 + restore, springColor, forceLabel('ばね力', combinedSpringForce), 'left');
+      }
+      const vel = clamp(state.v * 22, -80, 80);
+      drawForceArrow(ctx, centerX + forceOffset, massY, centerX + forceOffset, massY + vel, isDark() ? '#8ee7c8' : '#2b9b78', 'v', 'right');
+      const mgX = centerX + (isSandwich ? 38 : 28);
+      const mg = clamp(gravityForce * forceScale, 0, 96);
+      drawForceArrow(ctx, mgX, massY, mgX, massY + mg, isDark() ? '#ff7d7d' : '#c85050', forceLabel('mg', gravityForce), 'right');
+      const net = clamp(resultantForce * forceScale, -96, 96);
+      drawForceArrow(ctx, centerX + forceOffset + 28, massY, centerX + forceOffset + 28, massY + net, isDark() ? '#f7b267' : '#a65f1c', forceLabel('合力', resultantForce), 'right');
+    }
+    if (el.showEnergy.checked && W >= 520) drawEnergyBar(ctx, W - 145, 22, 110, 70);
+  }
+
+  function labelSpring(ctx, x, y, text) {
+    drawLabelTag(ctx, text, x, y, 'center');
+  }
+
+  function drawLabelTag(ctx, text, x, y, align = 'center') {
+    const pal = scenePalette();
+    ctx.save();
+    ctx.font = '12px system-ui, sans-serif';
+    const width = ctx.measureText(text).width + 14;
+    const height = 22;
+    let bx = x - width / 2;
+    if (align === 'left') bx = x;
+    if (align === 'right') bx = x - width;
+    const by = y - height / 2;
+    ctx.fillStyle = pal.tagBg;
+    ctx.strokeStyle = pal.tagBorder;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.roundRect(bx, by, width, height, 6);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = pal.guideText;
+    ctx.textAlign = align === 'left' ? 'left' : align === 'right' ? 'right' : 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(text, align === 'left' ? bx + 7 : align === 'right' ? bx + width - 7 : bx + width / 2, by + height / 2 + 0.5);
+    ctx.restore();
+  }
+
+  function drawWall(ctx, x, y, w, h, side) {
+    const pal = scenePalette();
+    ctx.save();
+    ctx.shadowColor = pal.shadow;
+    ctx.shadowBlur = 10;
+    ctx.shadowOffsetY = 4;
+    const grad = ctx.createLinearGradient(x, y, x + w, y);
+    grad.addColorStop(0, side === 'right' ? pal.rail : pal.railLight);
+    grad.addColorStop(1, side === 'right' ? pal.railLight : pal.rail);
+    ctx.fillStyle = grad;
+    ctx.beginPath();
+    ctx.roundRect(x, y, w, h, 5);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.strokeStyle = pal.rail;
+    ctx.lineWidth = 1;
+    for (let yy = y + 16; yy < y + h; yy += 18) {
+      ctx.beginPath();
+      ctx.moveTo(x + 2, yy);
+      ctx.lineTo(x + w - 2, yy - 8);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  function drawConnectorDot(ctx, x, y) {
+    const pal = scenePalette();
+    ctx.save();
+    ctx.fillStyle = pal.connector;
+    ctx.strokeStyle = pal.connectorStroke;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(x, y, 4.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawMass(ctx, cx, cy, w, h) {
+    const pal = scenePalette();
+    ctx.save();
+    ctx.shadowColor = pal.shadow;
+    ctx.shadowBlur = 14;
+    ctx.shadowOffsetY = 5;
+    const grad = ctx.createLinearGradient(cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2);
+    grad.addColorStop(0, pal.massA);
+    grad.addColorStop(1, pal.massB);
+    ctx.fillStyle = grad;
+    ctx.strokeStyle = pal.massStroke;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.roundRect(cx - w / 2, cy - h / 2, w, h, 8);
+    ctx.fill();
+    ctx.shadowBlur = 0;
+    ctx.stroke();
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.36)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(cx - w / 2 + 10, cy - h / 2 + 10);
+    ctx.lineTo(cx + w / 2 - 10, cy - h / 2 + 10);
+    ctx.stroke();
+    ctx.fillStyle = pal.massText;
+    ctx.font = 'bold 13px system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('m', cx, cy);
+    ctx.textBaseline = 'alphabetic';
+    ctx.restore();
+  }
+
+  function drawEnergyBar(ctx, x, y, w, h) {
+    const pal = scenePalette();
+    const kinetic = 0.5 * state.mass * state.v * state.v;
+    const potential = 0.5 * kEff() * state.q * state.q;
+    const total = Math.max(kinetic + potential, 1e-6);
+    const kh = h * kinetic / total;
+    const ph = h * potential / total;
+    ctx.fillStyle = pal.energyBg;
+    ctx.strokeStyle = isDark() ? '#243346' : '#cbd8e5';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.roundRect(x, y, w, h + 22, 7);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = isDark() ? '#8ee7c8' : '#2b9b78';
+    ctx.fillRect(x + 12, y + h - kh, 32, kh);
+    ctx.fillStyle = isDark() ? '#ffd166' : '#d29b2a';
+    ctx.fillRect(x + 56, y + h - ph, 32, ph);
+    ctx.fillStyle = isDark() ? '#aab8c8' : '#52657a';
+    ctx.font = '11px system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('K', x + 28, y + h + 15);
+    ctx.fillText('U', x + 72, y + h + 15);
+  }
+
+  function drawGraph(canvas, valueKey, color, rangeEl, unit) {
+    const pal = scenePalette();
+    const ctx = ctxFor(canvas);
+    const W = canvas._cssW || canvas.clientWidth;
+    const H = canvas._cssH || canvas.clientHeight;
+    ctx.fillStyle = pal.bg0;
+    ctx.fillRect(0, 0, W, H);
+    ctx.strokeStyle = pal.grid;
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    for (let i = 1; i < 4; i += 1) {
+      const x = (W * i) / 4 + 0.5;
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, H);
+    }
+    for (let i = 1; i < 3; i += 1) {
+      const y = (H * i) / 3 + 0.5;
+      ctx.moveTo(0, y);
+      ctx.lineTo(W, y);
+    }
+    ctx.stroke();
+
+    const from = Math.max(0, state.t - state.graphWindow);
+    const data = state.samples.filter((p) => p.t >= from);
+    if (data.length < 2) {
+      rangeEl.textContent = unit;
+      return;
+    }
+    const values = data.map((p) => p[valueKey]).filter(Number.isFinite);
+    let min = Math.min(...values);
+    let max = Math.max(...values);
+    if (valueKey !== 'e') {
+      const mag = Math.max(Math.abs(min), Math.abs(max), 0.05);
+      min = -mag * 1.2;
+      max = mag * 1.2;
+    } else {
+      min = 0;
+      max = Math.max(max * 1.2, 0.05);
+    }
+    const t0 = data[0].t;
+    const t1 = Math.max(data[data.length - 1].t, t0 + 1e-6);
+    const xOf = (t) => ((t - t0) / (t1 - t0)) * W;
+    const yOf = (v) => H - ((v - min) / (max - min || 1)) * H;
+
+    if (valueKey !== 'e') {
+      const y0 = yOf(0);
+      ctx.strokeStyle = pal.gridMajor;
+      ctx.setLineDash([4, 5]);
+      ctx.beginPath();
+      ctx.moveTo(0, y0);
+      ctx.lineTo(W, y0);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    data.forEach((p, i) => {
+      const x = xOf(p.t);
+      const y = yOf(p[valueKey]);
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+    rangeEl.textContent = `${fmt(min, valueKey === 'e' ? 2 : 2)}..${fmt(max, valueKey === 'e' ? 2 : 2)} ${unit}`;
+  }
+
+  function updateReadouts() {
+    const ke = kEff();
+    const a = acceleration(state.q, state.v);
+    const f = -ke * state.q;
+    const e = energy();
+    el.timeReadout.textContent = `${fmt(state.t, 2)} s / ${fmt(state.speed, 1)}x`;
+    el.qReadout.textContent = `${fmt(state.q, 3)} m`;
+    el.vReadout.textContent = `${fmt(state.v, 3)} m/s`;
+    el.forceReadout.textContent = `${fmt(f, 2)} N`;
+    el.keffReadout.textContent = `${fmt(ke, 2)} N/m`;
+    el.periodReadout.textContent = `${fmt(period(), 2)} s`;
+    el.omegaReadout.textContent = `${fmt(omega0(), 2)} rad/s`;
+    el.staticReadout.textContent = `${fmt(staticStretch(), 3)} m`;
+    el.accelReadout.textContent = `${fmt(a, 3)} m/s^2`;
+    el.energyReadout.textContent = `${fmt(e, 3)} J`;
+
+    el.massText.textContent = fmt(state.mass, 2);
+    el.k1Text.textContent = fmt(state.k1, 1);
+    el.k2Text.textContent = fmt(state.k2, 1);
+    el.dampingText.textContent = fmt(state.damping, 2);
+    el.frictionText.textContent = fmt(state.friction, 2);
+    el.gravityText.textContent = fmt(state.gravity, 2);
+    el.q0Text.textContent = fmt(state.q0, 3);
+    el.v0Text.textContent = fmt(state.v0, 3);
+    el.windowText.textContent = `${state.graphWindow}`;
+
+    el.connectionGroup.hidden = state.springCount !== 'two';
+    el.k2Field.hidden = state.springCount !== 'two';
+    el.frictionField.hidden = state.orientation !== 'horizontal';
+    el.gravity.disabled = state.orientation !== 'vertical';
+    el.gravityNumber.disabled = state.orientation !== 'vertical';
+    el.connectionParallel.textContent = state.orientation === 'horizontal' ? '左右/並列' : '並列';
+    el.connectionSeries.textContent = state.orientation === 'horizontal' ? '直列' : '上直列';
+    el.connectionSandwich.hidden = state.orientation !== 'vertical';
+
+    if (state.springCount === 'one') {
+      el.formulaTitle.textContent = state.orientation === 'horizontal' ? '水平1本ばね + 床摩擦' : '鉛直1本ばね';
+      el.formulaBody.textContent = state.orientation === 'horizontal'
+        ? 'k_eff = k1、運動中は摩擦力 μmg が速度と逆向きに働きます。'
+        : 'k_eff = k1、m q\'\' + c q\' + k_eff q = 0';
+    } else if (state.connection === 'parallel') {
+      el.formulaTitle.textContent = state.orientation === 'horizontal' ? '2本ばね: 左右/並列' : '2本ばね: 並列支持';
+      el.formulaBody.textContent = state.orientation === 'horizontal'
+        ? 'k_eff = k1 + k2、左右のばねと床摩擦を同時に扱います。'
+        : 'k_eff = k1 + k2、同じ変位 q に対して復元力が加算されます。';
+    } else if (state.connection === 'sandwich') {
+      el.formulaTitle.textContent = '2本ばね: 上下挟み';
+      el.formulaBody.textContent = '上下のばねでおもりを挟み、変位 q に対する復元力は k_eff = k1 + k2 です。';
+    } else {
+      el.formulaTitle.textContent = state.orientation === 'horizontal' ? '2本ばね: 直列' : '2本ばね: 上直列';
+      el.formulaBody.textContent = '1/k_eff = 1/k1 + 1/k2、同じ張力で伸びを分担します。';
+    }
+  }
+
+  function render() {
+    updateReadouts();
+    drawScene();
+    drawGraph(el.qGraph, 'q', isDark() ? '#70c7ff' : '#2478b8', el.qRange, 'm');
+    drawGraph(el.vGraph, 'v', isDark() ? '#8ee7c8' : '#2b9b78', el.vRange, 'm/s');
+    drawGraph(el.eGraph, 'e', isDark() ? '#ffd166' : '#b7791f', el.eRange, 'J');
+  }
+
+  function setRunning(next) {
+    state.running = next;
+    el.playBtn.textContent = next ? '一時停止' : '再生';
+    if (next) clock.start();
+    else clock.pause();
+  }
+
+  function syncPair(rangeId, numberId, key, parser = Number) {
+    const range = el[rangeId];
+    const number = el[numberId];
+    const applyValue = (raw, reset = true) => {
+      const min = Number(range.min);
+      const max = Number(range.max);
+      const value = clamp(parser(raw), min, max);
+      state[key] = value;
+      range.value = String(value);
+      number.value = String(value);
+      if (reset) resetMotion();
+      else render();
+    };
+    range.addEventListener('input', () => applyValue(range.value));
+    number.addEventListener('change', () => applyValue(number.value));
+  }
+
+  function setMode(kind, value) {
+    state[kind] = value;
+    if (kind === 'orientation' && value === 'horizontal' && state.connection === 'sandwich') {
+      state.connection = 'parallel';
+    }
+    document.querySelectorAll(`[data-mode="${kind}"]`).forEach((button) => {
+      button.classList.toggle('is-active', button.dataset.value === state[kind]);
+    });
+    if (kind === 'orientation') {
+      document.querySelectorAll('[data-mode="connection"]').forEach((button) => {
+        button.classList.toggle('is-active', button.dataset.value === state.connection);
+      });
+    }
+    resetMotion();
+  }
+
+  function setTheme(theme) {
+    state.theme = theme;
+    document.body.classList.toggle('theme-dark', theme === 'dark');
+    document.querySelectorAll('[data-theme]').forEach((button) => {
+      button.classList.toggle('is-active', button.dataset.theme === theme);
+    });
+    render();
+  }
+
+  document.querySelectorAll('[data-mode]').forEach((button) => {
+    button.addEventListener('click', () => setMode(button.dataset.mode, button.dataset.value));
+  });
+  document.querySelectorAll('[data-theme]').forEach((button) => {
+    button.addEventListener('click', () => setTheme(button.dataset.theme));
+  });
+
+  syncPair('mass', 'massNumber', 'mass');
+  syncPair('k1', 'k1Number', 'k1');
+  syncPair('k2', 'k2Number', 'k2');
+  syncPair('damping', 'dampingNumber', 'damping');
+  syncPair('friction', 'frictionNumber', 'friction');
+  syncPair('gravity', 'gravityNumber', 'gravity');
+  syncPair('q0', 'q0Number', 'q0');
+  syncPair('v0', 'v0Number', 'v0');
+  syncPair('windowSec', 'windowNumber', 'graphWindow', (v) => Math.round(Number(v)));
+
+  el.speedSelect.addEventListener('change', () => {
+    state.speed = Number(el.speedSelect.value);
+    render();
+  });
+  el.zoomSelect.addEventListener('change', () => {
+    state.zoom = el.zoomSelect.value;
+    render();
+  });
+  el.playBtn.addEventListener('click', () => setRunning(!state.running));
+  el.stepBtn.addEventListener('click', () => {
+    setRunning(false);
+    simStep(1 / 30);
+    render();
+  });
+  el.resetBtn.addEventListener('click', resetMotion);
+  [el.showForces, el.showTrail, el.showEnergy, el.showNatural].forEach((input) => {
+    input.addEventListener('change', render);
+  });
+
+  const ro = new ResizeObserver(() => {
+    [el.scene, el.qGraph, el.vGraph, el.eGraph].forEach(fitCanvas);
+    render();
+  });
+  [el.scene, el.qGraph, el.vGraph, el.eGraph].forEach((canvas) => {
+    ro.observe(canvas);
+    fitCanvas(canvas);
+  });
+
+  if (!CanvasRenderingContext2D.prototype.roundRect) {
+    CanvasRenderingContext2D.prototype.roundRect = function (x, y, w, h, r) {
+      const radius = Math.min(r, Math.abs(w) / 2, Math.abs(h) / 2);
+      this.moveTo(x + radius, y);
+      this.lineTo(x + w - radius, y);
+      this.quadraticCurveTo(x + w, y, x + w, y + radius);
+      this.lineTo(x + w, y + h - radius);
+      this.quadraticCurveTo(x + w, y + h, x + w - radius, y + h);
+      this.lineTo(x + radius, y + h);
+      this.quadraticCurveTo(x, y + h, x, y + h - radius);
+      this.lineTo(x, y + radius);
+      this.quadraticCurveTo(x, y, x + radius, y);
+      return this;
+    };
+  }
+
+  resetMotion();
+})();
+  </script>
+</body>
+</html>

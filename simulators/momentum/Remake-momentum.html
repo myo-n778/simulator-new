@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>運動量保存則シミュレーター（摩擦あり/なし・m/s表示）</title>
+<link rel="stylesheet" href="../../assets/common-sim.css">
+<script src="../../assets/sim-shell.js"></script>
+<script src="../../assets/sim-clock.js"></script>
+<style>
+  :root{
+    --bg:#0f172a; --fg:#e5e7eb; --muted:#94a3b8; --acc:#38bdf8; --acc2:#f472b6;
+    --panel:#111827; --card:#0b1220; --ok:#34d399; --warn:#f59e0b;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; font-family:ui-sans-serif,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;
+    background:linear-gradient(180deg,#0b1220,#0f172a 20%,#0f172a);
+    color:var(--fg);
+  }
+  .sim-local-header{
+    padding:16px 20px; border-bottom:1px solid #1f2937; background:#0f172a;
+  }
+  h1{margin:0; font-size:20px}
+  .wrap{display:grid; gap:14px; grid-template-columns: 360px 1fr; padding:14px;}
+  @media (max-width:1000px){ .wrap{grid-template-columns:1fr} }
+  .panel{
+    background:var(--panel); border:1px solid #1f2937; border-radius:12px; padding:12px;
+    box-shadow: 0 10px 25px rgba(0,0,0,.25) inset, 0 10px 20px rgba(0,0,0,.2);
+  }
+  fieldset{border:1px solid #263241; border-radius:10px; margin:10px 0; padding:10px 12px}
+  legend{color:var(--muted); padding:0 6px; font-size:12px}
+  label{display:flex; align-items:center; gap:8px; margin:6px 0}
+  input[type="range"]{width:100%}
+  .row{display:grid; grid-template-columns: 1fr 1fr; gap:8px}
+  .btns{display:flex; gap:8px; flex-wrap:wrap; margin-top:8px}
+  button{
+    background:#1f2937; color:var(--fg); border:1px solid #334155; padding:8px 10px; border-radius:10px;
+    cursor:pointer;
+  }
+  button.primary{background:linear-gradient(180deg,#0284c7,#0369a1); border-color:#0ea5e9}
+  button:disabled{opacity:.6; cursor:not-allowed}
+  .track-wrap{padding:8px}
+  .track{
+    position:relative; height:220px; background:linear-gradient(180deg,#0a0f1c,#0b1220);
+    border:1px solid #1f2937; border-radius:12px; overflow:hidden;
+  }
+  canvas#sim{position:absolute; inset:0}
+  .readouts{display:grid; grid-template-columns: repeat(3,1fr); gap:10px; margin-top:10px}
+  .card{
+    background:var(--card); border:1px solid #1f2937; border-radius:10px; padding:8px
+  }
+  .card h3{margin:0 0 6px 0; font-size:13px; color:var(--muted)}
+  table{width:100%; border-collapse:collapse; font-size:12px}
+  td,th{border-bottom:1px dashed #1f2937; padding:3px 4px; text-align:right}
+  th:first-child, td:first-child{text-align:left}
+  .leg{display:flex; gap:10px; flex-wrap:wrap; margin:6px 0 0 0; font-size:12px}
+  .dot{width:10px; height:10px; border-radius:50% ; display:inline-block; vertical-align:middle; margin-right:4px}
+  .hint{color:var(--muted); font-size:12px}
+  .small{font-size:12px; color:var(--muted)}
+</style>
+  <link rel="stylesheet" href="../../assets/remake.css">
+</head>
+<body class="remake-ui">
+  <div class="remake-badge-host"><span class="remake-ribbon">リメイク版</span></div>
+<script>
+  PhysicsSimShell.create({
+    title: '運動量保存',
+    subtitle: '1次元衝突・反発係数・摩擦・運動量と運動エネルギー',
+    basePath: '../../'
+  });
+</script>
+<header class="sim-local-header">
+  <h1>運動量保存則シミュレーター（m/s・摩擦可）</h1>
+  <div class="small">1次元・2カート・弾性衝突。1 m = 100 px。摩擦は動摩擦（F = μ<sub>k</sub> m g）。</div>
+</header>
+
+<div class="wrap">
+  <!-- Controls -->
+  <div class="panel">
+    <fieldset>
+      <legend>時間・環境</legend>
+      <label>時間倍率 <span id="timeScaleVal" class="hint"></span>
+        <input id="timeScale" type="range" min="0.1" max="2" step="0.1" value="1">
+      </label>
+      <label>動摩擦係数 μ<sub>k</sub>（全体） <span id="muVal" class="hint"></span>
+        <input id="mu" type="range" min="0" max="1" step="0.01" value="0">
+      </label>
+      <div class="hint">摩擦は各カートの「摩擦ON」で個別に適用されます。</div>
+    </fieldset>
+
+    <fieldset>
+      <legend>カート1</legend>
+      <label><input id="c1Fric" type="checkbox"> 摩擦ON</label>
+      <label>質量 m<sub>1</sub> [kg] <span id="m1Val" class="hint"></span>
+        <input id="m1" type="range" min="0.1" max="5" step="0.1" value="1.0">
+      </label>
+      <label>初期速度 v<sub>1</sub> [m/s] <span id="v1Val" class="hint"></span>
+        <input id="v1" type="range" min="-5" max="5" step="0.1" value="2.0">
+      </label>
+      <label>初期位置 x<sub>1</sub> [m] <span id="x1Val" class="hint"></span>
+        <input id="x1" type="range" min="0.5" max="6.5" step="0.1" value="2.0">
+      </label>
+    </fieldset>
+
+    <fieldset>
+      <legend>カート2</legend>
+      <label><input id="c2Fric" type="checkbox"> 摩擦ON</label>
+      <label>質量 m<sub>2</sub> [kg] <span id="m2Val" class="hint"></span>
+        <input id="m2" type="range" min="0.1" max="5" step="0.1" value="1.0">
+      </label>
+      <label>初期速度 v<sub>2</sub> [m/s] <span id="v2Val" class="hint"></span>
+        <input id="v2" type="range" min="-5" max="5" step="0.1" value="-1.2">
+      </label>
+      <label>初期位置 x<sub>2</sub> [m] <span id="x2Val" class="hint"></span>
+        <input id="x2" type="range" min="0.5" max="6.5" step="0.1" value="5.0">
+      </label>
+    </fieldset>
+
+    <div class="btns">
+      <button id="initStart" class="primary">初期化して開始</button>
+      <button id="toggleRun">一時停止</button>
+      <button id="step">1ステップ</button>
+      <button id="reset">停止＆リセット</button>
+    </div>
+    <div class="hint" style="margin-top:6px">
+      ・「初期化して開始」：上の初期値を反映してt=0から再スタート<br>
+      ・壁＆カート衝突は弾性（e=1）。摩擦ON時は運動量・エネルギーは系全体で減少します。
+    </div>
+  </div>
+
+  <!-- Simulation + readouts -->
+  <div class="panel">
+    <div class="track-wrap">
+      <div class="track">
+        <canvas id="sim" width="900" height="220"></canvas>
+      </div>
+    </div>
+
+    <div class="readouts">
+      <div class="card">
+        <h3>運動量 p = m v [kg·m/s]</h3>
+        <table>
+          <tr><th></th><th>p</th></tr>
+          <tr><td>カート1</td><td id="p1">-</td></tr>
+          <tr><td>カート2</td><td id="p2">-</td></tr>
+          <tr><td><b>合計</b></td><td id="pTot">-</td></tr>
+        </table>
+        <div class="leg"><span><span class="dot" style="background:#38bdf8"></span>c1</span><span><span class="dot" style="background:#f472b6"></span>c2</span><span><span class="dot" style="background:#34d399"></span>total</span></div>
+      </div>
+      <div class="card">
+        <h3>運動エネルギー K = ½ m v² [J]</h3>
+        <table>
+          <tr><th></th><th>K</th></tr>
+          <tr><td>カート1</td><td id="k1">-</td></tr>
+          <tr><td>カート2</td><td id="k2">-</td></tr>
+          <tr><td><b>合計</b></td><td id="kTot">-</td></tr>
+        </table>
+        <div class="leg"><span><span class="dot" style="background:#38bdf8"></span>c1</span><span><span class="dot" style="background:#f472b6"></span>c2</span><span><span class="dot" style="background:#34d399"></span>total</span></div>
+      </div>
+      <div class="card">
+        <h3>グラフ</h3>
+        <div class="small">左：運動量（p1, p2, pTotal）／右：運動エネルギー（K1, K2, KTotal）</div>
+        <div class="row" style="margin-top:6px">
+          <canvas id="gp" width="400" height="140"></canvas>
+          <canvas id="gk" width="400" height="140"></canvas>
+        </div>
+        <div class="hint">表示は直近 ~12 秒分。自動スケール。</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ========= 基本設定 ========= */
+const pxPerMeter = 100;     // 1 m = 100 px
+const g = 9.8;              // 重力加速度
+const cartW_m = 0.6;        // カート幅 [m]
+const cartH_px = 40;        // 描画高さ [px]
+const wallPadding_m = 0.3;  // 壁からの余白 [m]
+const clamp = (v, lo, hi)=> Math.max(lo, Math.min(hi, v));
+const fmt = n => (Math.abs(n)<1e-4 ? "0.0000" : n.toFixed(4));
+
+/* ========= DOM取得 ========= */
+const cvs = document.getElementById('sim');
+const ctx = cvs.getContext('2d');
+const gp = document.getElementById('gp').getContext('2d');
+const gk = document.getElementById('gk').getContext('2d');
+
+const $ = id => document.getElementById(id);
+const ui = {
+  timeScale: $('timeScale'), timeScaleVal: $('timeScaleVal'),
+  mu: $('mu'), muVal: $('muVal'),
+  m1: $('m1'), m1Val: $('m1Val'),
+  v1: $('v1'), v1Val: $('v1Val'),
+  x1: $('x1'), x1Val: $('x1Val'),
+  m2: $('m2'), m2Val: $('m2Val'),
+  v2: $('v2'), v2Val: $('v2Val'),
+  x2: $('x2'), x2Val: $('x2Val'),
+  c1Fric: $('c1Fric'), c2Fric: $('c2Fric'),
+  initStart: $('initStart'), toggleRun: $('toggleRun'), step: $('step'), reset: $('reset'),
+  p1: $('p1'), p2: $('p2'), pTot: $('pTot'),
+  k1: $('k1'), k2: $('k2'), kTot: $('kTot'),
+};
+
+/* ========= 状態 ========= */
+let state;
+function makeInitialFromUI(){
+  const trackWidth_m = (cvs.width - 2*wallPadding_m*pxPerMeter) / pxPerMeter;
+  const cW_m = cartW_m;
+  const x1 = clamp(parseFloat(ui.x1.value), wallPadding_m + cW_m/2, wallPadding_m + trackWidth_m - cW_m/2);
+  const x2 = clamp(parseFloat(ui.x2.value), wallPadding_m + cW_m/2, wallPadding_m + trackWidth_m - cW_m/2);
+  return {
+    t: 0,
+    running: true,
+    timeScale: parseFloat(ui.timeScale.value),
+    mu: parseFloat(ui.mu.value),
+    carts: [
+      {
+        m: parseFloat(ui.m1.value),
+        x: x1, v: parseFloat(ui.v1.value),
+        color: '#38bdf8',
+        fric: ui.c1Fric.checked,
+      },
+      {
+        m: parseFloat(ui.m2.value),
+        x: x2, v: parseFloat(ui.v2.value),
+        color: '#f472b6',
+        fric: ui.c2Fric.checked,
+      }
+    ],
+    history: [], // {t, p1, p2, pt, k1, k2, kt}
+  };
+}
+function resetUIReads(){
+  ui.timeScaleVal.textContent = `×${parseFloat(ui.timeScale.value).toFixed(1)}`;
+  ui.muVal.textContent = `μk = ${parseFloat(ui.mu.value).toFixed(2)}`;
+  ui.m1Val.textContent = `${parseFloat(ui.m1.value).toFixed(2)} kg`;
+  ui.v1Val.textContent = `${parseFloat(ui.v1.value).toFixed(2)} m/s`;
+  ui.x1Val.textContent = `${parseFloat(ui.x1.value).toFixed(2)} m`;
+  ui.m2Val.textContent = `${parseFloat(ui.m2.value).toFixed(2)} kg`;
+  ui.v2Val.textContent = `${parseFloat(ui.v2.value).toFixed(2)} m/s`;
+  ui.x2Val.textContent = `${parseFloat(ui.x2.value).toFixed(2)} m`;
+}
+['timeScale','mu','m1','v1','x1','m2','v2','x2'].forEach(id=>{
+  $(id).addEventListener('input', resetUIReads);
+});
+resetUIReads();
+
+/* ========= 物理 ========= */
+function stepPhysics(st, dtReal){
+  const dt = dtReal * st.timeScale; // 時間倍率
+  const mu = st.mu;
+
+  // 摩擦と位置更新
+  for (const c of st.carts){
+    if (!c.fric || mu === 0 || Math.abs(c.v) < 1e-5){
+      if (Math.abs(c.v) < 1e-5) c.v = 0;
+      c.x += c.v * dt;
+      continue;
+    }
+    const v0 = c.v;
+    const a = -Math.sign(v0) * mu * g;
+    const tStop = Math.abs(v0) / (mu * g);
+    if (dt >= tStop){
+      c.x += v0 * tStop + 0.5 * a * tStop * tStop;
+      c.v = 0;
+    } else {
+      c.x += v0 * dt + 0.5 * a * dt * dt;
+      c.v = v0 + a * dt;
+    }
+  }
+
+  // 壁衝突（弾性）
+  const left = wallPadding_m + cartW_m/2;
+  const right = (cvs.width/pxPerMeter) - wallPadding_m - cartW_m/2;
+  for (const c of st.carts){
+    if (c.x < left){ c.x = left; c.v = Math.abs(c.v); }
+    if (c.x > right){ c.x = right; c.v = -Math.abs(c.v); }
+  }
+
+  // カート同士の衝突（1D・弾性）
+  // 幅を持つ長方形の接触で判定
+  const c1 = st.carts[0], c2 = st.carts[1];
+  const half = cartW_m/2;
+  const dx = c2.x - c1.x;
+  const overlap = (Math.abs(dx) < cartW_m);
+  if (overlap){
+    const approaching = (dx >= 0 && c1.v > c2.v) || (dx < 0 && c1.v < c2.v);
+    if (approaching){
+      // 1D 弾性衝突公式
+      const m1=c1.m, m2=c2.m, u1=c1.v, u2=c2.v;
+      const v1 = ( (m1-m2)/(m1+m2) )*u1 + ( (2*m2)/(m1+m2) )*u2;
+      const v2 = ( (2*m1)/(m1+m2) )*u1 + ( (m2-m1)/(m1+m2) )*u2;
+      c1.v = v1; c2.v = v2;
+    }
+    // めり込み解消：現在の左右関係を保って中心間をちょうど幅に
+    const mid = (c1.x + c2.x)/2;
+    if (dx >= 0){
+      c1.x = mid - half; c2.x = mid + half;
+    } else {
+      c1.x = mid + half; c2.x = mid - half;
+    }
+  }
+
+  st.t += dt;
+}
+
+/* ========= 描画 ========= */
+function draw(st){
+  // 背景
+  ctx.clearRect(0,0,cvs.width,cvs.height);
+  // ガイド
+  ctx.strokeStyle = '#1f2937';
+  ctx.lineWidth = 1;
+  for (let m=0; m<= (cvs.width/pxPerMeter); m+=0.5){
+    const x = m*pxPerMeter;
+    ctx.beginPath();
+    ctx.moveTo(x,0); ctx.lineTo(x,cvs.height);
+    ctx.stroke();
+  }
+  // カート描画（1次元衝突として同じ軌道上に並べる）
+  const trackY = cvs.height*0.55;
+  const carWpx = cartW_m*pxPerMeter, carHpx = cartH_px;
+
+  const [c1,c2] = st.carts;
+
+  function drawCart(c, y, label, labelOffset, arrowOffset){
+    const xpx = c.x*pxPerMeter;
+    ctx.fillStyle = c.color;
+    ctx.strokeStyle = '#00000055';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.roundRect(xpx - carWpx/2, y - carHpx/2, carWpx, carHpx, 8);
+    ctx.fill(); ctx.stroke();
+    // 矢印（速度）
+    const vScale = 20; // 矢印スケール
+    ctx.strokeStyle = '#e5e7eb';
+    ctx.lineWidth = 2;
+    const vx = c.v * vScale;
+    const arrowY = y - carHpx/2 - 8 + arrowOffset;
+    ctx.beginPath();
+    ctx.moveTo(xpx, arrowY);
+    ctx.lineTo(xpx + vx, arrowY);
+    ctx.stroke();
+    // 矢印頭
+    if (Math.abs(vx) > 2){
+      ctx.beginPath();
+      ctx.moveTo(xpx + vx, arrowY);
+      ctx.lineTo(xpx + vx - Math.sign(vx)*6, arrowY - 4);
+      ctx.lineTo(xpx + vx - Math.sign(vx)*6, arrowY + 4);
+      ctx.closePath();
+      ctx.fillStyle='#e5e7eb'; ctx.fill();
+    }
+    // ラベル
+    ctx.fillStyle = '#d1d5db';
+    ctx.font = '12px ui-sans-serif';
+    ctx.textAlign='center';
+    ctx.fillText(`${label} | m=${c.m.toFixed(2)}kg | v=${c.v.toFixed(2)} m/s`, xpx, y + labelOffset);
+  }
+  drawCart(c1, trackY, 'c1', carHpx/2 + 16, 0);
+  drawCart(c2, trackY, 'c2', -carHpx/2 - 14, -14);
+
+  // 壁ライン
+  ctx.strokeStyle = '#334155';
+  ctx.lineWidth = 3;
+  const L = wallPadding_m*pxPerMeter, R = cvs.width - wallPadding_m*pxPerMeter;
+  ctx.beginPath(); ctx.moveTo(L,10); ctx.lineTo(L,cvs.height-10); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(R,10); ctx.lineTo(R,cvs.height-10); ctx.stroke();
+}
+
+/* ========= 記録・表示 ========= */
+const histMaxSec = 12;
+function pushHistory(st){
+  const [c1,c2] = st.carts;
+  const p1 = c1.m * c1.v;
+  const p2 = c2.m * c2.v;
+  const pt = p1 + p2;
+  const k1 = 0.5 * c1.m * c1.v*c1.v;
+  const k2 = 0.5 * c2.m * c2.v*c2.v;
+  const kt = k1 + k2;
+  st.history.push({t: st.t, p1, p2, pt, k1, k2, kt});
+  // 古いデータ削除
+  while (st.history.length>2 && (st.history[st.history.length-1].t - st.history[0].t) > histMaxSec){
+    st.history.shift();
+  }
+  // 数値表示
+  ui.p1.textContent = fmt(p1);
+  ui.p2.textContent = fmt(p2);
+  ui.pTot.textContent = fmt(pt);
+  ui.k1.textContent = fmt(k1);
+  ui.k2.textContent = fmt(k2);
+  ui.kTot.textContent = fmt(kt);
+}
+function updateReadouts(st){
+  const [c1,c2] = st.carts;
+  const p1 = c1.m * c1.v;
+  const p2 = c2.m * c2.v;
+  const pt = p1 + p2;
+  const k1 = 0.5 * c1.m * c1.v*c1.v;
+  const k2 = 0.5 * c2.m * c2.v*c2.v;
+  const kt = k1 + k2;
+  ui.p1.textContent = fmt(p1);
+  ui.p2.textContent = fmt(p2);
+  ui.pTot.textContent = fmt(pt);
+  ui.k1.textContent = fmt(k1);
+  ui.k2.textContent = fmt(k2);
+  ui.kTot.textContent = fmt(kt);
+}
+function drawGraph(ctx, hist, keys, colors, label){
+  const W = ctx.canvas.width, H = ctx.canvas.height;
+  ctx.clearRect(0,0,W,H);
+  // 軸
+  ctx.strokeStyle='#263241'; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.moveTo(30,10); ctx.lineTo(30,H-20); ctx.lineTo(W-10,H-20); ctx.stroke();
+
+  if (hist.length<2) return;
+  const t0 = hist[0].t, t1 = hist[hist.length-1].t, dt = Math.max(1e-6, t1-t0);
+  // yスケール自動
+  let min=+Infinity, max=-Infinity;
+  for (const k of keys){
+    for (const h of hist){ min = Math.min(min, h[k]); max = Math.max(max, h[k]); }
+  }
+  if (min===max){ min-=1; max+=1; }
+  // 余白
+  const pad = 6;
+  const X = t=> 30 + (t - t0)/dt * (W-40);
+  const Y = v=> (H-20) - ( (v - min)/(max - min) ) * (H-30);
+
+  // 0ライン（範囲内なら）
+  if (min<0 && max>0){
+    ctx.strokeStyle='#334155';
+    ctx.beginPath(); ctx.moveTo(30, Y(0)); ctx.lineTo(W-10, Y(0)); ctx.stroke();
+  }
+
+  keys.forEach((k,i)=>{
+    ctx.strokeStyle = colors[i]; ctx.lineWidth=2;
+    ctx.beginPath();
+    hist.forEach((h,j)=>{
+      const x = X(h.t), y = Y(h[k]);
+      if (j===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+    });
+    ctx.stroke();
+  });
+
+  // 目盛ラベル
+  ctx.fillStyle='#94a3b8'; ctx.font='10px ui-sans-serif';
+  ctx.textAlign='right';
+  ctx.fillText(`${label}`, W-12, 12);
+  ctx.textAlign='left';
+  ctx.fillText(`${t1.toFixed(1)}s`, W-50, H-6);
+  ctx.fillText(`${t0.toFixed(1)}s`, 32, H-6);
+  ctx.textAlign='right';
+  ctx.fillText(max.toFixed(2), 28, 12);
+  ctx.fillText(min.toFixed(2), 28, H-22);
+}
+
+/* ========= ループ ========= */
+function renderFrame(){
+  if (!state) return;
+  if (state.running) {
+    pushHistory(state);
+  } else {
+    updateReadouts(state);
+  }
+  draw(state);
+  drawGraph(gp, state.history, ['p1','p2','pt'], ['#38bdf8','#f472b6','#34d399'], 'p');
+  drawGraph(gk, state.history, ['k1','k2','kt'], ['#38bdf8','#f472b6','#34d399'], 'K');
+}
+
+const clock = new PhysicsSimClock.FixedStepClock({
+  step: 1 / 120,
+  onStep(dt) {
+    if (state?.running) {
+      stepPhysics(state, dt);
+    }
+  },
+  onRender() {
+    renderFrame();
+  }
+});
+
+/* ========= ボタン動作 ========= */
+ui.initStart.addEventListener('click', ()=>{
+  state = makeInitialFromUI();
+  ui.toggleRun.textContent = '一時停止';
+  ui.toggleRun.disabled = false;
+  ui.step.disabled = false;
+  clock.reset();
+  clock.start();
+});
+ui.toggleRun.addEventListener('click', ()=>{
+  if (!state) return;
+  state.running = !state.running;
+  ui.toggleRun.textContent = state.running ? '一時停止' : '再開';
+});
+ui.step.addEventListener('click', ()=>{
+  if (!state) return;
+  const wasRunning = state.running;
+  state.running = false;
+  stepPhysics(state, 1/60);
+  draw(state);
+  pushHistory(state);
+  state.running = wasRunning;
+});
+ui.reset.addEventListener('click', ()=>{
+  state = null;
+  ctx.clearRect(0,0,cvs.width,cvs.height);
+  gp.clearRect(0,0,gp.canvas.width,gp.canvas.height);
+  gk.clearRect(0,0,gk.canvas.width,gk.canvas.height);
+  ui.toggleRun.disabled = true; ui.step.disabled = true;
+  ui.toggleRun.textContent = '一時停止';
+});
+
+['timeScale','mu','c1Fric','c2Fric'].forEach(id=>{
+  $(id).addEventListener('input', ()=>{
+    if (!state) return;
+    state.timeScale = parseFloat(ui.timeScale.value);
+    state.mu = parseFloat(ui.mu.value);
+    state.carts[0].fric = ui.c1Fric.checked;
+    state.carts[1].fric = ui.c2Fric.checked;
+  });
+});
+
+// 起動：デフォルトで初期化＆開始
+state = makeInitialFromUI();
+clock.start();
+</script>
+</body>
+</html>

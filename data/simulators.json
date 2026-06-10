@@ -5,12 +5,16 @@
     "category": "力学",
     "route": "./simulators/momentum/",
     "originalSource": "運動量保存則シミュレーター.html",
-    "alternateSources": ["momentamsimver1.00.html"],
+    "alternateSources": [
+      "momentamsimver1.00.html"
+    ],
     "status": "標準化中",
     "dependencies": [],
     "physicsModel": "1次元衝突、反発係数、摩擦、運動量と運動エネルギー",
     "purpose": "衝突、反発係数、摩擦、速度変化を確認する。",
-    "lastReviewed": "2026-05-05"
+    "lastReviewed": "2026-06-10",
+    "reRoute": "./simulators/momentum/Remake-momentum.html",
+    "reStatus": "リメイク版"
   },
   {
     "id": "restitution",
@@ -23,7 +27,9 @@
     "dependencies": [],
     "physicsModel": "床との反発、斜め衝突、階段状の段差でのバウンド、1次元2球衝突、反発係数",
     "purpose": "反発係数による衝突直前後の速さ、反発角度、段差寸法によるバウンド軌道、2物体の衝突後速度の変化を確認する。",
-    "lastReviewed": "2026-05-30"
+    "lastReviewed": "2026-06-10",
+    "reRoute": "./simulators/restitution/Remake-restitution.html",
+    "reStatus": "リメイク版"
   },
   {
     "id": "relative-velocity",
@@ -36,7 +42,9 @@
     "dependencies": [],
     "physicsModel": "1次元と2次元の等速直線運動、観測者を変えた相対速度ベクトル",
     "purpose": "第3者視点、当事者視点、上空からの視点を同時に見て、相対速度が基準の取り方でどう変わるかを確認する。",
-    "lastReviewed": "2026-05-30"
+    "lastReviewed": "2026-06-10",
+    "reRoute": "./simulators/relative-velocity/Remake-relative-velocity.html",
+    "reStatus": "リメイク版"
   },
   {
     "id": "car-vertical-throw",
@@ -49,22 +57,25 @@
     "dependencies": [],
     "physicsModel": "車からの鉛直投げ上げ、外部視点と車視点の相対運動、空気抵抗、風、加速度",
     "purpose": "車から真上に投げた物体が、外部視点では斜方投射、車視点では鉛直投げ上げに見えることを比較する。",
-    "lastReviewed": "2026-06-07"
+    "lastReviewed": "2026-06-10",
+    "reRoute": "./simulators/car-vertical-throw/Remake-car-vertical-throw.html",
+    "reStatus": "リメイク版"
   },
   {
     "id": "projectile",
     "title": "斜方投射",
     "category": "力学",
     "route": "./simulators/projectile/",
-    "reRoute": "./simulators/projectile/Re-projectile.html",
-    "reStatus": "Re版試作",
+    "reRoute": "./simulators/projectile/Remake-projectile.html",
+    "reStatus": "リメイク版",
     "originalSource": "projectile_with_wall1.10.html",
     "alternateSources": [],
     "status": "点検済み",
     "dependencies": [],
     "physicsModel": "重力下の2次元投射、壁・地面との反発",
     "purpose": "初速度、射角、壁との衝突を含む軌道を可視化する。",
-    "lastReviewed": "2026-05-23"
+    "lastReviewed": "2026-06-10",
+    "legacyReRoute": "./simulators/projectile/Re-projectile.html"
   },
   {
     "id": "pendulum",
@@ -77,7 +88,9 @@
     "dependencies": [],
     "physicsModel": "単振り子、RK4、減衰、小角近似",
     "purpose": "周期、角度、角速度、小角近似を確認する。",
-    "lastReviewed": "2026-05-05"
+    "lastReviewed": "2026-06-10",
+    "reRoute": "./simulators/pendulum/Remake-pendulum.html",
+    "reStatus": "リメイク版"
   },
   {
     "id": "spring-oscillation",
@@ -90,7 +103,9 @@
     "dependencies": [],
     "physicsModel": "水平/鉛直のばね単振動、ばね1本/2本、並列/左右接続、直列接続、合成ばね定数、鉛直つり合い位置",
     "purpose": "水平・鉛直とばね1本・2本を切り替え、合成ばね定数、静的伸び、つり合い位置まわりの単振動を確認する。",
-    "lastReviewed": "2026-06-07"
+    "lastReviewed": "2026-06-10",
+    "reRoute": "./simulators/spring-oscillation/Remake-spring-oscillation.html",
+    "reStatus": "リメイク版"
   },
   {
     "id": "galton-board",
@@ -103,7 +118,9 @@
     "dependencies": [],
     "physicsModel": "段状の釘で左右に分岐する多数のボール、下部受け皿への蓄積、二項分布の視覚比較",
     "purpose": "多数のボールが左右に分かれて下で山を作る様子を、ボールの挙動と蓄積結果として観察する。",
-    "lastReviewed": "2026-06-07"
+    "lastReviewed": "2026-06-10",
+    "reRoute": "./simulators/galton-board/Remake-galton-board.html",
+    "reStatus": "リメイク版"
   },
   {
     "id": "dice-roll",
@@ -116,7 +133,9 @@
     "dependencies": [],
     "physicsModel": "一様乱数による1〜6の出目記録、出現回数と割合のリアルタイム棒グラフ",
     "purpose": "サイコロの出目を高速に記録し、試行回数が増えるほど各出目の割合がそろっていく様子を観察する。",
-    "lastReviewed": "2026-06-07"
+    "lastReviewed": "2026-06-10",
+    "reRoute": "./simulators/dice-roll/Remake-dice-roll.html",
+    "reStatus": "リメイク版"
   },
   {
     "id": "bowling",
@@ -129,7 +148,9 @@
     "dependencies": [],
     "physicsModel": "ボウリングの疑似3Dレーン、投球者の立ち位置、手元の左右ズレ、投げ出し角度、球速、質量、スピンによる簡易曲がり",
     "purpose": "手の位置や投げ出し角度がスパット通過点と1番ピン位置の到達板目をどう変えるかを確認する。",
-    "lastReviewed": "2026-06-07"
+    "lastReviewed": "2026-06-10",
+    "reRoute": "./simulators/bowling/Remake-bowling.html",
+    "reStatus": "リメイク版"
   },
   {
     "id": "spring-horizontal",
@@ -139,10 +160,14 @@
     "originalSource": "ばね振り子水平ver1.01.html",
     "alternateSources": [],
     "status": "点検済み",
-    "dependencies": ["MathJax CDN"],
+    "dependencies": [
+      "MathJax CDN"
+    ],
     "physicsModel": "水平ばね振り子、RK4、減衰、動摩擦",
     "purpose": "単振動、変位、速度、摩擦の影響を扱う。",
-    "lastReviewed": "2026-05-05"
+    "lastReviewed": "2026-06-10",
+    "reRoute": "./simulators/spring-horizontal/Remake-spring-horizontal.html",
+    "reStatus": "リメイク版"
   },
   {
     "id": "spring-vertical",
@@ -155,7 +180,9 @@
     "dependencies": [],
     "physicsModel": "重力下の鉛直ばね振り子、エネルギー表示",
     "purpose": "重力下の変位、速度、力、エネルギーを確認する。",
-    "lastReviewed": "2026-05-05"
+    "lastReviewed": "2026-06-10",
+    "reRoute": "./simulators/spring-vertical/Remake-spring-vertical.html",
+    "reStatus": "リメイク版"
   },
   {
     "id": "double-spring",
@@ -163,12 +190,16 @@
     "category": "力学",
     "route": "./simulators/double-spring/",
     "originalSource": "2重ばね振り子水平ver1.00.html",
-    "alternateSources": ["2重ばね振り子水平ver0.01.html"],
+    "alternateSources": [
+      "2重ばね振り子水平ver0.01.html"
+    ],
     "status": "点検済み",
     "dependencies": [],
     "physicsModel": "左右ばねに接続された質点の水平振動",
     "purpose": "左右ばねと中央質点の振動や摩擦の影響を扱う。",
-    "lastReviewed": "2026-05-05"
+    "lastReviewed": "2026-06-10",
+    "reRoute": "./simulators/double-spring/Remake-double-spring.html",
+    "reStatus": "リメイク版"
   },
   {
     "id": "ladder",
@@ -181,7 +212,9 @@
     "dependencies": [],
     "physicsModel": "剛体の力のつり合い、摩擦、反力",
     "purpose": "力のつり合い、摩擦、反力、人の位置による変化を扱う。",
-    "lastReviewed": "2026-05-05"
+    "lastReviewed": "2026-06-10",
+    "reRoute": "./simulators/ladder/Remake-ladder.html",
+    "reStatus": "リメイク版"
   },
   {
     "id": "inclined-block",
@@ -194,7 +227,9 @@
     "dependencies": [],
     "physicsModel": "斜面上の直方体、静止摩擦・動摩擦、垂直抗力の作用点、滑り出し条件、転倒条件",
     "purpose": "摩擦係数、物体寸法、斜面角、質量を変えて、滑り出すか回転して倒れるか静止するかを可視化する。",
-    "lastReviewed": "2026-05-06"
+    "lastReviewed": "2026-06-10",
+    "reRoute": "./simulators/inclined-block/Remake-inclined-block.html",
+    "reStatus": "リメイク版"
   },
   {
     "id": "center-of-mass-disk",
@@ -207,7 +242,9 @@
     "dependencies": [],
     "physicsModel": "一様円板から軸上の円をくり抜いた図形の重心、負の面積、支点まわりの重力モーメント",
     "purpose": "穴の中心位置、穴半径比、支点位置を変えて、重心位置とどちらへ傾くかを確認する。",
-    "lastReviewed": "2026-05-06"
+    "lastReviewed": "2026-06-10",
+    "reRoute": "./simulators/center-of-mass-disk/Remake-center-of-mass-disk.html",
+    "reStatus": "リメイク版"
   },
   {
     "id": "rod-tension",
@@ -220,7 +257,9 @@
     "dependencies": [],
     "physicsModel": "軽い棒、壁端支持、糸の張力、張力成分、壁との摩擦条件",
     "purpose": "棒上のおもり位置、質量、糸角度、摩擦係数による張力と摩擦条件の変化を確認する。",
-    "lastReviewed": "2026-05-06"
+    "lastReviewed": "2026-06-10",
+    "reRoute": "./simulators/rod-tension/Remake-rod-tension.html",
+    "reStatus": "リメイク版"
   },
   {
     "id": "pulley-work",
@@ -233,7 +272,9 @@
     "dependencies": [],
     "physicsModel": "理想滑車、支える紐の本数、必要な力、紐を引く距離、物体の上昇距離、仕事",
     "purpose": "定滑車、動滑車1つ、複数動滑車を比較し、力が小さくなるほど紐を長く引く必要があることと、理想条件では仕事が等しいことを確認する。",
-    "lastReviewed": "2026-06-07"
+    "lastReviewed": "2026-06-10",
+    "reRoute": "./simulators/pulley-work/Remake-pulley-work.html",
+    "reStatus": "リメイク版"
   },
   {
     "id": "resultant-velocity",
@@ -246,7 +287,9 @@
     "dependencies": [],
     "physicsModel": "川を進む船の速度合成、1次元の川上・川下移動、2次元の渡河時間と流され量、流れなし比較",
     "purpose": "船の速度と川の流れをベクトルとして合成し、川上・川下の速度や角度つき渡河の進み方を、流れなしの比較船とともに可視化する。",
-    "lastReviewed": "2026-05-30"
+    "lastReviewed": "2026-06-10",
+    "reRoute": "./simulators/resultant-velocity/Remake-resultant-velocity.html",
+    "reStatus": "リメイク版"
   },
   {
     "id": "loop-coaster",
@@ -254,12 +297,16 @@
     "category": "力学",
     "route": "./simulators/loop-coaster/",
     "originalSource": "omega_coaster_sim_v1.36_buttons_each_redframe.html",
-    "alternateSources": ["coaster1.00.html"],
+    "alternateSources": [
+      "coaster1.00.html"
+    ],
     "status": "点検済み",
     "dependencies": [],
     "physicsModel": "エネルギー保存、摩擦、垂直抗力、ループ離脱条件",
     "purpose": "エネルギー、垂直抗力、離脱条件を可視化する。",
-    "lastReviewed": "2026-05-05"
+    "lastReviewed": "2026-06-10",
+    "reRoute": "./simulators/loop-coaster/Remake-loop-coaster.html",
+    "reStatus": "リメイク版"
   },
   {
     "id": "wave",
@@ -269,10 +316,14 @@
     "originalSource": "wave_sim_marker.html",
     "alternateSources": [],
     "status": "点検済み",
-    "dependencies": ["Plotly CDN"],
+    "dependencies": [
+      "Plotly CDN"
+    ],
     "physicsModel": "正弦進行波、位相、観測点の変位",
     "purpose": "波形、時間変化、観測点の変位を確認する。",
-    "lastReviewed": "2026-05-05"
+    "lastReviewed": "2026-06-10",
+    "reRoute": "./simulators/wave/Remake-wave.html",
+    "reStatus": "リメイク版"
   },
   {
     "id": "circular-wave",
@@ -285,7 +336,9 @@
     "dependencies": [],
     "physicsModel": "等速円運動の射影、左右切替可能な正弦進行波、同位相の縦波表示",
     "purpose": "円運動の点のy座標が横波の変位をつくり、同じ位相を縦波としても表せることを確認する。",
-    "lastReviewed": "2026-05-30"
+    "lastReviewed": "2026-06-10",
+    "reRoute": "./simulators/circular-wave/Remake-circular-wave.html",
+    "reStatus": "リメイク版"
   },
   {
     "id": "air-column-resonance",
@@ -298,7 +351,9 @@
     "dependencies": [],
     "physicsModel": "気柱内の縦波、片端閉管・両端開管の定常波、変位の節腹、圧力/密度の節腹",
     "purpose": "筒内の空気分子を球体として表示し、縦波による分子変位と疎密の発生を可視化する。",
-    "lastReviewed": "2026-05-30"
+    "lastReviewed": "2026-06-10",
+    "reRoute": "./simulators/air-column-resonance/Remake-air-column-resonance.html",
+    "reStatus": "リメイク版"
   },
   {
     "id": "light-rgb",
@@ -311,7 +366,9 @@
     "dependencies": [],
     "physicsModel": "赤・緑・青の加法混色、RGB強度、補色的な重なり",
     "purpose": "RGBの光をベン図風に重ね、指示に従って各色の強さを変えることで色の変化を確認する。",
-    "lastReviewed": "2026-05-14"
+    "lastReviewed": "2026-06-10",
+    "reRoute": "./simulators/light-rgb/Remake-light-rgb.html",
+    "reStatus": "リメイク版"
   },
   {
     "id": "gas-molecule",
@@ -321,10 +378,14 @@
     "originalSource": "GasMoleculeMotion1.00.html",
     "alternateSources": [],
     "status": "点検済み",
-    "dependencies": ["Three.js CDN"],
+    "dependencies": [
+      "Three.js CDN"
+    ],
     "physicsModel": "箱内粒子運動、粒子衝突、温度、圧力、速度分布",
     "purpose": "粒子運動、温度、圧力、速度分布に関わる現象を扱う。",
-    "lastReviewed": "2026-05-05"
+    "lastReviewed": "2026-06-10",
+    "reRoute": "./simulators/gas-molecule/Remake-gas-molecule.html",
+    "reStatus": "リメイク版"
   },
   {
     "id": "ideal-gas-process",
@@ -337,7 +398,9 @@
     "dependencies": [],
     "physicsModel": "等温、定圧、定積、断熱過程、P-V図、熱力学第一法則",
     "purpose": "等温、定圧、定積、断熱変化をP-Vグラフで確認する。",
-    "lastReviewed": "2026-05-05"
+    "lastReviewed": "2026-06-10",
+    "reRoute": "./simulators/ideal-gas-process/Remake-ideal-gas-process.html",
+    "reStatus": "リメイク版"
   },
   {
     "id": "gravitation",
@@ -350,7 +413,9 @@
     "dependencies": [],
     "physicsModel": "中心力場での軌道運動、面積速度",
     "purpose": "軌道運動、面積速度、時間刻みごとの運動を確認する。",
-    "lastReviewed": "2026-05-05"
+    "lastReviewed": "2026-06-10",
+    "reRoute": "./simulators/gravitation/Remake-gravitation.html",
+    "reStatus": "リメイク版"
   },
   {
     "id": "planet-retrograde",
@@ -363,7 +428,9 @@
     "dependencies": [],
     "physicsModel": "内外惑星の公転と地球視点の視線方向",
     "purpose": "惑星の公転と地球から見た見かけの動きを可視化する。",
-    "lastReviewed": "2026-05-05"
+    "lastReviewed": "2026-06-10",
+    "reRoute": "./simulators/planet-retrograde/Remake-planet-retrograde.html",
+    "reStatus": "リメイク版"
   },
   {
     "id": "venus",
@@ -376,7 +443,9 @@
     "dependencies": [],
     "physicsModel": "金星の満ち欠け、視直径、太陽・地球・金星の位置関係",
     "purpose": "満ち欠け、見かけの大きさ、地球・太陽との位置関係を扱う。",
-    "lastReviewed": "2026-05-05"
+    "lastReviewed": "2026-06-10",
+    "reRoute": "./simulators/venus/Remake-venus.html",
+    "reStatus": "リメイク版"
   },
   {
     "id": "function-graph",
@@ -386,9 +455,14 @@
     "originalSource": "function_graph1.10.html",
     "alternateSources": [],
     "status": "点検済み",
-    "dependencies": ["KaTeX CDN", "math.js CDN"],
+    "dependencies": [
+      "KaTeX CDN",
+      "math.js CDN"
+    ],
     "physicsModel": "関数入力とグラフ描画",
     "purpose": "関数を入力・選択してグラフ表示し、数式の形を確認する。",
-    "lastReviewed": "2026-05-05"
+    "lastReviewed": "2026-06-10",
+    "reRoute": "./simulators/function-graph/Remake-function-graph.html",
+    "reStatus": "リメイク版"
   }
 ]

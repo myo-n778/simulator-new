@@ -1,0 +1,755 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Ideal Gas v3 — 曲線アニメ・Undo/Redo・Q/W色分け</title>
+<link rel="stylesheet" href="../../assets/common-sim.css">
+<script src="../../assets/sim-shell.js"></script>
+<script src="../../assets/sim-clock.js"></script>
+<style>
+  :root{
+    --console-w:320px;
+    --bg:#0b0e12; --card:#111722; --panel:#0f141b; --line:#1b2533; --ink:#e7ecf2; --mut:#9fb0c2;
+    --blue:#67b0ff; --green:#66e3a1; --accent:#60a5fa; --warn:#f6d469; --pink:#ffa0d0;
+    --heat:#ef4444; --cool:#60a5fa; --workpos:#f59e0b; --workneg:#22d3ee;
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0;background:var(--bg);color:var(--ink);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Hiragino Sans", "Noto Sans JP", Meiryo, Arial, sans-serif;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    font-feature-settings: "tnum" 1, "liga" 0;
+  }
+  .wrap{max-width:1120px;margin:0 auto;padding:14px; padding-left: calc(var(--console-w) + 12px);} /* TARGET-CSS-PAD patched */
+  h1{margin:0 0 10px;font-size:18px;font-weight:700}
+  .graphs{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:12px}
+  .belowgraphs{display:grid;grid-template-columns:3fr 2fr;gap:12px;margin-bottom:12px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px;box-shadow:0 8px 24px rgba(0,0,0,.25)}
+  .graph{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:8px}
+  canvas.graph{display:block;width:100%;height:220px;background:#0b0f16;border-radius:8px}
+  .row{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+  .small{font-size:12px;color:var(--mut)}
+  button{background:#1a2230;border:1px solid #243044;color:#d7dee6;border-radius:8px;padding:6px 10px;cursor:pointer}
+  button:active{transform:translateY(1px)}
+
+  /* fixed left console */
+  #consoleCard{
+    position:fixed;
+    top:84px;
+    left:12px;
+    width:var(--console-w);
+    height:calc(100vh - 96px);
+    overflow:auto;
+    z-index:10;
+  }
+  fieldset{border:1px solid var(--line);border-radius:10px;padding:8px 10px;margin:0 0 10px}
+  legend{padding:0 6px;color:var(--mut);font-size:12px}
+  .box{position:relative;height:200px;border:1px solid var(--line);border-radius:8px;background:linear-gradient(180deg,#0c121b,#0a0f16)}
+  .gas{position:absolute;left:8px;right:8px;bottom:8px;height:100px;background:radial-gradient(140px 40px at 50% 35%,rgba(103,176,255,.25),rgba(103,176,255,.05));border:1px solid rgba(103,176,255,.25);border-bottom:none;border-radius:6px 6px 0 0;filter:brightness(0.9)}
+  .piston{position:absolute;left:8px;right:8px;height:6px;background:linear-gradient(180deg,#93a4b8,#6a7d92);border:1px solid #4b5d73;border-radius:3px;box-shadow:0 2px 6px rgba(0,0,0,.35)}
+  .summaryLine{font-weight:800;color:#e5e7eb;margin-top:8px;border-top:1px dashed var(--line);padding-top:6px;font-size:13px}
+
+  /* TARGET-CSS-OPFONT patched */
+  #opConsole label{font-size:12px}
+  #opConsole .small{font-size:12px}
+</style>
+  <link rel="stylesheet" href="../../assets/remake.css">
+</head>
+<body class="remake-ui">
+  <div class="remake-badge-host"><span class="remake-ribbon">リメイク版</span></div>
+<script>
+  PhysicsSimShell.create({
+    title: '理想気体の状態変化',
+    subtitle: 'P-V図・熱・仕事・内部エネルギー',
+    basePath: '../../'
+  });
+</script>
+<div class="wrap">
+  <h1>理想気体 v3 — 等温/定圧/定積/断熱</h1>
+
+  <!-- Top graphs -->
+  <div class="graphs">
+    <div class="graph">
+      <div class="row"><b>P–V 図</b><span class="small">等温は反比例。最新ステップは吸熱=赤／放熱=青、面積は網掛け</span></div>
+      <canvas id="pv" class="graph"></canvas>
+    </div>
+    <div class="graph">
+      <div class="row"><b>T–V 図</b><span class="small">最新ステップは吸熱=赤／放熱=青で強調</span></div>
+      <canvas id="tv" class="graph"></canvas>
+    </div>
+  </div>
+
+  <!-- Below graphs: left = step history, right = animation -->
+  <div class="belowgraphs">
+<div class="card" id="historyCard">
+<div class="row">
+  <b>ステップ履歴</b>
+  <div>
+    <label class="small" style="margin-right:8px;">分割N=<input id="sampleN" type="number" value="60" min="10" max="400" style="width:56px"></label>
+    <label class="small" style="margin-right:8px;"><input type="checkbox" id="toggleContinuous"> 連続履歴（自動）</label>
+    <button id="resetSteps">リセット</button>
+  </div>
+</div>
+<div id="historyList" class="small" style="max-height:220px;overflow:auto;border:1px solid var(--line);border-radius:8px;padding:0;">
+  <table id="historyTable" style="width:100%;border-collapse:separate;border-spacing:0;">
+    <thead style="position:sticky;top:0;background:#0f141b;">
+  <tr style="font-size:12px;color:#9fb0c2;">
+    <th style="text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);width:68px;">操作</th>
+    <th style="text-align:right;padding:6px 8px;border-bottom:1px solid var(--line);width:90px;">U</th>
+    <th style="text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);"> (p,V,T) </th>
+    <th style="text-align:right;padding:6px 8px;border-bottom:1px solid var(--line);width:90px;">ΔU</th>
+    <th style="text-align:right;padding:6px 8px;border-bottom:1px solid var(--line);width:90px;">W</th>
+    <th style="text-align:right;padding:6px 8px;border-bottom:1px solid var(--line);width:90px;">Q_in</th>
+    <th style="text-align:right;padding:6px 8px;border-bottom:1px solid var(--line);width:90px;">Q_out</th>
+  </tr>
+</thead>
+    <tbody id="historyTbody" style="font-size:12px;color:#e5e7eb;"></tbody>
+  </table>
+</div>
+<div class="small" id="thermoBox" style="margin-top:6px;display:grid;grid-template-columns:repeat(4,1fr);gap:8px;">
+  <div>Q_in=<span id="qin">0.000</span> pV</div>
+  <div>Q_out=<span id="qout">0.000</span> pV</div>
+  <div>W=<span id="wacc">0.000</span> pV</div>
+  <div>η=<span id="eta">—</span></div>
+</div>
+<div class="summaryLine" id="summaryTotals">Q_in=0.000 pV / Q_out=0.000 pV / W=0.000 pV / η=—</div>
+
+</div>
+<div class="card">
+  <div class="row"><span></span><span class="small">横型ピストン：分子運動=温度、壁色=圧力</span></div> <!-- TARGET-ANIM-LABEL patched -->
+  <canvas id="simCanvas" width="520" height="220" style="display:block;width:100%;height:220px;background:#0b0f16;border-radius:8px;border:1px solid var(--line)"></canvas>
+</div>
+
+</div>
+    </div>
+  </div>
+
+  <!-- fixed left console -->
+  <div class="card" id="consoleCard">
+    <fieldset id="opConsole">
+      <legend>動作コンソール（1手ずつ）</legend>
+      <div class="small">①操作 → ②変える量 → ③倍率 → ④実行</div>
+      <div style="margin:6px 0">
+        <div class="small">① 操作</div>
+        <label><input type="radio" name="stepProc" value="isothermal" checked> 等温</label>
+        <label><input type="radio" name="stepProc" value="isobaric"> 定圧</label>
+        <label><input type="radio" name="stepProc" value="isochoric"> 定積</label>
+        <label><input type="radio" name="stepProc" value="adiabatic"> 断熱</label>
+        <label><input type="radio" name="stepProc" value="simul"> 同時（PとV）</label>
+      </div>
+      <div class="small" id="currentState">現在: p=1.000 , V=1.000 , T=1.000</div>
+<!-- TARGET-UI-ABS start -->
+<div class="small" style="margin:6px 0">
+  <div style="margin:4px 0">p設定：
+    <label><input type="radio" name="absP" value="0.25">1/4</label>
+    <label><input type="radio" name="absP" value="0.5">1/2</label>
+    <label><input type="radio" name="absP" value="1" checked>1</label>
+    <label><input type="radio" name="absP" value="2">2</label>
+    <label><input type="radio" name="absP" value="4">4</label>
+    <input id="absPval" type="number" step="0.01" placeholder="任意係数" style="width:72px;margin-left:6px">
+    <span class="small">p</span>
+  </div>
+  <div style="margin:4px 0">V設定：
+    <label><input type="radio" name="absV" value="0.25">1/4</label>
+    <label><input type="radio" name="absV" value="0.5">1/2</label>
+    <label><input type="radio" name="absV" value="1" checked>1</label>
+    <label><input type="radio" name="absV" value="2">2</label>
+    <label><input type="radio" name="absV" value="4">4</label>
+    <input id="absVval" type="number" step="0.01" placeholder="任意係数" style="width:72px;margin-left:6px">
+    <span class="small">V</span>
+  </div>
+  <div style="margin:4px 0">T設定：
+    <label><input type="radio" name="absT" value="0.25">1/4</label>
+    <label><input type="radio" name="absT" value="0.5">1/2</label>
+    <label><input type="radio" name="absT" value="1" checked>1</label>
+    <label><input type="radio" name="absT" value="2">2</label>
+    <label><input type="radio" name="absT" value="4">4</label>
+    <input id="absTval" type="number" step="0.01" placeholder="任意係数" style="width:72px;margin-left:6px">
+    <span class="small">T</span>
+  </div>
+</div>
+<!-- TARGET-UI-ABS end -->
+      <!-- Removed simulMul panel as requested -->
+      <div class="row">
+        <button id="execStep">④ 実行</button>
+        <button id="undoStep">Undo</button>
+        <button id="redoStep">Redo</button>
+        <button id="hardReset">Reset</button> <!-- TARGET-UI-RESETBTN -->
+      </div>
+      <div id="opMsg" class="small" style="color:#fca5a5;min-height:16px;margin-top:4px"></div>
+    </fieldset>
+
+    <details id="legacyUI"><summary class="small">従来UI（連続アニメ・初期値・段階選択）</summary>
+      <fieldset>
+        <legend>プロセス（固定量）</legend>
+        <label><input type="radio" name="proc" value="isothermal" checked> 等温（T一定・Vを駆動）</label>
+        <label><input type="radio" name="proc" value="isochoric"> 定積（V一定・Tを駆動）</label>
+        <label><input type="radio" name="proc" value="isobaric"> 定圧（P一定・Tを駆動）</label>
+        <label><input type="radio" name="proc" value="adiabatic"> 断熱（γ=1.4・Vを駆動）</label>
+      </fieldset>
+      <fieldset>
+        <legend>初期値（基準）</legend>
+        <div class="small">n=1, R=1, <b>p=1</b>, <b>V=1</b>, <b>T=1</b></div>
+        <div class="row" style="margin-top:6px">
+          <button id="reset">初期化</button>
+          <button id="clear">履歴クリア</button>
+          <button id="cycle">🟢 サイクル開始/リセット</button>
+          <span class="small">サイクル合計は下に表示</span>
+        </div>
+      </fieldset>
+    </details>
+
+    <div class="small">P=<span id="Pread">1.000</span>, V=<span id="Vread">1.000</span>, T=<span id="Tread">1.000</span></div>
+  </div>
+</div>
+
+<script>
+(()=>{
+  // ===== Base & State =====
+  const n=1, R=1, gamma=1.4; const CvU = R/(gamma-1);
+  const base = { P:1, V:1, T:1 };
+  let state = { ...base }, target = { ...base };
+  let mode = 'isothermal', lastPick='proc', cycleStart=0;
+
+  // ===== DOM & Canvas =====
+  const pv = document.getElementById('pv'), tv = document.getElementById('tv');
+  const ctxPV = pv.getContext('2d'), ctxTV = tv.getContext('2d');
+  const Pread=document.getElementById('Pread'), Vread=document.getElementById('Vread'), Tread=document.getElementById('Tread');
+  
+
+  function fitHiDPI(canvas, ctx){
+    const dpr = Math.max(1, window.devicePixelRatio||1);
+    const rect = canvas.getBoundingClientRect();
+    canvas.width = Math.round(rect.width*dpr);
+    canvas.height = Math.round(rect.height*dpr);
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+  }
+  function resizeAll(){ fitHiDPI(pv,ctxPV); fitHiDPI(tv,ctxTV); }
+  window.addEventListener('resize', resizeAll); setTimeout(resizeAll, 50);
+
+  // ===== History & Steps =====
+  const histPV=[], histTV=[]; const MAX=40000;
+  const steps=[]; // {P,V,T,U,W,Qin,Qout}
+  const stepSegments=[]; // {start,count,curve,prevState,toState,W,Qnet,Qpos,Qneg,color,workSign}
+  const redoStack=[];
+
+  const circ=['①','②','③','④','⑤','⑥','⑦','⑧','⑨','⑩','⑪','⑫','⑬','⑭','⑮','⑯','⑰','⑱','⑲','⑳'];
+
+  function showMsg(s){ const m=document.getElementById('opMsg'); if(m) m.textContent=s||''; }
+
+  function ratioStr(r,sym){
+    function approx(a,b,eps=1e-6){return Math.abs(a-b)<eps;}
+    if(approx(r,1)) return sym;
+    if(approx(r,2)) return '2'+sym;
+    if(approx(r,4)) return '4'+sym;
+    if(approx(r,0.5)) return '1/2'+sym;
+    if(approx(r,0.25)) return '1/4'+sym;
+    return (Math.round(r*1000)/1000)+sym;
+  }
+
+function renderHistory(){
+  const tbody=document.getElementById('historyTbody'); if(!tbody) return;
+  const rows = steps.map((s,i)=>{
+    const rP=s.P/base.P, rV=s.V/base.V, rT=s.T/base.T;
+    const ratio = `${ratioStr(rP,'p')},${ratioStr(rV,'V')},${ratioStr(rT,'T')}`;
+    const Uabs = ( (s.U!==undefined ? s.U : (n*CvU*(s.T||base.T))) );
+    const Uc = Uabs/(base.P*base.V);
+    const prevUabs = (i>0 ? (steps[i-1].U!==undefined?steps[i-1].U:(n*CvU*(steps[i-1].T||base.T))) : Uabs);
+    const dUc = (Uabs - prevUabs)/(base.P*base.V);
+    const Wc = (s.W||0)/(base.P*base.V);
+    const Qin=(s.Qin||0)/(base.P*base.V);
+    const Qout=(s.Qout||0)/(base.P*base.V);
+    const wStyle = (Wc>0)? ' style="color:#ef4444;"' : '';
+    const qinStyle = (Qin>0)? ' style="color:#ef4444;"' : '';
+    const dUstyle = (dUc>0)? ' style="color:#ef4444;"' : (dUc<0? ' style="color:#60a5fa;"' : '');
+    return `<tr data-step="${i}" style="cursor:pointer;">
+      <td style="padding:6px 8px;color:#e5e7eb;">${i}</td>
+      <td style="padding:6px 8px;text-align:right;">${Uc.toFixed(3)} pV</td>
+      <td style="padding:6px 8px;color:#9fb0c2;">(${ratio})</td>
+      <td style="padding:6px 8px;text-align:right;"${dUstyle}>${dUc.toFixed(3)} pV</td>
+      <td style="padding:6px 8px;text-align:right;"${wStyle}>${Wc.toFixed(3)} pV</td>
+      <td style="padding:6px 8px;text-align:right;"${qinStyle}>${Qin.toFixed(3)} pV</td>
+      <td style="padding:6px 8px;text-align:right;">${Qout.toFixed(3)} pV</td>
+    </tr>`;
+  });
+  tbody.innerHTML = rows.join('');
+  Array.from(tbody.querySelectorAll('tr')).forEach(tr=>{
+    tr.onclick = ()=>{ const idx = parseInt(tr.getAttribute('data-step')); selectOverlayByStep(idx); };
+  });
+}
+function addStep(P,V,T,U, W=0,Qin=0,Qout=0){
+    if(U===undefined||U===null){ U=(n*CvU)*T; }
+    steps.push({P,V,T,U,W,Qin,Qout});
+    renderHistory();
+  }
+
+  // ===== Axes/Plot =====
+  function rng(vals, hardMin=0){
+    let mn=Infinity,mx=-Infinity; for(const v of vals){ if(v<mn) mn=v; if(v>mx) mx=v; }
+    if(!isFinite(mn)||!isFinite(mx)){ mn=0; mx=1; }
+    mn = Math.min(mn, hardMin, 0);
+    mx = Math.max(mx, base.V*4, base.P*4, base.T*4, 1);
+    const span = mx-mn, pad = Math.max(1e-6, 0.08*span);
+    return {min: mn-pad, max: mx+pad};
+  }
+
+  function drawAxes(ctx, w, h, xLabel, yLabel, vRange, yRange){
+    ctx.clearRect(0,0,w,h);
+    ctx.fillStyle='#0b0f16'; ctx.fillRect(0,0,w,h);
+    ctx.strokeStyle='#152030'; ctx.lineWidth=1;
+    for(let i=1;i<6;i++){
+      const x = 40 + (w-60)*i/6, y = 10 + (h-40)*i/6;
+      ctx.beginPath(); ctx.moveTo(x,10); ctx.lineTo(x,h-30); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(40,y); ctx.lineTo(w-10,y); ctx.stroke();
+    }
+    ctx.strokeStyle='#334155'; ctx.lineWidth=1.5;
+    ctx.beginPath(); ctx.moveTo(40,h-30); ctx.lineTo(w-10,h-30); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(40,h-30); ctx.lineTo(40,10); ctx.stroke();
+    ctx.fillStyle='#cbd5e1'; ctx.font='12px system-ui, -apple-system, Segoe UI, Roboto';
+    ctx.fillText(xLabel, w-46, h-10);
+    ctx.save(); ctx.translate(14, 24); ctx.rotate(-Math.PI/2); ctx.fillText(yLabel, 0, 0); ctx.restore();
+    const xMap = v => 40 + (w-60) * ((v - vRange.min)/(vRange.max - vRange.min));
+    const yMap = y => (h-30) - (h-40) * ((y - yRange.min)/(yRange.max - yRange.min));
+    // ticks
+    ctx.strokeStyle='#475569'; ctx.fillStyle='#94a3b8';
+    const vx=[0, base.V/2, base.V, 2*base.V, 4*base.V], vl=['0','v₀/2','v₀','2v₀','4v₀'];
+    vx.forEach((vv,i)=>{ if(vv<vRange.min||vv>vRange.max) return; const x=xMap(vv); ctx.beginPath(); ctx.moveTo(x,h-30); ctx.lineTo(x,h-26); ctx.stroke(); ctx.fillText(vl[i], x-12, h-8); });
+    const isP = (yLabel==='P'), isT=(yLabel==='T'); const b=isP?base.P:(isT?base.T:1);
+    const yy=[0,b/2,b,2*b,4*b], yl=isP?['0','p₀/2','p₀','2p₀','4p₀']:['0','t₀/2','t₀','2t₀','4t₀'];
+    yy.forEach((vv,i)=>{ if(vv<yRange.min||vv>yRange.max) return; const y=yMap(vv); ctx.beginPath(); ctx.moveTo(40,y); ctx.lineTo(44,y); ctx.stroke(); ctx.fillText(yl[i], 8, y+4); });
+    return {xMap,yMap};
+  }
+
+  let overlay = {start:null, end:null, color:'#ffa0d0', workSign:1}; // latest segment
+  let overlaySelected = {start:null, end:null, color:'#ffa0d0', workSign:1}; // clicked
+  function selectOverlayByStep(stepIdx){
+    const seg = stepSegments[stepIdx];
+    if(!seg){ overlaySelected={start:null,end:null,color:'#ffa0d0',workSign:1}; return; }
+    overlaySelected={start:seg.start, end:seg.start+seg.count-1, color:seg.color, workSign:seg.workSign};
+  }
+
+  function makeHatchPattern(color, slope=1){
+    const off=document.createElement('canvas'); off.width=8; off.height=8;
+    const c=off.getContext('2d');
+    c.strokeStyle=color; c.lineWidth=1;
+    c.beginPath();
+    if(slope>0){ c.moveTo(0,8); c.lineTo(8,0); c.moveTo(-2,8); c.lineTo(6,0); }
+    else{ c.moveTo(0,0); c.lineTo(8,8); c.moveTo(-2,0); c.lineTo(6,8); }
+    c.stroke();
+    return c.createPattern(off, 'repeat');
+  }
+
+  function fillWorkArea(ctx, pts, xMap, yMap, sign){
+    if(pts.length<2) return;
+    const w = ctx.canvas.width/(window.devicePixelRatio||1);
+    const h = ctx.canvas.height/(window.devicePixelRatio||1);
+    ctx.save();
+    ctx.beginPath();
+    pts.forEach((pt,i)=>{ const X=xMap(pt.V), Y=yMap(pt.P); if(i===0) ctx.moveTo(X,Y); else ctx.lineTo(X,Y); });
+    // close to baseline (P=0)
+    const last=pts[pts.length-1], first=pts[0];
+    ctx.lineTo(xMap(last.V), yMap(0));
+    ctx.lineTo(xMap(first.V), yMap(0));
+    ctx.closePath();
+    const pattern = makeHatchPattern(sign>=0?'rgba(245,158,11,0.35)':'rgba(34,211,238,0.35)', sign>=0?1:-1);
+    ctx.fillStyle = pattern;
+    ctx.fill('nonzero');
+    ctx.restore();
+  }
+
+  function plotPV(){
+    fitHiDPI(pv, ctxPV);
+    const vRange = rng(histPV.map(p=>p.V), 0);
+    const pRange = rng(histPV.map(p=>p.P), 0);
+    const m = drawAxes(ctxPV, pv.width/(window.devicePixelRatio||1), pv.height/(window.devicePixelRatio||1), 'V', 'P', vRange, pRange);
+
+    // full history in base color
+    ctxPV.lineWidth=2; ctxPV.strokeStyle=getComputedStyle(document.documentElement).getPropertyValue('--blue') || '#67b0ff';
+    ctxPV.beginPath();
+    histPV.forEach((pt,i)=>{ const X=m.xMap(pt.V), Y=m.yMap(pt.P); if(i===0) ctxPV.moveTo(X,Y); else ctxPV.lineTo(X,Y); });
+    ctxPV.stroke();
+
+    // draw all past segments with their saved heat color (persist)
+    if (typeof stepSegments !== 'undefined' && stepSegments.length) {
+      for (let i=0;i<stepSegments.length;i++){
+        const seg = stepSegments[i];
+        if(seg && seg.start!=null && seg.count>1){
+          const s = seg.start, e = seg.start + seg.count - 1;
+          const pts = histPV.slice(s, e+1);
+          ctxPV.lineWidth = 2;
+          ctxPV.strokeStyle = seg.color || (getComputedStyle(document.documentElement).getPropertyValue('--blue') || '#67b0ff');
+          ctxPV.beginPath();
+          pts.forEach((pt,j)=>{ const X=m.xMap(pt.V), Y=m.yMap(pt.P); if(j===0) ctxPV.moveTo(X,Y); else ctxPV.lineTo(X,Y); });
+          ctxPV.stroke();
+        }
+      }
+    }
+    // selected overlay
+    if(overlaySelected.start!=null && overlaySelected.end!=null && overlaySelected.end>overlaySelected.start){
+      const pts = histPV.slice(overlaySelected.start, overlaySelected.end+1);
+      fillWorkArea(ctxPV, pts, m.xMap, m.yMap, overlaySelected.workSign);
+      ctxPV.lineWidth=3; ctxPV.strokeStyle=overlaySelected.color; ctxPV.beginPath();
+      pts.forEach((pt,i)=>{ const X=m.xMap(pt.V), Y=m.yMap(pt.P); if(i===0) ctxPV.moveTo(X,Y); else ctxPV.lineTo(X,Y); });
+      ctxPV.stroke();
+    }
+    // overlay latest segment colored by heat sign + hatched area by work sign
+    if(overlay.start!=null && overlay.end!=null && overlay.end>overlay.start){
+      const pts = histPV.slice(overlay.start, overlay.end+1);
+      fillWorkArea(ctxPV, pts, m.xMap, m.yMap, overlay.workSign);
+      ctxPV.lineWidth=3; ctxPV.strokeStyle=overlay.color; ctxPV.beginPath();
+      pts.forEach((pt,i)=>{ const X=m.xMap(pt.V), Y=m.yMap(pt.P); if(i===0) ctxPV.moveTo(X,Y); else ctxPV.lineTo(X,Y); });
+      ctxPV.stroke();
+    }
+
+    // TARGET-PV-ANN: step numerals near segment ends
+    if (stepSegments.length){
+      ctxPV.fillStyle = '#e5e7eb';
+      ctxPV.font = '12px system-ui, -apple-system, Segoe UI, Roboto';
+      for (let i=0;i<stepSegments.length;i++){
+        const seg = stepSegments[i];
+        const idx = seg.start + seg.count - 1;
+        if(idx>=0 && idx < histPV.length){
+          const pt = histPV[idx];
+          const X = m.xMap(pt.V), Y = m.yMap(pt.P);
+          const label = circ[i % circ.length] || String(i+1);
+          ctxPV.fillText(label, X+4, Y-6);
+        }
+      }
+    }
+  }
+
+  function plotTV(){
+    fitHiDPI(tv, ctxTV);
+    const vRange = rng(histTV.map(p=>p.V), 0);
+    const tRange = rng(histTV.map(p=>p.T), 0);
+    const m = drawAxes(ctxTV, tv.width/(window.devicePixelRatio||1), tv.height/(window.devicePixelRatio||1), 'V', 'T', vRange, tRange);
+
+    ctxTV.lineWidth=2; ctxTV.strokeStyle=getComputedStyle(document.documentElement).getPropertyValue('--green') || '#66e3a1';
+    ctxTV.beginPath();
+    histTV.forEach((pt,i)=>{ const X=m.xMap(pt.V), Y=m.yMap(pt.T); if(i===0) ctxTV.moveTo(X,Y); else ctxTV.lineTo(X,Y); });
+    ctxTV.stroke();
+
+    // draw all past segments with their saved heat color (persist)
+    if (typeof stepSegments !== 'undefined' && stepSegments.length) {
+      for (let i=0;i<stepSegments.length;i++){
+        const seg = stepSegments[i];
+        if(seg && seg.start!=null && seg.count>1){
+          const s = seg.start, e = seg.start + seg.count - 1;
+          const pts = histTV.slice(s, e+1);
+          ctxTV.lineWidth = 2;
+          ctxTV.strokeStyle = seg.color || (getComputedStyle(document.documentElement).getPropertyValue('--green') || '#66e3a1');
+          ctxTV.beginPath();
+          pts.forEach((pt,j)=>{ const X=m.xMap(pt.V), Y=m.yMap(pt.T); if(j===0) ctxTV.moveTo(X,Y); else ctxTV.lineTo(X,Y); });
+          ctxTV.stroke();
+        }
+      }
+    }
+    if(overlaySelected.start!=null && overlaySelected.end!=null && overlaySelected.end>overlaySelected.start){
+      const pts = histTV.slice(overlaySelected.start, overlaySelected.end+1);
+      ctxTV.lineWidth=3; ctxTV.strokeStyle=overlaySelected.color; ctxTV.beginPath();
+      pts.forEach((pt,i)=>{ const X=m.xMap(pt.V), Y=m.yMap(pt.T); if(i===0) ctxTV.moveTo(X,Y); else ctxTV.lineTo(X,Y); });
+      ctxTV.stroke();
+    }
+    if(overlay.start!=null && overlay.end!=null && overlay.end>overlay.start){
+      const pts = histTV.slice(overlay.start, overlay.end+1);
+      ctxTV.lineWidth=3; ctxTV.strokeStyle=overlay.color; ctxTV.beginPath();
+      pts.forEach((pt,i)=>{ const X=m.xMap(pt.V), Y=m.yMap(pt.T); if(i===0) ctxTV.moveTo(X,Y); else ctxTV.lineTo(X,Y); });
+      ctxTV.stroke();
+    }
+
+    // TARGET-TV-ANN
+    if (stepSegments.length){
+      ctxTV.fillStyle = '#e5e7eb';
+      ctxTV.font = '12px system-ui, -apple-system, Segoe UI, Roboto';
+      for (let i=0;i<stepSegments.length;i++){
+        const seg = stepSegments[i];
+        const idx = seg.start + seg.count - 1;
+        if(idx>=0 && idx < histTV.length){
+          const pt = histTV[idx];
+          const X = m.xMap(pt.V), Y = m.yMap(pt.T);
+          const label = circ[i % circ.length] || String(i+1);
+          ctxTV.fillText(label, X+4, Y-6);
+        }
+      }
+    }
+  }
+
+  function pushHist(){
+    histPV.push({P:state.P, V:state.V});
+    histTV.push({T:state.T, V:state.V});
+    if(histPV.length>MAX) histPV.splice(0, histPV.length-MAX);
+    if(histTV.length>MAX) histTV.splice(0, histTV.length-MAX);
+  }
+
+  // ===== Sampling, Thermo, Animation =====
+  function sampleCurve(mode, fromState, toState, N){
+    const pts=[]; const nR=n*R; const s0={...fromState}; const s1={...toState};
+    for(let i=0;i<=N;i++){
+      const t=i/N; let P,V,T;
+      if(mode==='isothermal'){ T=s0.T; const Vtar=s0.V*Math.pow(s1.V/s0.V, t); V=Vtar; P=(nR*T)/V; }
+      else if(mode==='isobaric'){ P=s0.P; const Ttar=s0.T+(s1.T-s0.T)*t; T=Ttar; V=(nR*T)/P; }
+      else if(mode==='isochoric'){ V=s0.V; const Ttar=s0.T+(s1.T-s0.T)*t; T=Ttar; P=(nR*T)/V; }
+      else if(mode==='adiabatic'){ const K=s0.P*Math.pow(s0.V,gamma); const Vtar=s0.V*Math.pow(s1.V/s0.V, t); V=Vtar; P=K/Math.pow(V,gamma); T=(P*V)/nR; }
+      else if(mode==='simul'){ const Ptar=s0.P*Math.pow(s1.P/s0.P, t); const Vtar=s0.V*Math.pow(s1.V/s0.V, t); P=Ptar; V=Vtar; T=(P*V)/nR; }
+      else { P=s0.P+(s1.P-s0.P)*t; V=s0.V+(s1.V-s0.V)*t; T=(P*V)/nR; }
+      pts.push({P,V,T});
+    }
+    return pts;
+  }
+
+  let Q_in=0, Q_out=0, W_acc=0;
+  function resetThermo(){ Q_in=0; Q_out=0; W_acc=0; }
+  function thermoDelta(p1,v1,t1,p2,v2,t2){
+    const dW = 0.5*(p1 + p2) * (v2 - v1);
+    const dU = (n*CvU) * (t2 - t1);
+    const dQ = dU + dW;
+    if(dQ>=0) Q_in+=dQ; else Q_out+=(-dQ); W_acc+=dW;
+    return {dW, dQ};
+  }
+
+  let animating=false;
+  function animateAlongCurve(curve, onDone){
+    animating=true;
+    const start = histPV.length;
+    let i=0;
+    let segW=0, segQnet=0, segQpos=0, segQneg=0;
+    function tick(){
+      if(i>=curve.length){ // finish
+        animating=false;
+        const end = histPV.length-1;
+        const color = (Math.abs(segQnet)<1e-10)? (getComputedStyle(document.documentElement).getPropertyValue('--pink') || '#ffa0d0') : ((segQnet>0)? (getComputedStyle(document.documentElement).getPropertyValue('--heat') || '#ef4444') : (getComputedStyle(document.documentElement).getPropertyValue('--cool') || '#60a5fa'));
+        const workSign = (segW>=0)? 1 : -1;
+        overlay = {start, end, color, workSign};
+        const seg = {start, count:(end-start+1), curve:[...curve], prevState:{...curve[0]}, toState:{...curve[curve.length-1]}, W:segW, Qnet:segQnet, Qpos:segQpos, Qneg:segQneg, color, workSign};
+        stepSegments.push(seg); redoStack.length=0;
+        if(typeof onDone==='function') onDone(seg);
+        return;
+      }
+      const pt = curve[i];
+      if(i>0){
+        const prev = curve[i-1];
+        const {dW,dQ} = thermoDelta(prev.P,prev.V,prev.T, pt.P,pt.V,pt.T);
+        segW += dW; segQnet += dQ; if(dQ>=0) segQpos += dQ; else segQneg += dQ;
+      }
+      state.P=pt.P; state.V=pt.V; state.T=pt.T; pushHist(); i++; requestAnimationFrame(tick);
+    }
+    requestAnimationFrame(tick);
+  }
+
+  function refreshThermo(){
+    const summary=document.getElementById('summaryTotals');
+    const qinSpan=document.getElementById('qin');
+    const qoutSpan=document.getElementById('qout');
+    const wSpan=document.getElementById('wacc');
+    const etaSpan=document.getElementById('eta');
+    const qin=(Q_in/(base.P*base.V)).toFixed(3);
+    const qout=(Q_out/(base.P*base.V)).toFixed(3);
+    const w=(W_acc/(base.P*base.V)).toFixed(3);
+    const eta = (Q_in>1e-12)? (W_acc/Q_in).toFixed(3) : '—';
+    if(summary) summary.textContent = `Q_in=${qin} pV / Q_out=${qout} pV / W=${w} pV / η=${eta}`;
+    if(qinSpan) qinSpan.textContent = qin;
+    if(qoutSpan) qoutSpan.textContent = qout;
+    if(wSpan) wSpan.textContent = w;
+    if(etaSpan) etaSpan.textContent = eta;
+  }
+
+  // ===== Buttons =====
+  document.getElementById('reset').addEventListener('click', ()=>{
+    state={...base}; target={...base}; histPV.length=0; histTV.length=0; steps.length=0; stepSegments.length=0; redoStack.length=0; overlay={start:null,end:null,color:'#ffa0d0',workSign:1}; cycleStart=0; resetThermo(); addStep(state.P,state.V,state.T, undefined, 0,0,0); refreshThermo();
+  });
+  document.getElementById('clear').addEventListener('click', ()=>{ histPV.length=0; histTV.length=0; steps.length=0; stepSegments.length=0; redoStack.length=0; overlay={start:null,end:null,color:'#ffa0d0',workSign:1}; resetThermo(); refreshThermo(); renderHistory(); });
+  document.getElementById('cycle').addEventListener('click', ()=>{ cycleStart = histPV.length; resetThermo(); refreshThermo(); });
+
+  // TARGET-EXEC patched: absolute-to-base setting
+  function execStepNow(){
+    if(animating) return;
+    const proc=(document.querySelector('input[name="stepProc"]:checked')||{}).value||'isothermal';
+    function getMul(group, id){
+      const mv = parseFloat((document.getElementById(id)||{}).value||'');
+      if(mv>0) return mv;
+      const rb = document.querySelector('input[name="'+group+'"]:checked');
+      return parseFloat(rb?rb.value:'1');
+    }
+    const mP = getMul('absP','absPval');
+    const mV = getMul('absV','absVval');
+    const mT = getMul('absT','absTval');
+    const Pabs = base.P * mP, Vabs = base.V * mV, Tabs = base.T * mT;
+
+    showMsg('');
+    const prevState={...state};
+    let P=state.P, V=state.V, T=state.T; const K=P*Math.pow(V,gamma);
+    function invalid(msg){ showMsg(msg); return null; }
+
+    if(proc==='isothermal'){
+      T = state.T;
+      if(mV!==1 || (document.getElementById('absVval')||{}).value){ V=Vabs; P=(n*R*T)/V; }
+      else if(mP!==1 || (document.getElementById('absPval')||{}).value){ P=Pabs; V=(n*R*T)/P; }
+      else { /* keep state; final equality check will decide */ }
+    }else if(proc==='isobaric'){
+      if(mP!==1 || (document.getElementById('absPval')||{}).value){ P=Pabs; } else { P=state.P; }
+      if(mV!==1 || (document.getElementById('absVval')||{}).value){ V=Vabs; T=(P*V)/(n*R); }
+      else if(mT!==1 || (document.getElementById('absTval')||{}).value){ T=Tabs; V=(n*R*T)/P; }
+      else { /* keep state; final equality check will decide */ }
+    }else if(proc==='isochoric'){
+      if(mV!==1 || (document.getElementById('absVval')||{}).value){ V=Vabs; } else { V=state.V; }
+      if(mT!==1 || (document.getElementById('absTval')||{}).value){ T=Tabs; P=(n*R*T)/V; }
+      else if(mP!==1 || (document.getElementById('absPval')||{}).value){ P=Pabs; T=(P*V)/(n*R); }
+      else { /* keep state; final equality check will decide */ }
+    }else if(proc==='adiabatic'){
+      if(mV!==1 || (document.getElementById('absVval')||{}).value){ V=Vabs; P=K/Math.pow(V,gamma); T=(P*V)/(n*R); }
+      else if(mP!==1 || (document.getElementById('absPval')||{}).value){ P=Pabs; V=Math.pow(K/P, 1/gamma); T=(P*V)/(n*R); }
+      else { /* keep state; final equality check will decide */ }
+    }else if(proc==='simul'){
+      P=Pabs; V=Vabs; T=(P*V)/(n*R);
+    }
+
+    const toState = {P,V,T};
+    const __eps=1e-12;
+    if (Math.abs(toState.P - prevState.P) < __eps &&
+        Math.abs(toState.V - prevState.V) < __eps &&
+        Math.abs(toState.T - prevState.T) < __eps){
+      return invalid('変化なし');
+    }
+    const N = Math.max(10, Math.min(400, parseInt((document.getElementById('sampleN')?.value)||'60',10)));
+    const curve = sampleCurve(proc, prevState, toState, N);
+    animateAlongCurve(curve, (seg)=>{
+      const Wseg = seg.W; const Qin = Math.max(0, seg.Qpos); const Qout = Math.max(0, -seg.Qneg);
+      const U_end = (n*CvU)*seg.toState.T;
+      addStep(seg.toState.P, seg.toState.V, seg.toState.T, U_end, Wseg, Qin, Qout);
+      refreshThermo();
+    });
+  }
+  document.getElementById('execStep').addEventListener('click', execStepNow);
+
+  // Undo/Redo
+  function undoLast(){
+    if(animating) return;
+    if(stepSegments.length===0) return;
+    const seg = stepSegments.pop();
+    // remove points from histories
+    histPV.splice(seg.start, seg.count);
+    histTV.splice(seg.start, seg.count);
+    // pop last step
+    if(steps.length>1) steps.pop();
+    // totals rollback
+    W_acc -= seg.W;
+    Q_in -= Math.max(0, seg.Qpos);
+    Q_out -= Math.max(0, -seg.Qneg);
+    refreshThermo();
+    // state rollback to previous step (or base)
+    const prev = (steps.length>0)? steps[steps.length-1] : base;
+    state = {P:prev.P, V:prev.V, T:prev.T};
+    target = {...state};
+    // push redo
+    redoStack.push(seg);
+    // overlay to new last segment
+    if(stepSegments.length>0){
+      const last = stepSegments[stepSegments.length-1];
+      overlay = {start:last.start, end:last.start+last.count-1, color:last.color, workSign:last.workSign};
+    }else{
+      overlay = {start:null,end:null,color:'#ffa0d0', workSign:1};
+    }
+    renderHistory();
+  }
+  function redoNext(){
+    if(animating) return;
+    if(redoStack.length===0) return;
+    const seg = redoStack.pop();
+    // add curve points back
+    const start = histPV.length;
+    seg.curve.forEach(pt=>{ state.P=pt.P; state.V=pt.V; state.T=pt.T; pushHist(); });
+    // totals forward
+    W_acc += seg.W;
+    Q_in += Math.max(0, seg.Qpos);
+    Q_out += Math.max(0, -seg.Qneg);
+    refreshThermo();
+    // add step
+    addStep(seg.toState.P, seg.toState.V, seg.toState.T, (n*CvU)*seg.toState.T, seg.W, Math.max(0, seg.Qpos), Math.max(0, -seg.Qneg));
+    // overlay update
+    overlay = {start, end:histPV.length-1, color:seg.color, workSign:seg.workSign};
+    // re-push into segments
+    const seg2 = {...seg, start, count:(overlay.end - start + 1)};
+    stepSegments.push(seg2);
+  }
+  document.getElementById('undoStep').addEventListener('click', undoLast);
+  document.getElementById('redoStep').addEventListener('click', redoNext);
+  document.getElementById('hardReset').addEventListener('click', ()=>{
+    state={...base}; target={...base}; histPV.length=0; histTV.length=0; steps.length=0; stepSegments.length=0; redoStack.length=0; overlay={start:null,end:null,color:'#ffa0d0',workSign:1}; cycleStart=0; resetThermo(); addStep(state.P,state.V,state.T, undefined, 0,0,0); refreshThermo();
+  });
+
+  // ===== Frame loop =====
+  function stepFrame(dt){
+    Pread.textContent = state.P.toFixed(3);
+    Vread.textContent = state.V.toFixed(3);
+    Tread.textContent = state.T.toFixed(3);
+    const cs=document.getElementById('currentState'); if(cs){ cs.textContent = `現在: p=${state.P.toFixed(3)} , V=${state.V.toFixed(3)} , T=${state.T.toFixed(3)}`; }
+    plotPV(); plotTV();
+    if(window.__drawSim) window.__drawSim(state);
+  }
+
+  addStep(state.P,state.V,state.T, undefined, 0,0,0);
+  const clock = new PhysicsSimClock.FixedStepClock({
+    step: 1 / 60,
+    onStep(dt){ stepFrame(dt); }
+  });
+  clock.start();
+
+  // Helpers
+  document.getElementById('resetSteps').addEventListener('click', ()=>{
+    state={...base}; target={...base}; histPV.length=0; histTV.length=0; steps.length=0; stepSegments.length=0; redoStack.length=0; overlay={start:null,end:null,color:'#ffa0d0',workSign:1}; cycleStart=0; resetThermo(); addStep(state.P,state.V,state.T, undefined, 0,0,0); refreshThermo();
+  });
+  document.getElementById('toggleContinuous').addEventListener('change',()=>{});
+})();
+</script>
+<script>
+(function(){
+  const canvas = document.getElementById('simCanvas'); if(!canvas) return;
+  const ctx = canvas.getContext('2d');
+  function fit(){ const r=canvas.getBoundingClientRect(); const dpr=Math.max(1,window.devicePixelRatio||1); canvas.width=r.width*dpr; canvas.height=r.height*dpr; ctx.setTransform(dpr,0,0,dpr,0,0); }
+  window.addEventListener('resize', fit); setTimeout(fit, 50);
+  const N=40; const parts=[];
+  function resetParts(){ parts.length=0; const W=canvas.clientWidth, H=canvas.clientHeight;
+    for(let i=0;i<N;i++){ parts.push({x:40+Math.random()*(W-120), y:30+Math.random()*(H-60), vx:(Math.random()*2-1)*60, vy:(Math.random()*2-1)*60}); } }
+  resetParts();
+  function lerp(a,b,t){return a+(b-a)*t;} function clamp(x,a,b){return Math.max(a,Math.min(b,x));}
+  function map01(x,a,b){return clamp((x-a)/(b-a),0,1);}
+  window.__drawSim = function(s){
+    const W=canvas.width/(window.devicePixelRatio||1), H=canvas.height/(window.devicePixelRatio||1);
+    ctx.clearRect(0,0,W,H);
+    const left=40, right=W-40, top=24, bottom=H-24;
+    const vScale = clamp(s.V/1.0, 0.5, 4.0);
+    const pistonX = lerp(left+40, right-40, map01(vScale, 0.5, 4.0));
+    const pres = clamp(s.P/1.0, 0, 4);
+    const cold={r:96,g:165,b:250}, hot={r:239,g:68,b:68};
+    const tt = map01(pres, 0.5, 3.0);
+    const wall = {r:Math.round(lerp(cold.r,hot.r,tt)), g:Math.round(lerp(cold.g,hot.g,tt)), b:Math.round(lerp(cold.b,hot.b,tt))};
+    // cylinder & piston
+    ctx.strokeStyle=`rgba(${wall.r},${wall.g},${wall.b},0.9)`; ctx.lineWidth=3;
+    ctx.strokeRect(left, top, pistonX-left, bottom-top);
+    ctx.fillStyle=`rgba(${wall.r},${wall.g},${wall.b},0.25)`; ctx.fillRect(pistonX-4, top, 8, bottom-top);
+    // molecules (temp -> speed & color)
+    const temp = clamp(s.T/1.0, 0.5, 4.0); const speedBase = 40*Math.sqrt(temp);
+    for(const p of parts){
+      p.vx += (Math.random()*2-1) * 5 * (temp-1);
+      p.vy += (Math.random()*2-1) * 5 * (temp-1);
+      const sp = Math.hypot(p.vx,p.vy); const lim = speedBase; if(sp>lim){ p.vx*=lim/sp; p.vy*=lim/sp; }
+      p.x += p.vx*(1/60); p.y += p.vy*(1/60);
+      const minX=left+3, maxX=pistonX-6, minY=top+3, maxY=bottom-3;
+      if(p.x<minX){ p.x=minX; p.vx*=-1; } if(p.x>maxX){ p.x=maxX; p.vx*=-1; }
+      if(p.y<minY){ p.y=minY; p.vy*=-1; } if(p.y>maxY){ p.y=maxY; p.vy*=-1; }
+      const sratio = Math.min(1, Math.hypot(p.vx,p.vy)/(speedBase+1e-6));
+      const cr=Math.round(lerp(103,239,sratio)), cg=Math.round(lerp(176,68,sratio)), cb=Math.round(lerp(255,68,sratio));
+      ctx.fillStyle=`rgba(${cr},${cg},${cb},0.9)`; ctx.beginPath(); ctx.arc(p.x,p.y,2.2,0,Math.PI*2); ctx.fill();
+    }
+    ctx.fillStyle='#9fb0c2'; ctx.font='12px system-ui, -apple-system, Segoe UI, Roboto';
+    ctx.fillText(`P=${s.P.toFixed(2)}  V=${s.V.toFixed(2)}  T=${s.T.toFixed(2)}`, left, top-8);
+  };
+})();
+</script>
+
+</body>
+</html>

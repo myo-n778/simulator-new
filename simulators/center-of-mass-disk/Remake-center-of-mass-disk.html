@@ -1,0 +1,1075 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>くり抜き円板の重心シミュレーター</title>
+<link rel="stylesheet" href="../../assets/common-sim.css">
+<script src="../../assets/sim-shell.js"></script>
+<style>
+  :root {
+    --bg: #f5f7fb;
+    --ink: #17202a;
+    --muted: #667085;
+    --line: #d9e1ec;
+    --panel: #ffffff;
+    --accent: #245f9f;
+    --accent-soft: #e8f1fb;
+    --warn: #b45309;
+    --danger: #b42318;
+    --ok: #027a48;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    overflow-x: hidden;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Hiragino Kaku Gothic ProN", Meiryo, sans-serif;
+    line-height: 1.45;
+  }
+  main {
+    width: min(1220px, calc(100% - 28px));
+    margin: 18px auto 28px;
+  }
+  h1 {
+    margin: 0 0 12px;
+    font-size: 20px;
+    line-height: 1.3;
+    letter-spacing: 0;
+  }
+  .workspace {
+    display: grid;
+    grid-template-columns: minmax(0, 1.35fr) minmax(340px, .85fr);
+    gap: 14px;
+    align-items: start;
+  }
+  .panel {
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--panel);
+    box-shadow: 0 12px 28px rgba(23, 32, 42, .08);
+  }
+  .scene-panel { padding: 12px; }
+  canvas {
+    display: block;
+    width: 100%;
+    height: min(56vw, 560px);
+    min-height: 420px;
+    border: 1px solid #d7deea;
+    border-radius: 8px;
+    background: #fbfdff;
+    touch-action: none;
+  }
+  .note {
+    margin-top: 10px;
+    color: var(--muted);
+    font-size: 12px;
+  }
+  .side-panel {
+    position: sticky;
+    top: 74px;
+    overflow: hidden;
+  }
+  .readout {
+    display: grid;
+    gap: 10px;
+    padding: 14px;
+  }
+  .status {
+    display: grid;
+    gap: 2px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    background: var(--accent-soft);
+    color: #184e77;
+    font-weight: 800;
+  }
+  .status small {
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 600;
+  }
+  .status.is-ok { background: #ecfdf3; color: var(--ok); }
+  .status.is-left, .status.is-right { background: #fff7ed; color: var(--warn); }
+  .metrics {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+  .metric {
+    min-width: 0;
+    padding: 8px 9px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: #fbfcfe;
+  }
+  .metric span {
+    display: block;
+    color: var(--muted);
+    font-size: 11px;
+    line-height: 1.25;
+  }
+  .metric b {
+    display: block;
+    margin-top: 2px;
+    font-size: 14px;
+    line-height: 1.25;
+    white-space: nowrap;
+  }
+  .formula {
+    padding: 10px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: #f8fafc;
+    color: #334155;
+    font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    font-size: 11px;
+    line-height: 1.55;
+    overflow: auto;
+  }
+  .controls {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(280px, 1fr));
+    gap: 10px 14px;
+    margin-top: 14px;
+    padding: 14px;
+  }
+  .control {
+    display: grid;
+    grid-template-columns: 134px minmax(0, 1fr) 74px;
+    gap: 8px;
+    align-items: center;
+  }
+  .control label {
+    color: #344054;
+    font-size: 13px;
+    font-weight: 700;
+  }
+  input[type="range"] { width: 100%; }
+  output {
+    color: #475467;
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+  }
+  .actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    align-items: center;
+    grid-column: 1 / -1;
+    padding-top: 4px;
+  }
+  button {
+    min-height: 34px;
+    border: 1px solid #bfd0e4;
+    border-radius: 8px;
+    background: #fff;
+    color: #184e77;
+    font-size: 13px;
+    font-weight: 700;
+    cursor: pointer;
+  }
+  button.primary {
+    border-color: var(--accent);
+    background: var(--accent);
+    color: #fff;
+  }
+  .toggle {
+    display: inline-flex;
+    gap: 6px;
+    align-items: center;
+    color: #344054;
+    font-size: 13px;
+    font-weight: 700;
+  }
+  @media (max-width: 920px) {
+    .workspace { grid-template-columns: 1fr; }
+    .side-panel { position: static; }
+    canvas { height: 460px; min-height: 380px; }
+  }
+  @media (max-width: 680px) {
+    main { width: min(100% - 18px, 1220px); }
+    .controls { grid-template-columns: 1fr; padding: 12px; }
+    .control { grid-template-columns: 1fr; gap: 4px; }
+    .metrics { grid-template-columns: 1fr; }
+    canvas { height: 410px; min-height: 340px; }
+  }
+</style>
+  <link rel="stylesheet" href="../../assets/remake.css">
+</head>
+<body class="remake-ui">
+  <div class="remake-badge-host"><span class="remake-ribbon">リメイク版</span></div>
+<script>
+  PhysicsSimShell.create({
+    title: "くり抜き円板の重心",
+    subtitle: "負の面積・支点まわりの傾き判定",
+    basePath: "../../"
+  });
+</script>
+
+<main>
+  <h1>くり抜き円板の重心シミュレーター</h1>
+  <div class="workspace">
+    <section class="panel scene-panel" aria-label="重心と力の図">
+      <canvas id="scene" width="960" height="620"></canvas>
+      <p class="note">右側をくり抜いた配置を初期状態にしています。大きい円板の半径を r、穴の半径を kr、穴中心の位置を x<sub>h</sub> として、くり抜いた円を負の面積として扱います。</p>
+    </section>
+
+    <section class="panel side-panel" aria-label="計算結果">
+      <div class="readout">
+        <div id="tiltStatus" class="status">
+          <div id="tiltText">判定</div>
+          <small id="tiltSub">支点と重心の位置関係</small>
+        </div>
+        <div class="metrics">
+          <div class="metric"><span>重心位置 x<sub>G</sub></span><b id="xGRead">0</b></div>
+          <div class="metric"><span>支点位置 p</span><b id="pivotRead">0</b></div>
+          <div class="metric"><span>穴中心 x<sub>h</sub></span><b id="holeXRead">0</b></div>
+          <div class="metric"><span>穴半径比 k</span><b id="holeRRead">0.000</b></div>
+          <div class="metric"><span>残る面積比</span><b id="areaRead">0.000</b></div>
+          <div class="metric"><span>モーメント腕</span><b id="armRead">0.000 R</b></div>
+        </div>
+        <div class="formula" id="formulaRead"></div>
+      </div>
+    </section>
+  </div>
+
+  <section class="panel controls" aria-label="条件">
+    <div class="control">
+      <label for="holeRatio">穴半径比 k</label>
+      <input id="holeRatio" type="range" min="0.10" max="0.70" step="0.01" value="0.50">
+      <output id="holeRatioOut">0.50r</output>
+    </div>
+    <div class="control">
+      <label for="holeX">穴中心 x<sub>h</sub></label>
+      <input id="holeX" type="range" min="-0.90" max="0.90" step="0.01" value="0.50">
+      <output id="holeXOut">r/2</output>
+    </div>
+    <div class="control">
+      <label for="pivotX">支点位置 p</label>
+      <input id="pivotX" type="range" min="-0.95" max="0.95" step="0.01" value="0.00">
+      <output id="pivotXOut">0</output>
+    </div>
+    <div class="control">
+      <label for="angle">回転角</label>
+      <input id="angle" type="range" min="-180" max="180" step="1" value="0">
+      <output id="angleOut">0°</output>
+    </div>
+    <div class="control">
+      <label for="viewAzimuth">斜め視点</label>
+      <input id="viewAzimuth" type="range" min="-180" max="180" step="1" value="34">
+      <output id="viewAzimuthOut">34°</output>
+    </div>
+    <div class="control">
+      <label for="viewElevation">見上げ角</label>
+      <input id="viewElevation" type="range" min="-90" max="90" step="1" value="18">
+      <output id="viewElevationOut">18°</output>
+    </div>
+    <div class="actions">
+      <button id="mirrorBtn" type="button">左右反転</button>
+      <button id="poseResetBtn" type="button">姿勢を戻す</button>
+      <button id="settingsResetBtn" type="button">条件を初期化</button>
+      <button id="settleBtn" type="button" class="primary">傾く様子を表示</button>
+      <button id="spinBtn" type="button">コマ回転</button>
+      <label class="toggle"><input id="showRotated" type="checkbox" checked> 回転表示</label>
+      <label class="toggle"><input id="showFormula" type="checkbox" checked> 式を表示</label>
+    </div>
+  </section>
+</main>
+
+<script>
+(() => {
+  const canvas = document.getElementById("scene");
+  const ctx = canvas.getContext("2d");
+  const els = {
+    holeRatio: document.getElementById("holeRatio"),
+    holeX: document.getElementById("holeX"),
+    pivotX: document.getElementById("pivotX"),
+    angle: document.getElementById("angle"),
+    viewAzimuth: document.getElementById("viewAzimuth"),
+    viewElevation: document.getElementById("viewElevation"),
+    holeRatioOut: document.getElementById("holeRatioOut"),
+    holeXOut: document.getElementById("holeXOut"),
+    pivotXOut: document.getElementById("pivotXOut"),
+    angleOut: document.getElementById("angleOut"),
+    viewAzimuthOut: document.getElementById("viewAzimuthOut"),
+    viewElevationOut: document.getElementById("viewElevationOut"),
+    xGRead: document.getElementById("xGRead"),
+    pivotRead: document.getElementById("pivotRead"),
+    holeXRead: document.getElementById("holeXRead"),
+    holeRRead: document.getElementById("holeRRead"),
+    areaRead: document.getElementById("areaRead"),
+    armRead: document.getElementById("armRead"),
+    formulaRead: document.getElementById("formulaRead"),
+    tiltStatus: document.getElementById("tiltStatus"),
+    tiltText: document.getElementById("tiltText"),
+    tiltSub: document.getElementById("tiltSub"),
+    showRotated: document.getElementById("showRotated"),
+    showFormula: document.getElementById("showFormula")
+  };
+
+  const state = {
+    holeRatio: 0.5,
+    holeX: 0.5,
+    pivotX: 0,
+    angle: 0,
+    viewAzimuth: 34 * Math.PI / 180,
+    viewElevation: 18 * Math.PI / 180,
+    animating: false,
+    animationStart: 0,
+    startAngle: 0,
+    targetAngle: 0,
+    spinAngle: 0,
+    spinning: false,
+    spinLastTime: 0,
+    draggingView: false,
+    dragStartX: 0,
+    dragStartY: 0,
+    dragStartAzimuth: 0,
+    dragStartElevation: 0,
+    currentObliqueBox: null
+  };
+
+  function clamp(value, min, max) {
+    return Math.min(max, Math.max(min, value));
+  }
+
+  function syncFromInputs() {
+    state.holeRatio = Number(els.holeRatio.value);
+    const limit = 1 - state.holeRatio;
+    state.holeX = clamp(Number(els.holeX.value), -limit, limit);
+    els.holeX.value = state.holeX.toFixed(2);
+    state.pivotX = Number(els.pivotX.value);
+    state.angle = Number(els.angle.value) * Math.PI / 180;
+    state.viewAzimuth = Number(els.viewAzimuth.value) * Math.PI / 180;
+    state.viewElevation = Number(els.viewElevation.value) * Math.PI / 180;
+  }
+
+  function model() {
+    const k = state.holeRatio;
+    const xh = state.holeX;
+    const area = 1 - k * k;
+    const xG = -(k * k * xh) / area;
+    const arm = xG - state.pivotX;
+    const torqueAtHorizontal = -arm;
+    return { k, xh, area, xG, arm, torqueAtHorizontal };
+  }
+
+  function fmt(value, digits = 3) {
+    const rounded = Math.abs(value) < 0.0005 ? 0 : value;
+    return rounded.toFixed(digits);
+  }
+
+  function gcd(a, b) {
+    while (b) {
+      const t = b;
+      b = a % b;
+      a = t;
+    }
+    return a;
+  }
+
+  function fractionOfRadius(value, maxDenominator = 36) {
+    if (Math.abs(value) < 0.0005) return "0";
+    const sign = value < 0 ? "-" : "";
+    const abs = Math.abs(value);
+    let bestN = 0;
+    let bestD = 1;
+    let bestErr = Infinity;
+    for (let d = 1; d <= maxDenominator; d += 1) {
+      const n = Math.round(abs * d);
+      const err = Math.abs(abs - n / d);
+      if (err < bestErr) {
+        bestN = n;
+        bestD = d;
+        bestErr = err;
+      }
+    }
+    if (bestN === 0) return `${sign}${fmt(abs)}r`;
+    const divisor = gcd(bestN, bestD);
+    bestN /= divisor;
+    bestD /= divisor;
+    const exactEnough = bestErr < 0.0025;
+    const fraction = bestD === 1 ? `${bestN}r` : bestN === 1 ? `r/${bestD}` : `${bestN}r/${bestD}`;
+    if (exactEnough) return `${sign}${fraction}`;
+    return `${sign}${fmt(abs)}r ≒ ${sign}${fraction}`;
+  }
+
+  function directionText(value) {
+    if (Math.abs(value) < 0.0005) return "0";
+    return value > 0 ? `右 ${fractionOfRadius(value)}` : `左 ${fractionOfRadius(Math.abs(value))}`;
+  }
+
+  function updateReadouts(m) {
+    els.holeRatioOut.textContent = `${fmt(m.k, 2)}r`;
+    els.holeXOut.textContent = directionText(m.xh);
+    els.pivotXOut.textContent = directionText(state.pivotX);
+    els.angleOut.textContent = `${Math.round(state.angle * 180 / Math.PI)}°`;
+    els.viewAzimuthOut.textContent = `${Math.round(state.viewAzimuth * 180 / Math.PI)}°`;
+    els.viewElevationOut.textContent = `${Math.round(state.viewElevation * 180 / Math.PI)}°`;
+    els.xGRead.textContent = directionText(m.xG);
+    els.pivotRead.textContent = directionText(state.pivotX);
+    els.holeXRead.textContent = directionText(m.xh);
+    els.holeRRead.textContent = fmt(m.k);
+    els.areaRead.textContent = fmt(m.area);
+    els.armRead.textContent = directionText(m.arm);
+
+    els.formulaRead.hidden = !els.showFormula.checked;
+    els.formulaRead.innerHTML =
+      `A = \\pi r^2 - \\pi(kr)^2 = \\pi r^2(1-k^2)<br>` +
+      `x_G = -\\dfrac{k^2 x_h}{1-k^2} = ${fractionOfRadius(m.xG)}<br>` +
+      `腕 = x_G-p = ${fractionOfRadius(m.arm)}、\\tau_p \\propto -(x_G-p)`;
+
+    els.tiltStatus.classList.remove("is-ok", "is-left", "is-right");
+    if (Math.abs(m.arm) < 0.005) {
+      els.tiltStatus.classList.add("is-ok");
+      els.tiltText.textContent = "つり合い";
+      els.tiltSub.textContent = "支点が重心を通るため、水平のまま保てます。";
+    } else if (m.arm > 0) {
+      els.tiltStatus.classList.add("is-right");
+      els.tiltText.textContent = "右側が下がる";
+      els.tiltSub.textContent = `重心が支点より右へ ${fractionOfRadius(m.arm)} ずれているため、時計回りに傾きます。`;
+    } else {
+      els.tiltStatus.classList.add("is-left");
+      els.tiltText.textContent = "左側が下がる";
+      els.tiltSub.textContent = `重心が支点より左へ ${fractionOfRadius(Math.abs(m.arm))} ずれているため、反時計回りに傾きます。`;
+    }
+  }
+
+  function resizeCanvas() {
+    const rect = canvas.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = Math.max(320, Math.round(rect.width * dpr));
+    canvas.height = Math.max(320, Math.round(rect.height * dpr));
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+
+  function unitToScreen(layout, x, y) {
+    return {
+      x: layout.cx + x * layout.scale,
+      y: layout.cy - y * layout.scale
+    };
+  }
+
+  function rotatedPoint(x, y, pivotX, angle) {
+    const dx = x - pivotX;
+    const c = Math.cos(angle);
+    const s = Math.sin(angle);
+    return {
+      x: pivotX + dx * c - y * s,
+      y: dx * s + y * c
+    };
+  }
+
+  function shortestAngleDelta(from, to) {
+    let delta = to - from;
+    while (delta > Math.PI) delta -= Math.PI * 2;
+    while (delta < -Math.PI) delta += Math.PI * 2;
+    return delta;
+  }
+
+  function easeOutCubic(t) {
+    return 1 - Math.pow(1 - t, 3);
+  }
+
+  function drawArrow(from, to, color, label, labelOffset = { x: 0, y: 0 }) {
+    const dx = to.x - from.x;
+    const dy = to.y - from.y;
+    const len = Math.hypot(dx, dy);
+    if (len < 4) return;
+    const ux = dx / len;
+    const uy = dy / len;
+    ctx.save();
+    ctx.strokeStyle = color;
+    ctx.fillStyle = color;
+    ctx.lineWidth = 2.4;
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.moveTo(from.x, from.y);
+    ctx.lineTo(to.x, to.y);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(to.x, to.y);
+    ctx.lineTo(to.x - ux * 12 - uy * 5, to.y - uy * 12 + ux * 5);
+    ctx.lineTo(to.x - ux * 12 + uy * 5, to.y - uy * 12 - ux * 5);
+    ctx.closePath();
+    ctx.fill();
+    if (label) {
+      ctx.font = "700 13px system-ui, sans-serif";
+      const textWidth = ctx.measureText(label).width;
+      const lx = to.x + labelOffset.x;
+      const ly = to.y + labelOffset.y;
+      ctx.fillStyle = "rgba(255,255,255,.92)";
+      ctx.strokeStyle = "rgba(210,218,230,.95)";
+      ctx.lineWidth = 1;
+      roundRect(lx - 5, ly - 15, textWidth + 10, 21, 5);
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = color;
+      ctx.fillText(label, lx, ly);
+    }
+    ctx.restore();
+  }
+
+  function roundRect(x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.lineTo(x + w - r, y);
+    ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+    ctx.lineTo(x + w, y + h - r);
+    ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+    ctx.lineTo(x + r, y + h);
+    ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+    ctx.lineTo(x, y + r);
+    ctx.quadraticCurveTo(x, y, x + r, y);
+    ctx.closePath();
+  }
+
+  function drawDisk(layout, m, angle, alpha) {
+    const pivot = state.pivotX;
+    const center = rotatedPoint(0, 0, pivot, angle);
+    const hole = rotatedPoint(m.xh, 0, pivot, angle);
+    const g = rotatedPoint(m.xG, 0, pivot, angle);
+    const p0 = unitToScreen(layout, center.x, center.y);
+    const ph = unitToScreen(layout, hole.x, hole.y);
+    const pg = unitToScreen(layout, g.x, g.y);
+    const pp = unitToScreen(layout, pivot, 0);
+    const R = layout.scale;
+    const r = R * m.k;
+
+    ctx.save();
+    ctx.globalAlpha = alpha;
+    ctx.beginPath();
+    ctx.arc(p0.x, p0.y, R, 0, Math.PI * 2);
+    ctx.fillStyle = "#f8d98f";
+    ctx.fill();
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = "#d3aa55";
+    ctx.stroke();
+
+    ctx.globalCompositeOperation = "destination-out";
+    ctx.beginPath();
+    ctx.arc(ph.x, ph.y, r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.globalCompositeOperation = "source-over";
+    ctx.beginPath();
+    ctx.arc(ph.x, ph.y, r, 0, Math.PI * 2);
+    ctx.fillStyle = "#fbfdff";
+    ctx.fill();
+    ctx.strokeStyle = "#c7a66d";
+    ctx.stroke();
+
+    ctx.setLineDash([7, 5]);
+    ctx.strokeStyle = "rgba(65,75,88,.75)";
+    ctx.lineWidth = 1.4;
+    const left = rotatedPoint(-1.05, 0, pivot, angle);
+    const right = rotatedPoint(1.05, 0, pivot, angle);
+    const pl = unitToScreen(layout, left.x, left.y);
+    const pr = unitToScreen(layout, right.x, right.y);
+    ctx.beginPath();
+    ctx.moveTo(pl.x, pl.y);
+    ctx.lineTo(pr.x, pr.y);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    drawPoint(p0, "O", "#1f2937", 5, -16);
+    drawPoint(ph, "H", "#475467", 4, 10);
+    drawPoint(pg, "G", "#b42318", 5, -16);
+    drawPoint(pp, "支点", "#184e77", 5, 10);
+
+    drawArrow({ x: pg.x, y: pg.y - 6 }, { x: pg.x, y: pg.y + 92 }, "#b42318", "重力 W", { x: 10, y: 0 });
+    drawArrow({ x: pp.x, y: pp.y + 88 }, { x: pp.x, y: pp.y + 10 }, "#184e77", "支点反力", { x: 10, y: -2 });
+    drawMomentArm(pp, pg, m.arm);
+
+    if (Math.abs(m.arm) > 0.005 && alpha > 0.9) {
+      drawTorqueCue(layout, m.arm);
+    }
+
+    ctx.restore();
+  }
+
+  function drawPoint(p, label, color, radius, labelDy) {
+    ctx.save();
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, radius, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.font = "800 13px system-ui, sans-serif";
+    ctx.fillText(label, p.x + 8, p.y + labelDy);
+    ctx.restore();
+  }
+
+  function drawMomentArm(pivot, g, arm) {
+    if (Math.abs(arm) < 0.005) return;
+    const y = Math.min(pivot.y, g.y) - 38;
+    ctx.save();
+    ctx.strokeStyle = "#7c2d12";
+    ctx.fillStyle = "#7c2d12";
+    ctx.lineWidth = 2;
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath();
+    ctx.moveTo(pivot.x, pivot.y);
+    ctx.lineTo(pivot.x, y);
+    ctx.moveTo(g.x, g.y);
+    ctx.lineTo(g.x, y);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.beginPath();
+    ctx.moveTo(pivot.x, y);
+    ctx.lineTo(g.x, y);
+    ctx.stroke();
+    const dir = g.x > pivot.x ? 1 : -1;
+    ctx.beginPath();
+    ctx.moveTo(g.x, y);
+    ctx.lineTo(g.x - dir * 10, y - 5);
+    ctx.lineTo(g.x - dir * 10, y + 5);
+    ctx.closePath();
+    ctx.fill();
+    ctx.font = "800 12px system-ui, sans-serif";
+    const label = `腕 ${fractionOfRadius(arm)}`;
+    const tw = ctx.measureText(label).width;
+    const lx = (pivot.x + g.x) / 2 - tw / 2;
+    ctx.fillStyle = "rgba(255,255,255,.94)";
+    ctx.strokeStyle = "rgba(210,218,230,.95)";
+    roundRect(lx - 5, y - 27, tw + 10, 21, 5);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = "#7c2d12";
+    ctx.fillText(label, lx, y - 11);
+    ctx.restore();
+  }
+
+  function drawTorqueCue(layout, arm) {
+    const p = unitToScreen(layout, state.pivotX, 0);
+    const clockwise = arm > 0;
+    const radius = layout.scale * 0.33;
+    const start = clockwise ? -1.35 : -1.78;
+    const end = clockwise ? 1.0 : -3.45;
+    ctx.save();
+    ctx.strokeStyle = "#9a3412";
+    ctx.fillStyle = "#9a3412";
+    ctx.lineWidth = 2.2;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, radius, start, end, !clockwise);
+    ctx.stroke();
+    const tipAngle = end;
+    const tip = { x: p.x + Math.cos(tipAngle) * radius, y: p.y + Math.sin(tipAngle) * radius };
+    const tangent = tipAngle + (clockwise ? Math.PI / 2 : -Math.PI / 2);
+    ctx.beginPath();
+    ctx.moveTo(tip.x, tip.y);
+    ctx.lineTo(tip.x - Math.cos(tangent - .45) * 12, tip.y - Math.sin(tangent - .45) * 12);
+    ctx.lineTo(tip.x - Math.cos(tangent + .45) * 12, tip.y - Math.sin(tangent + .45) * 12);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function drawGuide(layout, m) {
+    const center = unitToScreen(layout, 0, 0);
+    const pivot = unitToScreen(layout, state.pivotX, 0);
+    const g = unitToScreen(layout, m.xG, 0);
+    ctx.save();
+    ctx.strokeStyle = "#d8dee8";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(layout.cx - layout.scale * 1.2, center.y);
+    ctx.lineTo(layout.cx + layout.scale * 1.2, center.y);
+    ctx.stroke();
+    ctx.fillStyle = "#667085";
+    ctx.font = "700 12px system-ui, sans-serif";
+    ctx.fillText("x軸", layout.cx + layout.scale * 1.1, center.y - 8);
+    ctx.strokeStyle = "rgba(24,78,119,.35)";
+    ctx.setLineDash([5, 5]);
+    ctx.beginPath();
+    ctx.moveTo(pivot.x, pivot.y - layout.scale * 1.15);
+    ctx.lineTo(pivot.x, pivot.y + layout.scale * 1.15);
+    ctx.stroke();
+    ctx.strokeStyle = "rgba(180,35,24,.35)";
+    ctx.beginPath();
+    ctx.moveTo(g.x, g.y - layout.scale * 1.15);
+    ctx.lineTo(g.x, g.y + layout.scale * 1.15);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawStablePreview(layout, m) {
+    if (!els.showRotated.checked || Math.abs(m.arm) < 0.005) return;
+    const d = m.arm;
+    const stableAngle = d > 0 ? -Math.PI / 2 : Math.PI / 2;
+    ctx.save();
+    ctx.globalAlpha = 0.24;
+    drawDisk(layout, m, stableAngle, 0.24);
+    ctx.restore();
+  }
+
+  function drawObliqueView(box, m) {
+    const scale = Math.min(box.w * 0.35, box.h * 0.30);
+    const pivot = state.pivotX;
+    const az = state.viewAzimuth;
+    const el = state.viewElevation;
+    const cosAz = Math.cos(az);
+    const sinAz = Math.sin(az);
+    const cosEl = Math.cos(el);
+    const sinEl = Math.sin(el);
+    const spinNeedsVisibleTilt = state.spinning && Math.abs(m.arm) > 0.005 && Math.abs(state.angle) < 0.02;
+    const effectiveTilt = spinNeedsVisibleTilt
+      ? clamp(m.arm * 1.5, -0.78, 0.78)
+      : state.angle;
+
+    function diskPoint(x, y) {
+      const dx = x - pivot;
+      const tiltC = Math.cos(effectiveTilt);
+      const tiltS = Math.sin(effectiveTilt);
+      const tilted = {
+        x: pivot + dx * tiltC,
+        y,
+        z: -dx * tiltS
+      };
+      const c = Math.cos(state.spinAngle);
+      const s = Math.sin(state.spinAngle);
+      const hx = tilted.x - pivot;
+      return {
+        x: pivot + hx * c - tilted.y * s,
+        y: hx * s + tilted.y * c,
+        z: tilted.z
+      };
+    }
+
+    function project(point) {
+      const x = point.x - pivot;
+      const y = point.y;
+      const z = point.z || 0;
+      const sx = x * cosAz + y * sinAz;
+      const depth = -x * sinAz + y * cosAz;
+      const sy = -z * cosEl + depth * sinEl;
+      return {
+        x: box.cx + sx * scale,
+        y: box.cy + sy * scale,
+        depth
+      };
+    }
+
+    function projectedCircle(cx, cy, radius, steps = 96) {
+      const points = [];
+      for (let i = 0; i < steps; i += 1) {
+        const a = i / steps * Math.PI * 2;
+        points.push(project(diskPoint(cx + Math.cos(a) * radius, cy + Math.sin(a) * radius)));
+      }
+      return points;
+    }
+
+    function drawProjectedPath(points) {
+      ctx.beginPath();
+      points.forEach((p, i) => {
+        if (i === 0) ctx.moveTo(p.x, p.y);
+        else ctx.lineTo(p.x, p.y);
+      });
+      ctx.closePath();
+    }
+
+    const outer = projectedCircle(0, 0, 1, 128);
+    const inner = projectedCircle(m.xh, 0, m.k, 96);
+    const p = project(diskPoint(pivot, 0));
+    const g = project(diskPoint(m.xG, 0));
+    const center = project(diskPoint(0, 0));
+    const hole = project(diskPoint(m.xh, 0));
+    const left = project(diskPoint(-1, 0));
+    const right = project(diskPoint(1, 0));
+    const gTrail = [];
+    const gRadius = (m.xG - pivot) * Math.cos(effectiveTilt);
+    const gHeight = -(m.xG - pivot) * Math.sin(effectiveTilt);
+    for (let i = 0; i < 96; i += 1) {
+      const a = i / 96 * Math.PI * 2;
+      gTrail.push(project({
+        x: pivot + gRadius * Math.cos(a),
+        y: gRadius * Math.sin(a),
+        z: gHeight
+      }));
+    }
+
+    ctx.save();
+    ctx.fillStyle = "#ffffff";
+    ctx.strokeStyle = "#d9e1ec";
+    ctx.lineWidth = 1;
+    roundRect(box.x, box.y, box.w, box.h, 8);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.fillStyle = "#344054";
+    ctx.font = "800 13px system-ui, sans-serif";
+    ctx.fillText("斜めから見た回転", box.x + 12, box.y + 24);
+    ctx.fillStyle = "#667085";
+    ctx.font = "700 11px system-ui, sans-serif";
+    ctx.fillText("コマ回転はZ軸まわり。Gは高さ一定の水平円を描きます。", box.x + 12, box.y + 42);
+
+    ctx.save();
+    ctx.globalAlpha = 0.18;
+    ctx.fillStyle = "#98a2b3";
+    ctx.beginPath();
+    ctx.ellipse(box.cx, box.y + box.h - 30, scale * 1.05, scale * 0.16, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+
+    if (Math.abs(gRadius) > 0.005) {
+      ctx.save();
+      ctx.strokeStyle = "rgba(180,35,24,.35)";
+      ctx.lineWidth = 1.8;
+      ctx.setLineDash([5, 5]);
+      drawProjectedPath(gTrail);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.fillStyle = "#b42318";
+      ctx.font = "800 11px system-ui, sans-serif";
+      const labelPoint = gTrail[Math.floor(gTrail.length * 0.13)];
+      ctx.fillText("Gの水平な軌道", labelPoint.x + 6, labelPoint.y - 6);
+      ctx.restore();
+    }
+
+    drawProjectedPath(outer);
+    ctx.fillStyle = "#f8d98f";
+    ctx.fill();
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = "#d3aa55";
+    ctx.stroke();
+
+    drawProjectedPath(inner);
+    ctx.fillStyle = "#fbfdff";
+    ctx.fill();
+    ctx.strokeStyle = "#c7a66d";
+    ctx.stroke();
+
+    ctx.strokeStyle = "rgba(65,75,88,.72)";
+    ctx.setLineDash([7, 5]);
+    ctx.lineWidth = 1.4;
+    ctx.beginPath();
+    ctx.moveTo(left.x, left.y);
+    ctx.lineTo(right.x, right.y);
+    ctx.stroke();
+    ctx.setLineDash([]);
+
+    const zAxisTop = project({ x: pivot, y: 0, z: 0.9 });
+    const zAxisBottom = project({ x: pivot, y: 0, z: -0.9 });
+    ctx.strokeStyle = "#184e77";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(zAxisTop.x, zAxisTop.y);
+    ctx.lineTo(zAxisBottom.x, zAxisBottom.y);
+    ctx.stroke();
+
+    drawPoint(center, "O", "#1f2937", 4.5, -13);
+    drawPoint(hole, "H", "#475467", 4, 11);
+    drawPoint(p, "支点", "#184e77", 5, 13);
+    drawPoint(g, "G", "#b42318", 5, -13);
+    drawArrow({ x: g.x, y: g.y - 4 }, { x: g.x, y: Math.min(box.y + box.h - 18, g.y + scale * 0.52) }, "#b42318", "W", { x: 8, y: -2 });
+
+    if (Math.abs(m.arm) > 0.005) {
+      ctx.strokeStyle = "#7c2d12";
+      ctx.fillStyle = "#7c2d12";
+      ctx.lineWidth = 2;
+      const y = Math.max(box.y + 62, Math.min(p.y, g.y) - 28);
+      ctx.beginPath();
+      ctx.moveTo(p.x, y);
+      ctx.lineTo(g.x, y);
+      ctx.stroke();
+      ctx.font = "800 11px system-ui, sans-serif";
+      ctx.fillText("腕があるので回る", Math.min(p.x, g.x) + 4, y - 7);
+    }
+    ctx.restore();
+  }
+
+  function render() {
+    resizeCanvas();
+    syncFromInputs();
+    const m = model();
+    updateReadouts(m);
+    const width = canvas.clientWidth;
+    const height = canvas.clientHeight;
+    ctx.clearRect(0, 0, width, height);
+    const compact = width < 720;
+    const layout = compact ? {
+      cx: width * 0.5,
+      cy: height * 0.34,
+      scale: Math.min(width * 0.28, height * 0.22)
+    } : {
+      cx: width * 0.34,
+      cy: height * 0.48,
+      scale: Math.min(width * 0.22, height * 0.34)
+    };
+    drawGuide(layout, m);
+    drawStablePreview(layout, m);
+    drawDisk(layout, m, state.angle, 1);
+    const obliqueBox = compact ? {
+      x: width * 0.06,
+      y: height * 0.63,
+      w: width * 0.88,
+      h: height * 0.31,
+      cx: width * 0.5,
+      cy: height * 0.79
+    } : {
+      x: width * 0.62,
+      y: height * 0.16,
+      w: width * 0.34,
+      h: height * 0.64,
+      cx: width * 0.79,
+      cy: height * 0.51
+    };
+    state.currentObliqueBox = obliqueBox;
+    drawObliqueView(obliqueBox, m);
+  }
+
+  function animateToStable(time) {
+    if (!state.animating) return;
+    const m = model();
+    if (Math.abs(m.arm) < 0.005) {
+      state.animating = false;
+      els.angle.value = "0";
+      render();
+      return;
+    }
+    if (!state.animationStart) state.animationStart = time;
+    const t = Math.min(1, (time - state.animationStart) / 900);
+    state.angle = state.startAngle + shortestAngleDelta(state.startAngle, state.targetAngle) * easeOutCubic(t);
+    els.angle.value = String(Math.round(state.angle * 180 / Math.PI));
+    render();
+    if (t < 1) {
+      requestAnimationFrame(animateToStable);
+    } else {
+      state.animating = false;
+    }
+  }
+
+  function startSettle() {
+    const m = model();
+    if (Math.abs(m.arm) < 0.005) return;
+    state.animating = true;
+    state.animationStart = 0;
+    state.startAngle = state.angle;
+    state.targetAngle = m.arm > 0 ? -Math.PI / 2 : Math.PI / 2;
+    requestAnimationFrame(animateToStable);
+  }
+
+  function animateSpin(time) {
+    if (!state.spinning) return;
+    if (!state.spinLastTime) state.spinLastTime = time;
+    const dt = Math.min(0.04, (time - state.spinLastTime) / 1000);
+    state.spinLastTime = time;
+    state.spinAngle += dt * Math.PI * 1.8;
+    if (state.spinAngle > Math.PI * 2) state.spinAngle -= Math.PI * 2;
+    render();
+    requestAnimationFrame(animateSpin);
+  }
+
+  function toggleSpin() {
+    state.spinning = !state.spinning;
+    document.getElementById("spinBtn").textContent = state.spinning ? "回転停止" : "コマ回転";
+    if (state.spinning) {
+      state.spinLastTime = 0;
+      requestAnimationFrame(animateSpin);
+    }
+  }
+
+  function canvasPoint(event) {
+    const rect = canvas.getBoundingClientRect();
+    return {
+      x: event.clientX - rect.left,
+      y: event.clientY - rect.top
+    };
+  }
+
+  function pointInBox(point, box) {
+    return box &&
+      point.x >= box.x &&
+      point.x <= box.x + box.w &&
+      point.y >= box.y &&
+      point.y <= box.y + box.h;
+  }
+
+  function setViewFromDrag(event) {
+    const dx = event.clientX - state.dragStartX;
+    const dy = event.clientY - state.dragStartY;
+    const az = clamp(state.dragStartAzimuth + dx * 0.45, -180, 180);
+    const el = clamp(state.dragStartElevation - dy * 0.35, -90, 90);
+    els.viewAzimuth.value = String(Math.round(az));
+    els.viewElevation.value = String(Math.round(el));
+    render();
+  }
+
+  canvas.addEventListener("pointerdown", (event) => {
+    const point = canvasPoint(event);
+    if (pointInBox(point, state.currentObliqueBox)) {
+      state.draggingView = true;
+      state.dragStartX = event.clientX;
+      state.dragStartY = event.clientY;
+      state.dragStartAzimuth = Number(els.viewAzimuth.value);
+      state.dragStartElevation = Number(els.viewElevation.value);
+      canvas.setPointerCapture(event.pointerId);
+      event.preventDefault();
+      return;
+    }
+    startSettle();
+  });
+
+  canvas.addEventListener("pointermove", (event) => {
+    if (!state.draggingView) return;
+    setViewFromDrag(event);
+  });
+
+  canvas.addEventListener("pointerup", (event) => {
+    if (!state.draggingView) return;
+    state.draggingView = false;
+    canvas.releasePointerCapture(event.pointerId);
+  });
+
+  canvas.addEventListener("pointercancel", () => {
+    state.draggingView = false;
+  });
+
+  window.addEventListener("keydown", (event) => {
+    if (event.code === "Space") {
+      const tag = event.target?.tagName;
+      if (tag === "INPUT" || tag === "BUTTON") return;
+      event.preventDefault();
+      startSettle();
+    }
+  });
+
+  [els.holeRatio, els.holeX, els.pivotX, els.angle, els.viewAzimuth, els.viewElevation, els.showRotated, els.showFormula].forEach((el) => {
+    el.addEventListener("input", () => {
+      state.animating = false;
+      render();
+    });
+  });
+
+  document.getElementById("mirrorBtn").addEventListener("click", () => {
+    els.holeX.value = String((-Number(els.holeX.value)).toFixed(2));
+    render();
+  });
+  document.getElementById("poseResetBtn").addEventListener("click", () => {
+    els.angle.value = "0";
+    state.animating = false;
+    render();
+  });
+  document.getElementById("settingsResetBtn").addEventListener("click", () => {
+    els.holeRatio.value = "0.50";
+    els.holeX.value = "0.50";
+    els.pivotX.value = "0.00";
+    els.angle.value = "0";
+    els.viewAzimuth.value = "34";
+    els.viewElevation.value = "18";
+    state.animating = false;
+    state.spinning = false;
+    state.spinAngle = 0;
+    document.getElementById("spinBtn").textContent = "コマ回転";
+    render();
+  });
+  document.getElementById("settleBtn").addEventListener("click", startSettle);
+  document.getElementById("spinBtn").addEventListener("click", toggleSpin);
+
+  window.addEventListener("resize", render);
+  render();
+})();
+</script>
+</body>
+</html>

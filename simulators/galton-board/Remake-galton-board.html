@@ -1,0 +1,1463 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ガルトンボードシミュレーター</title>
+  <link rel="stylesheet" href="../../assets/common-sim.css">
+  <script src="../../assets/sim-shell.js"></script>
+  <script src="../../assets/sim-clock.js"></script>
+  <style>
+    :root {
+      --bg: #081018;
+      --panel: #0f1a24;
+      --panel-2: #132434;
+      --ink: #ecf7ff;
+      --muted: #9eb3c8;
+      --line: #2b4256;
+      --line-soft: rgba(196, 218, 235, .18);
+      --cyan: #43d7f4;
+      --blue: #71a8ff;
+      --amber: #ffca62;
+      --green: #78e7a8;
+      --shadow: rgba(0, 0, 0, .36);
+      --radius: 8px;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      margin: 0;
+      min-height: 100%;
+      background:
+        radial-gradient(circle at 16% 8%, rgba(67, 215, 244, .12), transparent 30%),
+        radial-gradient(circle at 86% 22%, rgba(255, 202, 98, .09), transparent 27%),
+        linear-gradient(180deg, #0c1824 0%, var(--bg) 48%, #050a10 100%);
+      color: var(--ink);
+      font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Hiragino Kaku Gothic ProN", Meiryo, sans-serif;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+
+    button,
+    input {
+      font: inherit;
+    }
+
+    .wrap {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 352px;
+      gap: 12px;
+      width: min(1460px, calc(100% - 24px));
+      margin: 14px auto 24px;
+      align-items: start;
+    }
+
+    .stage-panel,
+    .control-panel {
+      min-width: 0;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: linear-gradient(180deg, rgba(18, 34, 48, .98), rgba(9, 18, 28, .98));
+      box-shadow: 0 18px 46px var(--shadow);
+    }
+
+    .panel-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      min-height: 56px;
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    h1,
+    h2,
+    h3 {
+      margin: 0;
+      letter-spacing: 0;
+    }
+
+    h1 {
+      font-size: 19px;
+      line-height: 1.25;
+    }
+
+    .panel-note {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 650;
+      white-space: nowrap;
+    }
+
+    .canvas-shell {
+      padding: 12px;
+    }
+
+    canvas {
+      display: block;
+      width: 100%;
+      height: min(72vh, 760px);
+      min-height: 610px;
+      border: 1px solid var(--line-soft);
+      border-radius: var(--radius);
+      background:
+        linear-gradient(rgba(148, 163, 184, .045) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(148, 163, 184, .045) 1px, transparent 1px),
+        radial-gradient(circle at 18% 14%, rgba(67, 215, 244, .13), transparent 28%),
+        radial-gradient(circle at 82% 34%, rgba(255, 202, 98, .1), transparent 25%),
+        #07101a;
+      background-size: 28px 28px, 28px 28px, auto, auto, auto;
+      touch-action: none;
+    }
+
+    .status-strip {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 8px;
+      padding: 0 12px 12px;
+    }
+
+    .stat {
+      min-width: 0;
+      border: 1px solid var(--line-soft);
+      border-radius: 7px;
+      background: rgba(11, 24, 37, .78);
+      padding: 8px 9px;
+    }
+
+    .stat-label {
+      overflow: hidden;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 750;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .stat-value {
+      margin-top: 2px;
+      color: var(--ink);
+      font-size: 15px;
+      font-variant-numeric: tabular-nums;
+      font-weight: 850;
+      white-space: nowrap;
+    }
+
+    .control-panel {
+      position: sticky;
+      top: 72px;
+    }
+
+    .controls {
+      display: grid;
+      gap: 12px;
+      padding: 12px;
+    }
+
+    .button-row {
+      display: grid;
+      grid-template-columns: 1fr 42px 42px;
+      gap: 8px;
+    }
+
+    .main-button,
+    .icon-button,
+    .small-button {
+      min-height: 40px;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      color: var(--ink);
+      cursor: pointer;
+    }
+
+    .main-button {
+      background: linear-gradient(180deg, #1d79df, #175aa8);
+      border-color: rgba(113, 168, 255, .55);
+      font-size: 14px;
+      font-weight: 850;
+    }
+
+    .main-button[data-running="true"] {
+      background: linear-gradient(180deg, #15945a, #0f7044);
+      border-color: rgba(120, 231, 168, .55);
+    }
+
+    .icon-button,
+    .small-button {
+      background: var(--panel-2);
+      font-weight: 850;
+    }
+
+    .icon-button:hover,
+    .icon-button:focus-visible,
+    .small-button:hover,
+    .small-button:focus-visible {
+      border-color: rgba(67, 215, 244, .58);
+      outline: none;
+    }
+
+    .control-group {
+      display: grid;
+      gap: 10px;
+      border: 1px solid var(--line-soft);
+      border-radius: var(--radius);
+      background: rgba(8, 18, 29, .62);
+      padding: 11px;
+    }
+
+    .group-title {
+      color: #d8edff;
+      font-size: 13px;
+      font-weight: 850;
+    }
+
+    .control {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 8px 10px;
+      align-items: center;
+    }
+
+    .control label {
+      min-width: 0;
+      color: #d7e7f7;
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    .value {
+      color: var(--muted);
+      font-size: 12px;
+      font-variant-numeric: tabular-nums;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+
+    .control input[type="range"] {
+      grid-column: 1 / -1;
+      width: 100%;
+      accent-color: var(--cyan);
+    }
+
+    .number-line {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 92px;
+      gap: 8px;
+      align-items: center;
+    }
+
+    input[type="number"] {
+      width: 100%;
+      min-height: 34px;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: #07111c;
+      color: var(--ink);
+      font-variant-numeric: tabular-nums;
+      font-weight: 800;
+      padding: 0 8px;
+    }
+
+    .toggle-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 8px;
+    }
+
+    .toggle {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      min-height: 38px;
+      border: 1px solid var(--line);
+      border-radius: 7px;
+      background: var(--panel-2);
+      color: #d7e7f7;
+      padding: 6px 8px 6px 10px;
+      font-size: 12px;
+      font-weight: 800;
+      cursor: pointer;
+    }
+
+    .toggle input {
+      width: 17px;
+      height: 17px;
+      accent-color: var(--cyan);
+    }
+
+    .mini-readout {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .mini-readout div {
+      min-width: 0;
+      border: 1px solid var(--line-soft);
+      border-radius: 7px;
+      background: rgba(19, 36, 52, .72);
+      padding: 7px 8px;
+    }
+
+    .mini-readout span {
+      display: block;
+      overflow: hidden;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 750;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .mini-readout strong {
+      display: block;
+      margin-top: 2px;
+      color: var(--ink);
+      font-size: 13px;
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+
+    @media (max-width: 980px) {
+      .wrap {
+        grid-template-columns: 1fr;
+      }
+
+      .control-panel {
+        position: static;
+      }
+
+      canvas {
+        height: 68vh;
+        min-height: 540px;
+      }
+    }
+
+    @media (max-width: 640px) {
+      .wrap {
+        width: min(100% - 14px, 560px);
+        margin-top: 8px;
+      }
+
+      .panel-head {
+        align-items: flex-start;
+        flex-direction: column;
+        gap: 4px;
+      }
+
+      .panel-note {
+        white-space: normal;
+      }
+
+      canvas {
+        height: 64vh;
+        min-height: 480px;
+      }
+
+      .status-strip,
+      .mini-readout {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+  </style>
+  <link rel="stylesheet" href="../../assets/remake.css">
+</head>
+<body class="remake-ui">
+  <div class="remake-badge-host"><span class="remake-ribbon">リメイク版</span></div>
+  <main class="wrap">
+    <section class="stage-panel" aria-label="ガルトンボードの表示">
+      <div class="panel-head">
+        <div>
+          <h1>ガルトンボード</h1>
+        </div>
+        <div class="panel-note">釘で左右に分かれ、下の受け皿にたまる様子を観察します</div>
+      </div>
+      <div class="canvas-shell">
+        <canvas id="boardCanvas" aria-label="ボールが釘を通って下にたまるシミュレーション"></canvas>
+      </div>
+      <div class="status-strip" aria-live="polite">
+        <div class="stat">
+          <div class="stat-label">投入済み</div>
+          <div class="stat-value" id="statLaunched">0 / 500</div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">受け皿に到着</div>
+          <div class="stat-value" id="statCompleted">0</div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">平均の受け皿</div>
+          <div class="stat-value" id="statAverage">未到着</div>
+        </div>
+        <div class="stat">
+          <div class="stat-label">最大の山</div>
+          <div class="stat-value" id="statPeak">0個</div>
+        </div>
+      </div>
+    </section>
+
+    <aside class="control-panel" aria-label="操作パネル">
+      <div class="panel-head">
+        <h2 class="group-title">操作</h2>
+        <div class="panel-note" id="runState">待機中</div>
+      </div>
+      <div class="controls">
+        <div class="button-row">
+          <button type="button" class="main-button" id="toggleRun" data-running="false">開始</button>
+          <button type="button" class="icon-button" id="dropTen" title="10個だけ投入">+10</button>
+          <button type="button" class="icon-button" id="reset" title="リセット">↺</button>
+        </div>
+
+        <section class="control-group">
+          <h3 class="group-title">投入条件</h3>
+          <div class="control">
+            <div class="number-line">
+              <label for="ballCount">ボール数</label>
+              <input type="number" id="ballCountNumber" min="10" max="3000" step="10" value="500">
+            </div>
+            <span class="value" id="ballCountValue">500個</span>
+            <input type="range" id="ballCount" min="10" max="3000" step="10" value="500">
+          </div>
+          <div class="control">
+            <label for="rowCount">段数</label>
+            <span class="value" id="rowCountValue">10段</span>
+            <input type="range" id="rowCount" min="4" max="16" step="1" value="10">
+          </div>
+          <div class="control">
+            <label for="receiverCount">受け皿数</label>
+            <span class="value" id="receiverCountValue">11枠</span>
+            <input type="range" id="receiverCount" min="3" max="21" step="1" value="11">
+          </div>
+          <div class="control">
+            <label for="launchRate">投入速度</label>
+            <span class="value" id="launchRateValue">60個/秒</span>
+            <input type="range" id="launchRate" min="2" max="180" step="1" value="60">
+          </div>
+          <div class="control">
+            <label for="motionSpeed">動きの速さ</label>
+            <span class="value" id="motionSpeedValue">1.0倍</span>
+            <input type="range" id="motionSpeed" min="0.4" max="3" step="0.1" value="1">
+          </div>
+          <div class="control">
+            <label for="rightBias">右へ進む割合</label>
+            <span class="value" id="rightBiasValue">50 : 50</span>
+            <input type="range" id="rightBias" min="0" max="100" step="1" value="50">
+          </div>
+        </section>
+
+        <section class="control-group">
+          <h3 class="group-title">表示</h3>
+          <div class="toggle-grid">
+            <label class="toggle">
+              <span>3D風表示</span>
+              <input type="checkbox" id="view3d" checked>
+            </label>
+            <label class="toggle">
+              <span>物理っぽく落とす</span>
+              <input type="checkbox" id="physicsMode">
+            </label>
+            <label class="toggle">
+              <span>理論分布を表示</span>
+              <input type="checkbox" id="showTheory">
+            </label>
+            <label class="toggle">
+              <span>通過の跡を残す</span>
+              <input type="checkbox" id="showTrails" checked>
+            </label>
+            <label class="toggle">
+              <span>最初から色付け</span>
+              <input type="checkbox" id="colorFromStart">
+            </label>
+          </div>
+        </section>
+
+        <section class="control-group">
+          <h3 class="group-title">現在の分布</h3>
+          <div class="mini-readout">
+            <div>
+              <span>中央枠の割合</span>
+              <strong id="centerShare">0%</strong>
+            </div>
+            <div>
+              <span>左右の差</span>
+              <strong id="sideDiff">0個</strong>
+            </div>
+          </div>
+        </section>
+      </div>
+    </aside>
+  </main>
+
+  <script>
+    PhysicsSimShell.create({
+      title: "ガルトンボードシミュレーター",
+      subtitle: "多数のボールが左右に分かれて、下で山をつくる様子を観察する"
+    });
+
+    const canvas = document.getElementById("boardCanvas");
+    const ctx = canvas.getContext("2d");
+
+    const controls = {
+      toggleRun: document.getElementById("toggleRun"),
+      dropTen: document.getElementById("dropTen"),
+      reset: document.getElementById("reset"),
+      ballCount: document.getElementById("ballCount"),
+      ballCountNumber: document.getElementById("ballCountNumber"),
+      rowCount: document.getElementById("rowCount"),
+      receiverCount: document.getElementById("receiverCount"),
+      launchRate: document.getElementById("launchRate"),
+      motionSpeed: document.getElementById("motionSpeed"),
+      rightBias: document.getElementById("rightBias"),
+      view3d: document.getElementById("view3d"),
+      physicsMode: document.getElementById("physicsMode"),
+      showTheory: document.getElementById("showTheory"),
+      showTrails: document.getElementById("showTrails"),
+      colorFromStart: document.getElementById("colorFromStart")
+    };
+
+    const labels = {
+      ballCount: document.getElementById("ballCountValue"),
+      rowCount: document.getElementById("rowCountValue"),
+      receiverCount: document.getElementById("receiverCountValue"),
+      launchRate: document.getElementById("launchRateValue"),
+      motionSpeed: document.getElementById("motionSpeedValue"),
+      rightBias: document.getElementById("rightBiasValue"),
+      runState: document.getElementById("runState"),
+      launched: document.getElementById("statLaunched"),
+      completed: document.getElementById("statCompleted"),
+      average: document.getElementById("statAverage"),
+      peak: document.getElementById("statPeak"),
+      centerShare: document.getElementById("centerShare"),
+      sideDiff: document.getElementById("sideDiff")
+    };
+
+    const state = {
+      total: 500,
+      rows: 10,
+      receivers: 11,
+      pRight: 0.5,
+      launchRate: 60,
+      motionSpeed: 1,
+      show3d: true,
+      physicsMode: false,
+      showTheory: false,
+      showTrails: true,
+      colorFromStart: false,
+      running: false,
+      launched: 0,
+      completed: 0,
+      active: [],
+      bins: [],
+      binFlash: [],
+      trail: [],
+      runTarget: 500,
+      launchAccumulator: 0,
+      statusTimer: 0,
+      physicsGravity: 720,
+      physicsRestitution: 0.68,
+      physicsActiveLimit: 140
+    };
+
+    const segmentSeconds = 0.13;
+    let cssWidth = 0;
+    let cssHeight = 0;
+
+    function clamp(value, min, max) {
+      return Math.min(max, Math.max(min, value));
+    }
+
+    function lerp(a, b, t) {
+      return a + (b - a) * t;
+    }
+
+    function easeInOut(t) {
+      return t * t * (3 - 2 * t);
+    }
+
+    function setupState() {
+      state.bins = Array.from({ length: state.receivers }, () => 0);
+      state.binFlash = Array.from({ length: state.receivers }, () => 0);
+      state.active = [];
+      state.trail = [];
+      state.launched = 0;
+      state.completed = 0;
+      state.runTarget = state.total;
+      state.launchAccumulator = 0;
+      state.statusTimer = 0;
+    }
+
+    function resizeCanvas() {
+      const rect = canvas.getBoundingClientRect();
+      const dpr = Math.min(window.devicePixelRatio || 1, 2);
+      cssWidth = Math.max(320, rect.width);
+      cssHeight = Math.max(420, rect.height);
+      canvas.width = Math.round(cssWidth * dpr);
+      canvas.height = Math.round(cssHeight * dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      render();
+    }
+
+    function currentLayout() {
+      const narrow = cssWidth < 700;
+      const rows = state.rows;
+      const boardWidth = Math.min(cssWidth * (narrow ? 0.88 : 0.68), 760);
+      const boardHeight = cssHeight * (narrow ? 0.56 : 0.61);
+      const top = narrow ? 40 : 52;
+      const binTop = top + boardHeight + 18;
+      const binBottom = cssHeight - 54;
+      const centerX = cssWidth * 0.5;
+      const unit = boardWidth / (rows + 2.1);
+      return {
+        rows,
+        centerX,
+        top,
+        boardHeight,
+        binTop,
+        binBottom,
+        pileHeight: Math.max(110, binBottom - binTop - 20),
+        unit,
+        ballRadius: clamp(unit * 0.16, 5.2, 9.5),
+        pegRadius: clamp(unit * 0.13, 4.3, 8.2)
+      };
+    }
+
+    function projectPoint(slotX, rowY, layout) {
+      const depth = state.show3d ? 1 : 0;
+      const maxRow = state.rows + 1.35;
+      const yNorm = clamp(rowY / maxRow, 0, 1);
+      const scale = 1 - depth * 0.24 + depth * 0.28 * yNorm;
+      return {
+        x: layout.centerX + slotX * layout.unit * scale,
+        y: layout.top + yNorm * layout.boardHeight,
+        scale
+      };
+    }
+
+    function makePath() {
+      let rights = 0;
+      const path = [{ slotX: 0, rowY: 0 }];
+      for (let row = 0; row < state.rows; row += 1) {
+        path.push({ slotX: rights - row / 2, rowY: row + 1 });
+        if (Math.random() < state.pRight) rights += 1;
+      }
+      path.push({ slotX: rights - state.rows / 2, rowY: state.rows + 1.25 });
+      return { path, bin: rights };
+    }
+
+    function receiverIndexFromRaw(rawBin) {
+      if (state.receivers <= 1 || state.rows <= 0) return 0;
+      return clamp(Math.round((rawBin / state.rows) * (state.receivers - 1)), 0, state.receivers - 1);
+    }
+
+    function receiverSlotX(index) {
+      if (state.receivers <= 1) return 0;
+      return (index / (state.receivers - 1)) * state.rows - state.rows / 2;
+    }
+
+    function hueForReceiver(index) {
+      if (state.receivers <= 1) return 198;
+      return 205 - 175 * (index / (state.receivers - 1));
+    }
+
+    function receiverCenters(layout) {
+      const centers = [];
+      for (let i = 0; i < state.receivers; i += 1) {
+        centers.push(projectPoint(receiverSlotX(i), state.rows + 1.27, layout).x);
+      }
+      return centers;
+    }
+
+    function closestReceiverFromX(x, layout) {
+      const centers = receiverCenters(layout);
+      let best = 0;
+      let bestDistance = Infinity;
+      centers.forEach((center, index) => {
+        const distance = Math.abs(x - center);
+        if (distance < bestDistance) {
+          bestDistance = distance;
+          best = index;
+        }
+      });
+      return best;
+    }
+
+    function physicsPegs(layout) {
+      const pegs = [];
+      for (let row = 0; row < state.rows; row += 1) {
+        for (let col = 0; col <= row; col += 1) {
+          const slotX = col - row / 2;
+          const p = projectPoint(slotX, row + 1, layout);
+          pegs.push({
+            x: p.x,
+            y: p.y,
+            r: layout.pegRadius * p.scale
+          });
+        }
+      }
+      return pegs;
+    }
+
+    function boardBoundsAtY(y, layout) {
+      const topLeft = projectPoint(-state.rows / 2 - 1.05, 0.25, layout);
+      const topRight = projectPoint(state.rows / 2 + 1.05, 0.25, layout);
+      const bottomRight = projectPoint(state.rows / 2 + 1.35, state.rows + 1.45, layout);
+      const bottomLeft = projectPoint(-state.rows / 2 - 1.35, state.rows + 1.45, layout);
+      const t = clamp((y - topLeft.y) / Math.max(1, bottomLeft.y - topLeft.y), 0, 1);
+      return {
+        left: lerp(topLeft.x, bottomLeft.x, t),
+        right: lerp(topRight.x, bottomRight.x, t)
+      };
+    }
+
+    function launchPhysicsBall() {
+      const generated = makePath();
+      const receiver = receiverIndexFromRaw(generated.bin);
+      state.active.push({
+        physicsStyle: true,
+        path: generated.path,
+        rawBin: generated.bin,
+        bin: receiver,
+        t: -Math.random() * 0.025,
+        hue: hueForReceiver(receiver),
+        light: 62 + Math.random() * 10,
+        wobble: (Math.random() - 0.5) * 0.18,
+        bounce: 0.07 + Math.random() * 0.06
+      });
+      state.launched += 1;
+      return true;
+    }
+
+    function launchBall() {
+      if (state.launched >= state.total) return false;
+      if (state.physicsMode) return launchPhysicsBall();
+      const generated = makePath();
+      const receiver = receiverIndexFromRaw(generated.bin);
+      state.active.push({
+        path: generated.path,
+        rawBin: generated.bin,
+        bin: receiver,
+        t: -Math.random() * 0.025,
+        hue: hueForReceiver(receiver),
+        light: 62 + Math.random() * 10,
+        wobble: (Math.random() - 0.5) * 0.12
+      });
+      state.launched += 1;
+      return true;
+    }
+
+    function runLimitedBalls(count) {
+      if (!state.running && state.launched >= state.total && state.active.length === 0) {
+        resetSimulation(false);
+      }
+      state.runTarget = Math.min(state.total, state.launched + count);
+      setRunning(true);
+    }
+
+    function ballPosition(ball) {
+      if (ball.physics) {
+        return { slotX: 0, rowY: 0 };
+      }
+      const maxSegment = ball.path.length - 2;
+      const raw = Math.max(0, ball.t / segmentSeconds);
+      const segment = Math.min(maxSegment, Math.floor(raw));
+      const local = clamp(raw - segment, 0, 1);
+      const eased = easeInOut(local);
+      const from = ball.path[segment];
+      const to = ball.path[segment + 1];
+      const bend = Math.sin(local * Math.PI) * ball.wobble;
+      if (ball.physicsStyle) {
+        const fall = local * local * (3 - 2 * local);
+        const pegLift = Math.sin(local * Math.PI) * ball.bounce;
+        return {
+          slotX: lerp(from.slotX, to.slotX, eased) + bend,
+          rowY: lerp(from.rowY, to.rowY, fall) - pegLift
+        };
+      }
+      return {
+        slotX: lerp(from.slotX, to.slotX, eased) + bend,
+        rowY: lerp(from.rowY, to.rowY, eased)
+      };
+    }
+
+    function completeBallInReceiver(ball, layout) {
+      const receiver = closestReceiverFromX(ball.x, layout);
+      state.bins[receiver] += 1;
+      state.binFlash[receiver] = 1;
+      state.completed += 1;
+    }
+
+    function updatePhysicsBall(ball, dt, layout, pegs) {
+      const scaledDt = dt * state.motionSpeed;
+      const substeps = Math.max(1, Math.ceil(scaledDt / (1 / 180)));
+      const stepDt = scaledDt / substeps;
+      const ballR = Math.max(4, ball.radius);
+
+      for (let stepIndex = 0; stepIndex < substeps; stepIndex += 1) {
+        ball.age += stepDt;
+        ball.vy += state.physicsGravity * stepDt;
+        ball.x += ball.vx * stepDt;
+        ball.y += ball.vy * stepDt;
+
+        const bounds = boardBoundsAtY(ball.y, layout);
+        const sidePad = ballR * 1.4;
+        if (ball.x < bounds.left + sidePad) {
+          ball.x = bounds.left + sidePad;
+          ball.vx = Math.abs(ball.vx) * state.physicsRestitution + 12;
+        } else if (ball.x > bounds.right - sidePad) {
+          ball.x = bounds.right - sidePad;
+          ball.vx = -Math.abs(ball.vx) * state.physicsRestitution - 12;
+        }
+
+        for (const peg of pegs) {
+          const dy = ball.y - peg.y;
+          if (Math.abs(dy) > ballR + peg.r + 8) continue;
+          const dx = ball.x - peg.x;
+          const minDist = ballR + peg.r * 0.9;
+          const distSq = dx * dx + dy * dy;
+          if (distSq <= 0.0001 || distSq >= minDist * minDist) continue;
+          const dist = Math.sqrt(distSq);
+          const nx = dx / dist;
+          const ny = dy / dist;
+          const push = minDist - dist;
+          ball.x += nx * push;
+          ball.y += ny * push;
+          const vn = ball.vx * nx + ball.vy * ny;
+          if (vn < 0) {
+            ball.vx -= (1 + state.physicsRestitution) * vn * nx;
+            ball.vy -= (1 + state.physicsRestitution) * vn * ny;
+            const tangent = (Math.random() - 0.5) * 18 + (state.pRight - 0.5) * 16;
+            ball.vx += -ny * tangent;
+            ball.vy += nx * tangent * 0.18;
+          }
+        }
+
+        ball.vx *= 0.999;
+        if (ball.y >= layout.binTop + ballR * 1.8) {
+          completeBallInReceiver(ball, layout);
+          return false;
+        }
+      }
+
+      if (ball.y > cssHeight + 60) {
+        completeBallInReceiver(ball, layout);
+        return false;
+      }
+      return true;
+    }
+
+    function step(dt) {
+      if (state.running && state.launched < state.runTarget) {
+        state.launchAccumulator += dt * state.launchRate;
+        let guard = 0;
+        while (state.launchAccumulator >= 1 && guard < 24) {
+          if (state.physicsMode && state.active.length >= state.physicsActiveLimit) break;
+          if (!launchBall()) break;
+          state.launchAccumulator -= 1;
+          guard += 1;
+        }
+      }
+
+      const nextActive = [];
+      for (const ball of state.active) {
+        if (ball.physics) {
+          const layout = currentLayout();
+          const pegs = physicsPegs(layout);
+          if (updatePhysicsBall(ball, dt, layout, pegs)) {
+            nextActive.push(ball);
+            if (state.showTrails) {
+              const receiver = closestReceiverFromX(ball.x, layout);
+              state.trail.push({
+                screen: true,
+                x: ball.x,
+                y: ball.y,
+                age: 0,
+                hue: state.colorFromStart ? hueForReceiver(receiver) : 198
+              });
+            }
+          }
+          continue;
+        }
+
+        ball.t += dt * state.motionSpeed;
+        const done = ball.t >= (ball.path.length - 1) * segmentSeconds;
+        if (done) {
+          state.bins[ball.bin] += 1;
+          state.binFlash[ball.bin] = 1;
+          state.completed += 1;
+        } else {
+          nextActive.push(ball);
+          if (state.showTrails && ball.t > 0) {
+            const point = ballPosition(ball);
+            state.trail.push({
+              slotX: point.slotX,
+              rowY: point.rowY,
+              age: 0,
+              hue: state.colorFromStart ? ball.hue : 198
+            });
+          }
+        }
+      }
+      state.active = nextActive;
+
+      state.trail.forEach((point) => {
+        point.age += dt;
+      });
+      state.trail = state.trail.filter((point) => point.age < 1.05).slice(-800);
+      state.binFlash = state.binFlash.map((flash) => Math.max(0, flash - dt * 2.8));
+
+      if (state.running && state.launched >= state.runTarget && state.active.length === 0) {
+        if (state.launched >= state.total && state.completed >= state.total) {
+          setTheoryVisible(true);
+        }
+        setRunning(false, true);
+      }
+
+      if (!state.running && state.active.length === 0 && state.binFlash.every((flash) => flash <= 0)) {
+        clock.pause();
+      }
+
+      state.statusTimer += dt;
+      if (state.statusTimer > 0.08) {
+        state.statusTimer = 0;
+        updateStatus();
+      }
+    }
+
+    function drawBackground(layout) {
+      ctx.clearRect(0, 0, cssWidth, cssHeight);
+
+      const glow = ctx.createRadialGradient(cssWidth * 0.52, cssHeight * 0.2, 0, cssWidth * 0.52, cssHeight * 0.2, cssWidth * 0.5);
+      glow.addColorStop(0, "rgba(67, 215, 244, .11)");
+      glow.addColorStop(0.55, "rgba(67, 215, 244, .035)");
+      glow.addColorStop(1, "rgba(67, 215, 244, 0)");
+      ctx.fillStyle = glow;
+      ctx.fillRect(0, 0, cssWidth, cssHeight);
+
+      const topLeft = projectPoint(-state.rows / 2 - 1.05, 0.25, layout);
+      const topRight = projectPoint(state.rows / 2 + 1.05, 0.25, layout);
+      const bottomRight = projectPoint(state.rows / 2 + 1.35, state.rows + 1.45, layout);
+      const bottomLeft = projectPoint(-state.rows / 2 - 1.35, state.rows + 1.45, layout);
+
+      ctx.save();
+      ctx.beginPath();
+      ctx.moveTo(topLeft.x, topLeft.y);
+      ctx.lineTo(topRight.x, topRight.y);
+      ctx.lineTo(bottomRight.x, bottomRight.y);
+      ctx.lineTo(bottomLeft.x, bottomLeft.y);
+      ctx.closePath();
+      const boardFill = ctx.createLinearGradient(0, topLeft.y, 0, bottomLeft.y);
+      boardFill.addColorStop(0, "rgba(196, 236, 255, .13)");
+      boardFill.addColorStop(0.55, "rgba(117, 172, 211, .08)");
+      boardFill.addColorStop(1, "rgba(27, 60, 83, .20)");
+      ctx.fillStyle = boardFill;
+      ctx.fill();
+      ctx.strokeStyle = "rgba(172, 224, 255, .32)";
+      ctx.lineWidth = 1.4;
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.moveTo(topLeft.x, topLeft.y);
+      ctx.lineTo(bottomLeft.x, bottomLeft.y);
+      ctx.moveTo(topRight.x, topRight.y);
+      ctx.lineTo(bottomRight.x, bottomRight.y);
+      ctx.strokeStyle = "rgba(67, 215, 244, .46)";
+      ctx.lineWidth = 2.4;
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    function drawPegs(layout) {
+      for (let row = 0; row < state.rows; row += 1) {
+        for (let col = 0; col <= row; col += 1) {
+          const slotX = col - row / 2;
+          const p = projectPoint(slotX, row + 1, layout);
+          const radius = layout.pegRadius * p.scale;
+          ctx.save();
+          ctx.shadowColor = "rgba(0, 0, 0, .45)";
+          ctx.shadowBlur = 8;
+          ctx.shadowOffsetY = 3;
+          const metal = ctx.createRadialGradient(p.x - radius * .35, p.y - radius * .35, radius * .15, p.x, p.y, radius);
+          metal.addColorStop(0, "#f7fbff");
+          metal.addColorStop(0.28, "#c9d9e7");
+          metal.addColorStop(0.72, "#6f879d");
+          metal.addColorStop(1, "#283b4d");
+          ctx.fillStyle = metal;
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, radius, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.strokeStyle = "rgba(230, 247, 255, .55)";
+          ctx.lineWidth = 1;
+          ctx.stroke();
+          ctx.restore();
+        }
+      }
+    }
+
+    function drawTrails(layout) {
+      if (!state.showTrails) return;
+      for (const point of state.trail) {
+        const p = point.screen
+          ? { x: point.x, y: point.y, scale: 1 }
+          : projectPoint(point.slotX, point.rowY, layout);
+        const alpha = Math.max(0, 1 - point.age / 1.05) * 0.22;
+        ctx.fillStyle = `hsla(${point.hue}, 88%, 66%, ${alpha})`;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, layout.ballRadius * 0.58 * p.scale, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    function drawBallAt(x, y, radius, hue, light, alpha = 1) {
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.shadowColor = "rgba(0, 0, 0, .52)";
+      ctx.shadowBlur = radius * 1.6;
+      ctx.shadowOffsetY = radius * .52;
+      const ball = ctx.createRadialGradient(x - radius * .34, y - radius * .42, radius * .16, x, y, radius);
+      ball.addColorStop(0, `hsl(${hue}, 100%, 92%)`);
+      ball.addColorStop(0.24, `hsl(${hue}, 92%, ${light + 10}%)`);
+      ball.addColorStop(0.68, `hsl(${hue}, 86%, ${light - 6}%)`);
+      ball.addColorStop(1, `hsl(${hue}, 70%, ${light - 22}%)`);
+      ctx.fillStyle = ball;
+      ctx.beginPath();
+      ctx.arc(x, y, radius, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "rgba(255, 255, 255, .48)";
+      ctx.lineWidth = Math.max(1, radius * .11);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    function drawActiveBalls(layout) {
+      const sorted = [...state.active].sort((a, b) => {
+        const ay = a.physics ? a.y : ballPosition(a).rowY;
+        const by = b.physics ? b.y : ballPosition(b).rowY;
+        return ay - by;
+      });
+      for (const ball of sorted) {
+        if (ball.physics) {
+          const receiver = closestReceiverFromX(ball.x, layout);
+          const hue = state.colorFromStart ? hueForReceiver(receiver) : 198;
+          const light = state.colorFromStart ? 64 : 68;
+          drawBallAt(ball.x, ball.y, ball.radius, hue, light);
+          continue;
+        }
+        if (ball.t < 0) continue;
+        const pos = ballPosition(ball);
+        const p = projectPoint(pos.slotX, pos.rowY, layout);
+        const radius = layout.ballRadius * (0.93 + 0.12 * p.scale);
+        const hue = state.colorFromStart ? ball.hue : 198;
+        const light = state.colorFromStart ? ball.light : 68;
+        drawBallAt(p.x, p.y, radius, hue, light);
+      }
+    }
+
+    function drawTheory(layout, binCenters, binWidth) {
+      if (!state.showTheory) return;
+      const expected = theoreticalCounts();
+      const maxExpected = Math.max(1, ...expected);
+      const bottom = layout.binBottom - 6;
+      const maxHeight = layout.pileHeight;
+      ctx.save();
+      ctx.strokeStyle = "rgba(255, 202, 98, .86)";
+      ctx.fillStyle = "rgba(255, 202, 98, .16)";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      expected.forEach((count, i) => {
+        const x = binCenters[i];
+        const y = bottom - (count / maxExpected) * maxHeight;
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      });
+      ctx.stroke();
+
+      expected.forEach((count, i) => {
+        const h = (count / maxExpected) * maxHeight;
+        ctx.fillRect(binCenters[i] - binWidth * .32, bottom - h, binWidth * .64, h);
+      });
+
+      ctx.fillStyle = "rgba(255, 226, 154, .88)";
+      ctx.font = "700 12px ui-sans-serif, system-ui, sans-serif";
+      ctx.fillText("理論", binCenters[Math.min(binCenters.length - 1, Math.floor(binCenters.length * .72))], layout.binTop + 14);
+      ctx.restore();
+    }
+
+    function receiverBallRadius(binWidth, pileHeight) {
+      const plannedPeak = Math.min(state.total, Math.max(1, ...theoreticalCounts()) * 1.4);
+      const maxRadius = clamp(binWidth * 0.12, 2.2, 6.1);
+      const minRadius = 0.9;
+      for (let radius = maxRadius; radius >= minRadius; radius -= 0.1) {
+        const perRow = Math.max(1, Math.floor((binWidth - radius * 1.2) / (radius * 1.45)));
+        const rowsNeeded = Math.ceil(plannedPeak / perRow);
+        if (rowsNeeded * radius * 1.34 <= pileHeight * 0.9) {
+          return radius;
+        }
+      }
+      return minRadius;
+    }
+
+    function drawBins(layout) {
+      const receivers = state.receivers;
+      const centers = receiverCenters(layout);
+      const binWidth = Math.max(14, Math.min(56, Math.abs(centers[1] - centers[0]) * .86 || layout.unit * .72));
+      const trayTop = layout.binTop;
+      const trayBottom = layout.binBottom;
+      const maxCount = Math.max(1, ...state.bins);
+      const expectedCounts = theoreticalCounts();
+      const maxForScale = Math.max(maxCount, ...expectedCounts) * 1.18;
+      const fixedBallRadius = receiverBallRadius(binWidth, layout.pileHeight);
+      const percentFont = binWidth < 24 ? 8 : 9;
+
+      ctx.save();
+      ctx.fillStyle = "rgba(2, 9, 15, .38)";
+      ctx.fillRect(0, trayTop - 12, cssWidth, trayBottom - trayTop + 58);
+
+      drawTheory(layout, centers, binWidth);
+
+      for (let i = 0; i < receivers; i += 1) {
+        const x = centers[i];
+        const count = state.bins[i];
+        const height = (count / maxForScale) * layout.pileHeight;
+        const hue = hueForReceiver(i);
+        const flash = state.binFlash[i] || 0;
+
+        if (flash > 0) {
+          const glowHeight = trayBottom - trayTop;
+          const glow = ctx.createRadialGradient(x, trayBottom - glowHeight * 0.28, 0, x, trayBottom - glowHeight * 0.28, binWidth * 1.25);
+          glow.addColorStop(0, `hsla(${hue}, 100%, 72%, ${0.36 * flash})`);
+          glow.addColorStop(0.52, `hsla(${hue}, 90%, 62%, ${0.2 * flash})`);
+          glow.addColorStop(1, `hsla(${hue}, 90%, 54%, 0)`);
+          ctx.fillStyle = glow;
+          ctx.fillRect(x - binWidth * 1.25, trayTop - 18, binWidth * 2.5, trayBottom - trayTop + 30);
+        }
+
+        ctx.fillStyle = flash > 0 ? `hsla(${hue}, 82%, 30%, ${0.12 + 0.18 * flash})` : "rgba(8, 22, 34, .66)";
+        ctx.strokeStyle = flash > 0 ? `hsla(${hue}, 100%, 74%, ${0.35 + 0.5 * flash})` : "rgba(196, 218, 235, .22)";
+        ctx.lineWidth = flash > 0 ? 1.4 + flash * 1.4 : 1;
+        ctx.beginPath();
+        ctx.roundRect(x - binWidth / 2, trayTop, binWidth, trayBottom - trayTop, 5);
+        ctx.fill();
+        ctx.stroke();
+
+        if (flash > 0) {
+          ctx.fillStyle = `hsla(${hue}, 100%, 78%, ${0.44 * flash})`;
+          ctx.fillRect(x - binWidth * .36, trayTop + 3, binWidth * .72, 2 + 4 * flash);
+        }
+
+        if (count > 0) {
+          const bar = ctx.createLinearGradient(0, trayBottom - height, 0, trayBottom);
+          bar.addColorStop(0, `hsla(${hue}, 88%, 68%, .48)`);
+          bar.addColorStop(1, `hsla(${hue}, 80%, 50%, .16)`);
+          ctx.fillStyle = bar;
+          ctx.fillRect(x - binWidth * .38, trayBottom - height, binWidth * .76, height);
+        }
+
+        const r = fixedBallRadius;
+        const perRow = Math.max(1, Math.floor((binWidth - r * 1.2) / (r * 1.45)));
+        const verticalStep = r * 1.34;
+        const maxDrawableRows = Math.max(1, Math.floor((layout.pileHeight * 0.95) / verticalStep));
+        const maxDrawable = maxDrawableRows * perRow;
+        const start = Math.max(0, count - maxDrawable);
+        for (let n = start; n < count; n += 1) {
+          const local = n - start;
+          const level = Math.floor(local / perRow);
+          const col = local % perRow;
+          const rowCount = Math.min(perRow, count - start - level * perRow);
+          const rowWidth = (rowCount - 1) * r * 1.45;
+          const jitter = level % 2 ? r * .34 : 0;
+          const bx = x - rowWidth / 2 + col * r * 1.45 + jitter - (rowCount > 1 ? jitter / 2 : 0);
+          const by = trayBottom - r - level * verticalStep;
+          drawBallAt(bx, by, r, hue, 62, .94);
+        }
+
+        if (count > 0) {
+          const labelY = Math.max(trayTop + 14, trayBottom - height - 6);
+          const labelWidth = Math.max(24, String(count).length * 7 + 10);
+          ctx.fillStyle = "rgba(5, 12, 19, .74)";
+          ctx.fillRect(x - labelWidth / 2, labelY - 11, labelWidth, 14);
+          ctx.fillStyle = "rgba(236, 247, 255, .92)";
+          ctx.font = "800 10px ui-sans-serif, system-ui, sans-serif";
+          ctx.textAlign = "center";
+          ctx.fillText(String(count), x, labelY);
+        }
+
+        ctx.fillStyle = "rgba(216, 237, 255, .72)";
+        ctx.font = "700 10px ui-sans-serif, system-ui, sans-serif";
+        ctx.textAlign = "center";
+        ctx.fillText(String(i), x, trayBottom + 18);
+
+        const actualPercent = state.completed ? (count / state.completed) * 100 : 0;
+        const theoryPercent = state.total ? (expectedCounts[i] / state.total) * 100 : 0;
+        ctx.font = `800 ${percentFont}px ui-sans-serif, system-ui, sans-serif`;
+        ctx.fillStyle = "rgba(91, 221, 244, .88)";
+        ctx.fillText(formatBinPercent(actualPercent), x, trayBottom + 31);
+        if (state.showTheory) {
+          ctx.fillStyle = "rgba(255, 202, 98, .88)";
+          ctx.fillText(formatBinPercent(theoryPercent), x, trayBottom + 43);
+        }
+      }
+
+      ctx.strokeStyle = "rgba(67, 215, 244, .38)";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(centers[0] - binWidth * .68, trayBottom);
+      ctx.lineTo(centers[centers.length - 1] + binWidth * .68, trayBottom);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    function formatBinPercent(value) {
+      if (value >= 10) return `${value.toFixed(0)}%`;
+      if (value >= 1) return `${value.toFixed(1)}%`;
+      return value > 0 ? `${value.toFixed(1)}%` : "0%";
+    }
+
+    function drawLabels(layout) {
+      ctx.save();
+      ctx.fillStyle = "rgba(236, 247, 255, .86)";
+      ctx.font = "800 12px ui-sans-serif, system-ui, sans-serif";
+      ctx.textAlign = "center";
+      const inlet = projectPoint(0, 0, layout);
+      ctx.fillText("投入", inlet.x, inlet.y - 16);
+      const bottom = projectPoint(0, state.rows + 1.25, layout);
+      ctx.fillStyle = "rgba(158, 179, 200, .82)";
+      ctx.fillText("受け皿", bottom.x, layout.binTop - 12);
+      ctx.restore();
+    }
+
+    function render() {
+      if (!cssWidth || !cssHeight) return;
+      const layout = currentLayout();
+      drawBackground(layout);
+      drawTrails(layout);
+      drawPegs(layout);
+      drawActiveBalls(layout);
+      drawBins(layout);
+      drawLabels(layout);
+    }
+
+    function theoreticalCounts() {
+      const n = state.rows;
+      const p = state.pRight;
+      const q = 1 - p;
+      const result = Array.from({ length: state.receivers }, () => 0);
+      if (p === 0) {
+        result[receiverIndexFromRaw(0)] = state.total;
+        return result;
+      }
+      if (p === 1) {
+        result[receiverIndexFromRaw(n)] = state.total;
+        return result;
+      }
+      let probability = q ** n;
+      result[receiverIndexFromRaw(0)] += probability * state.total;
+      for (let k = 0; k < n; k += 1) {
+        probability = probability * ((n - k) / (k + 1)) * (p / q);
+        result[receiverIndexFromRaw(k + 1)] += probability * state.total;
+      }
+      return result;
+    }
+
+    function updateControlLabels() {
+      labels.ballCount.textContent = `${state.total}個`;
+      labels.rowCount.textContent = `${state.rows}段`;
+      labels.receiverCount.textContent = `${state.receivers}枠`;
+      labels.launchRate.textContent = `${state.launchRate}個/秒`;
+      labels.motionSpeed.textContent = `${state.motionSpeed.toFixed(1)}倍`;
+      const right = Math.round(state.pRight * 100);
+      labels.rightBias.textContent = `${100 - right} : ${right}`;
+    }
+
+    function updateStatus() {
+      labels.launched.textContent = `${state.launched} / ${state.total}`;
+      labels.completed.textContent = `${state.completed}`;
+
+      const peak = Math.max(0, ...state.bins);
+      labels.peak.textContent = `${peak}個`;
+
+      const weighted = state.bins.reduce((sum, count, index) => sum + count * index, 0);
+      const average = state.completed ? weighted / state.completed : (state.receivers - 1) / 2;
+      const centerOffset = average - (state.receivers - 1) / 2;
+      if (state.completed === 0) {
+        labels.average.textContent = "未到着";
+      } else if (Math.abs(centerOffset) < 0.08) {
+        labels.average.textContent = `${average.toFixed(1)}番`;
+      } else {
+        const side = centerOffset > 0 ? "右寄り" : "左寄り";
+        labels.average.textContent = `${average.toFixed(1)}番 ${side}`;
+      }
+
+      const centerLeft = Math.floor((state.receivers - 1) / 2);
+      const centerRight = Math.ceil((state.receivers - 1) / 2);
+      const centerCount = centerLeft === centerRight
+        ? state.bins[centerLeft]
+        : state.bins[centerLeft] + state.bins[centerRight];
+      const centerShare = state.completed ? (centerCount / state.completed) * 100 : 0;
+      labels.centerShare.textContent = `${centerShare.toFixed(1)}%`;
+
+      const left = state.bins.slice(0, Math.floor(state.receivers / 2)).reduce((a, b) => a + b, 0);
+      const right = state.bins.slice(Math.ceil(state.receivers / 2)).reduce((a, b) => a + b, 0);
+      const diff = right - left;
+      labels.sideDiff.textContent = diff === 0 ? "0個" : diff > 0 ? `右 ${diff}個` : `左 ${Math.abs(diff)}個`;
+
+      labels.runState.textContent = state.running
+        ? "実行中"
+        : state.launched >= state.total && state.active.length === 0 && state.total > 0
+          ? "完了"
+          : "待機中";
+    }
+
+    function setTheoryVisible(visible) {
+      state.showTheory = visible;
+      controls.showTheory.checked = visible;
+    }
+
+    function setRunning(running, keepClockForFlash = false) {
+      state.running = running;
+      controls.toggleRun.dataset.running = String(running);
+      controls.toggleRun.textContent = running ? "一時停止" : "開始";
+      if (running) {
+        clock.start();
+      } else if (!keepClockForFlash) {
+        clock.pause();
+      }
+      updateStatus();
+      render();
+    }
+
+    function resetSimulation(keepRunning = false) {
+      const wasRunning = keepRunning && state.running;
+      setRunning(false);
+      setupState();
+      setTheoryVisible(false);
+      updateControlLabels();
+      updateStatus();
+      render();
+      if (wasRunning) setRunning(true);
+    }
+
+    function setTotal(value) {
+      const hadProgress = state.launched > 0 || state.completed > 0 || state.active.length > 0;
+      state.total = clamp(Math.round(value / 10) * 10, 10, 3000);
+      state.runTarget = Math.min(state.runTarget, state.total);
+      controls.ballCount.value = String(state.total);
+      controls.ballCountNumber.value = String(state.total);
+      if (hadProgress) {
+        resetSimulation(false);
+        return;
+      }
+      updateControlLabels();
+      updateStatus();
+      render();
+    }
+
+    function setReceiverCount(value) {
+      state.receivers = clamp(Math.round(value), 3, 21);
+      controls.receiverCount.value = String(state.receivers);
+      resetSimulation(false);
+      updateControlLabels();
+    }
+
+    function bindControls() {
+      controls.toggleRun.addEventListener("click", () => {
+        if (!state.running && state.launched >= state.total && state.active.length === 0) {
+          resetSimulation(false);
+        }
+        if (!state.running) {
+          state.runTarget = state.total;
+        }
+        setRunning(!state.running);
+      });
+
+      controls.dropTen.addEventListener("click", () => {
+        runLimitedBalls(10);
+      });
+
+      controls.reset.addEventListener("click", () => resetSimulation(false));
+
+      controls.ballCount.addEventListener("input", () => {
+        setTotal(Number(controls.ballCount.value));
+      });
+
+      controls.ballCountNumber.addEventListener("change", () => {
+        setTotal(Number(controls.ballCountNumber.value));
+      });
+
+      controls.rowCount.addEventListener("input", () => {
+        state.rows = Number(controls.rowCount.value);
+        resetSimulation(false);
+        updateControlLabels();
+      });
+
+      controls.receiverCount.addEventListener("input", () => {
+        setReceiverCount(Number(controls.receiverCount.value));
+      });
+
+      controls.launchRate.addEventListener("input", () => {
+        state.launchRate = Number(controls.launchRate.value);
+        updateControlLabels();
+      });
+
+      controls.motionSpeed.addEventListener("input", () => {
+        state.motionSpeed = Number(controls.motionSpeed.value);
+        updateControlLabels();
+      });
+
+      controls.rightBias.addEventListener("input", () => {
+        state.pRight = Number(controls.rightBias.value) / 100;
+        resetSimulation(false);
+        updateControlLabels();
+      });
+
+      controls.view3d.addEventListener("change", () => {
+        state.show3d = controls.view3d.checked;
+        render();
+      });
+
+      controls.physicsMode.addEventListener("change", () => {
+        state.physicsMode = controls.physicsMode.checked;
+        resetSimulation(false);
+      });
+
+      controls.showTheory.addEventListener("change", () => {
+        setTheoryVisible(controls.showTheory.checked);
+        render();
+      });
+
+      controls.showTrails.addEventListener("change", () => {
+        state.showTrails = controls.showTrails.checked;
+        if (!state.showTrails) state.trail = [];
+        render();
+      });
+
+      controls.colorFromStart.addEventListener("change", () => {
+        state.colorFromStart = controls.colorFromStart.checked;
+        state.trail = [];
+        render();
+      });
+    }
+
+    const clock = new PhysicsSimClock.FixedStepClock({
+      step: 1 / 120,
+      maxStepsPerFrame: 10,
+      onStep: step,
+      onRender: render
+    });
+
+    setupState();
+    bindControls();
+    updateControlLabels();
+    updateStatus();
+
+    const observer = new ResizeObserver(resizeCanvas);
+    observer.observe(canvas);
+    window.addEventListener("resize", resizeCanvas);
+    resizeCanvas();
+  </script>
+</body>
+</html>

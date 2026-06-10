@@ -1,0 +1,887 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>関数とグラフのシミュレーター（単一HTML・高校数学・V6-2）</title>
+<link rel="stylesheet" href="../../assets/common-sim.css">
+<script src="../../assets/sim-shell.js"></script>
+<script src="../../assets/sim-clock.js"></script>
+<!-- CDN: Plotly / Math.js / KaTeX (バージョン固定) -->
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/mathjs@12.4.1/lib/browser/math.js"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+<script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+<style>
+  :root{--bg:#0f1117;--panel:#161a22;--text:#e6e9ef;--muted:#a0a7b4;--accent:#6cb5ff;--warn:#ffb86b;--ok:#7dd3fc;--ui-scale:1;--plot-h:360px}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,Segoe UI,Roboto,"Hiragino Kaku Gothic ProN",Meiryo,Arial,sans-serif}
+  #root{transform:scale(var(--ui-scale));transform-origin:0 0;width:calc(100%/var(--ui-scale))}
+  header{padding:6px 10px;border-bottom:1px solid #22242c;display:flex;align-items:center;gap:8px}
+  header .title{font-weight:700;font-size:13px}
+  header .right{margin-left:auto;display:flex;gap:8px;align-items:center}
+  select.small{background:#0f1320;color:var(--text);border:1px solid #2a2f3d;border-radius:8px;padding:4px 6px;font-size:12px}
+  .wrap{display:grid;grid-template-columns:260px 1fr;gap:8px;padding:8px}
+  .card{background:var(--panel);border:1px solid #232736;border-radius:10px;padding:8px}
+  .card h3{margin:0 0 6px 0;color:var(--muted);font-size:12px;font-weight:700}
+  .row{display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-bottom:6px}
+  .vblock{display:block;margin-bottom:8px}
+  label{font-size:12px;color:var(--muted)}
+  input[type="text"], select{background:#0f1320;color:var(--text);border:1px solid #2a2f3d;border-radius:8px;padding:6px 8px;font-size:13px;outline:none}
+  input.bad{border-color:#e87979}
+  input.spin{padding-right:36px}
+  input.short{width:120px}
+  input.xshort{width:110px}
+  button{background:var(--accent);color:#0b1020;border:none;border-radius:8px;padding:6px 8px;font-weight:700;cursor:pointer;font-size:12px}
+  button.ghost{background:#0f1320;color:var(--text);border:1px solid #2a2f3d}
+  button:disabled{opacity:.6;cursor:not-allowed}
+  .muted{color:var(--muted)}
+  .katex-block{background:#0f1320;border:1px solid #2a2f3d;border-radius:8px;padding:6px 8px;overflow:auto}
+  .pill{display:inline-block;background:#0f1320;border:1px solid #2a2f3d;padding:1px 6px;border-radius:999px;font-size:10.5px;color:var(--muted)}
+  .hint{font-size:10.5px;color:var(--muted)}
+  .warn{color:var(--warn)}
+  .ok{color:var(--ok)}
+  .numinfo{font-size:13px;line-height:1.6}
+  /* x0 pill を数値情報のサイズに合わせる */
+  .numinfo .pill { font-size:13px; font-weight:500; color:inherit; background:transparent; border:0; padding:0; }
+
+  /* クイック入力の極小化 */
+  .pi-quick{display:inline-flex;gap:4px;flex-wrap:nowrap;overflow-x:auto;white-space:nowrap;margin-top:4px}
+  .pi-quick button{background:#0f1320;border:1px solid #2a2f3d;color:var(--text);padding:1px 4px;border-radius:6px;font-size:10px;line-height:1.2;min-width:auto}
+
+  .folded .side{display:none}
+  .folded .wrap{grid-template-columns:1fr}
+
+  details{border:1px solid #232736;border-radius:8px;padding:6px 6px 2px 6px;background:#141822}
+  summary{list-style:none;cursor:pointer;color:#c9d4e3;font-weight:700;font-size:12px;display:flex;align-items:center;gap:6px;margin:-4px -4px 0 -4px}
+  summary::-webkit-details-marker{display:none}
+  .chev{display:inline-block;transition:.2s transform}
+  details[open] .chev{transform:rotate(90deg)}
+
+  .spinbox{position:relative;display:inline-block}
+  .spinbox .spinbtns{position:absolute;right:3px;top:3px;display:flex;flex-direction:column;gap:2px}
+  .spinbox .spinbtns button{width:22px;height:15px;line-height:10px;padding:0;font-size:10px}
+  .footer{padding:8px 10px;color:var(--muted);font-size:11px}
+  @media (max-width:1100px){ .wrap{grid-template-columns:1fr} }
+</style>
+  <link rel="stylesheet" href="../../assets/remake.css">
+</head>
+<body class="remake-ui">
+  <div class="remake-badge-host"><span class="remake-ribbon">リメイク版</span></div>
+<script>
+  PhysicsSimShell.create({
+    title: '関数グラフ',
+    subtitle: '関数入力・グラフ描画・数式確認',
+    basePath: '../../'
+  });
+</script>
+<div id="root">
+  <header>
+    <div class="title">関数とグラフのシミュレーター V6-2（単一HTML・高校数学）</div>
+    <div class="right">
+      <label class="muted">x軸表記
+        <select id="xtickMode" class="small">
+          <option value="auto" selected>Auto</option>
+          <option value="num">数値(小数)</option>
+          <option value="frac">分数(p/q)</option>
+          <option value="pi">π分数(pπ/q)</option>
+        </select>
+      </label>
+      <label class="muted">表示倍率
+        <select id="uiScale" class="small">
+          <option value="0.6">60%</option>
+          <option value="0.75">75%</option>
+          <option value="0.9">90%</option>
+          <option value="1" selected>100%</option>
+          <option value="1.1">110%</option>
+        </select>
+      </label>
+      <label class="muted">グラフ高さ
+        <select id="plotH" class="small">
+          <option value="240">240</option>
+          <option value="300">300</option>
+          <option value="360" selected>360</option>
+          <option value="420">420</option>
+        </select>
+      </label>
+      <button id="fitToggle" class="ghost" title="コントロール折りたたみ (F)">全体を表示 (Fit)</button>
+    </div>
+  </header>
+
+  <div class="wrap">
+    <!-- 左パネル（折りたたみ可能） -->
+    <div class="side">
+      <div class="card">
+        <details id="sec-input" open>
+          <summary><span class="chev">▶</span> 入力モード・関数 f(x)</summary>
+          <div class="row" style="margin-top:6px">
+            <label><input type="radio" name="mode" value="plain" checked> 通常</label>
+            <label><input type="radio" name="mode" value="latex"> LaTeX</label>
+            <button id="toggleExample" class="ghost" style="margin-left:auto">例を表示</button>
+          </div>
+          <div id="exampleBox" class="hint" style="display:none;margin-top:4px">例: sin(x), x^2+3x-5, exp(-x^2) ／ LaTeX: \\sin x, x^2+3x-5</div>
+          <div class="row" style="margin-top:6px">
+            <input id="fnInput" type="text" placeholder="f(x) を入力" value="sin(x)+x^2" style="width:100%">
+          </div>
+          <div id="latexHint" class="hint" style="display:none">LaTeX→式の簡易変換（\\sin x→sin(x), \\cos x, \\tan x, \\ln x, e^x, x^2, \\pi 等）。曖昧な記法はエラー。</div>
+        </details>
+<div class="card">
+  <details id="sec-g">
+    <summary>第2関数 g(x)（任意：初期非表示）</summary>
+    <div class="row" style="display:flex;gap:8px;align-items:center;margin-top:6px;">
+      <label for="fn2Input" style="min-width:48px;">g(x)=</label>
+      <input id="fn2Input" type="text" placeholder="例: sin(2*x) or x^3" style="flex:1;min-width:180px;">
+      <label class="chk" style="display:flex;align-items:center;gap:6px;">
+        <input type="checkbox" id="showG"> グラフに表示
+      </label>
+    </div>
+    <div class="hint muted" style="margin-top:4px;">※ LaTeXモード時も同じ要領で入力できます（\sin(2x) など）。</div>
+  </details>
+</div>
+
+      </div>
+
+      <div class="card">
+        <details id="sec-range" open>
+          <summary><span class="chev">▶</span> x 範囲・基本操作</summary>
+          <div class="vblock" style="margin-top:6px">
+            <label>x最小</label>
+            <div class="spinbox"><input id="xmin" class="spin short" type="text" value="-pi"><div class="spinbtns"><button data-spin="xmin" data-d="+1">▲</button><button data-spin="xmin" data-d="-1">▼</button></div></div>
+            <div class="pi-quick" data-for="xmin"></div>
+          </div>
+          <div class="vblock">
+            <label>x最大</label>
+            <div class="spinbox"><input id="xmax" class="spin short" type="text" value="pi"><div class="spinbtns"><button data-spin="xmax" data-d="+1">▲</button><button data-spin="xmax" data-d="-1">▼</button></div></div>
+            <div class="pi-quick" data-for="xmax"></div>
+          </div>
+          <div class="row">
+            <label><input type="checkbox" id="piStep"> πステップ（↑↓/ボタンで ±π/12）</label>
+            <button id="drawBtn" class="ghost">再描画</button>
+            <button id="resetBtn" class="ghost">リセット (Z)</button>
+          </div>
+          <div class="hint">ズーム：ホイール/範囲ドラッグ、移動：ドラッグ。Fitで折りたたみ。</div>
+        </details>
+      </div>
+
+      <div class="card">
+        <details id="sec-ref" open>
+          <summary><span class="chev">▶</span> 参照点・導線（初期全ON）</summary>
+          <div class="vblock" style="margin-top:6px">
+            <label>参照点 x₀</label>
+            <div class="spinbox"><input id="x0" class="spin xshort" type="text" value="1"><div class="spinbtns"><button data-spin="x0" data-d="+1">▲</button><button data-spin="x0" data-d="-1">▼</button></div></div>
+            <div class="pi-quick" data-for="x0"></div>
+          </div>
+          <div class="row">
+            <label><input type="checkbox" id="showTangent" checked> 接線を描画</label>
+            <label><input type="checkbox" id="fitToTangent"> 接線にあわせる</label>
+            <label><input type="checkbox" id="snapEnable" checked> グラフクリックで取得（誘導スナップ）</label>
+          </div>
+          <div class="row">
+            <label><input type="checkbox" id="markZeros" checked> 0点マーカー</label>
+            <label><input type="checkbox" id="markExtrema" checked> 極値マーカー</label>
+            <label><input type="checkbox" id="markInflect" checked> 変曲点マーカー</label>
+          </div>
+        </details>
+      </div>
+
+      <div class="card">
+        <details id="sec-int">
+          <summary><span class="chev">▶</span> 定積分と面積（初期非表示）</summary>
+          <div class="row" style="margin-top:6px">
+            <label><input type="checkbox" id="lockIntRange"> a,b を x範囲にロック</label>
+          </div>
+          <div class="vblock">
+            <label>a</label>
+            <div class="spinbox"><input id="intA" class="spin xshort" type="text" value="0"><div class="spinbtns"><button data-spin="intA" data-d="+1">▲</button><button data-spin="intA" data-d="-1">▼</button></div></div>
+            <div class="pi-quick" data-for="intA"></div>
+          </div>
+          <div class="vblock">
+            <label>b</label>
+            <div class="spinbox"><input id="intB" class="spin xshort" type="text" value="pi"><div class="spinbtns"><button data-spin="intB" data-d="+1">▲</button><button data-spin="intB" data-d="-1">▼</button></div></div>
+            <div class="pi-quick" data-for="intB"></div>
+          </div>
+          <div class="row">
+            <label>方式</label>
+            <select id="quadRule"><option value="simpson" selected>Simpson</option><option value="trapezoid">台形則</option></select>
+            <label><input type="checkbox" id="shadeArea" checked> 面積を塗りつぶし</label>
+          </div>
+          <div class="row">
+            <label>面積→区間（a固定） 目標 A</label>
+            <input id="targetArea" class="xshort" type="text" placeholder="例: 1">
+            <label>方向</label>
+            <select id="areaDir"><option value="right">右へ</option><option value="left">左へ</option></select>
+            <label><input type="checkbox" id="areaAbs"> 絶対面積</label>
+            <label>上限 |b−a|</label>
+            <input id="areaMaxSpan" class="xshort" type="text" value="4*pi">
+            <button id="solveArea" class="ghost">b を求める</button>
+          </div>
+          <div id="areaSolveMsg" class="hint"></div>
+        </details>
+      </div>
+
+      <div id="errorBox" class="card" style="display:none;border-color:#3b1d1d">
+        <h3 class="warn">エラー</h3>
+        <div id="errText" class="warn"></div>
+      </div>
+    </div>
+
+    <!-- 右：グラフと結果 -->
+    <div>
+      <div class="card">
+        <h3>グラフ</h3>
+        <div id="plot" style="width:100%;height:var(--plot-h)"></div>
+        <div id="snapHint" class="hint"></div>
+      </div>
+
+      <div class="row" style="margin-top:6px;flex-wrap:nowrap;gap:8px">
+        <div class="card" style="flex:1 1 50%">
+          <h3>一般式（LaTeX）</h3>
+          <div id="texFx" class="katex-block" style="min-height:32px"></div>
+          <div id="texFdx" class="katex-block" style="min-height:32px;margin-top:4px"></div>
+          <div id="texFd2x" class="katex-block" style="min-height:32px;margin-top:4px"></div>
+        </div>
+        <div class="card" style="flex:1 1 50%">
+          <h3>数値情報</h3>
+          <div class="numinfo" id="numInfo">
+            <span class="pill">x₀=<span id="x0Echo">1</span><span id="x0PiEcho" class="muted"></span></span><br/>
+            f(x₀) = <span id="fx0">-</span><br/>
+            f'(x₀) ≈ <span id="fdx0">-</span>（記号可→数値にフォールバック）<br/>
+            接線：y = f'(x₀)(x - x₀) + f(x₀)
+          </div>
+          <hr style="border:0;border-top:1px solid #232736;margin:6px 0"/>
+          <div class="numinfo">
+            ∫[a,b] f(x) dx ≈ <span id="intVal">-</span> （<span id="intNote"></span>）
+            ／ 面積 |f| ≈ <span id="intAbsVal">-</span>
+          </div>
+<div class="numinfo" id="extListBox">極値：<span id="extList" class="muted">（未計算）</span></div>
+<div class="numinfo" id="inflListBox">変曲：<span id="inflList" class="muted">（未計算）</span></div>
+
+          <div class="hint" style="margin-top:6px">クリック/ホバーでスナップ。<span id="snapBadge"></span></div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top:8px">
+        <h3>注目点一覧（検出ONのもののみ）</h3>
+        <div class="hint">スナップ優先度：特別点（0,整数,π倍）＞極値＞変曲＞0点＞素の座標。分数表記を優先表示。</div>
+        <div id="candidatesList" class="hint" style="margin-top:4px"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer">© 学習用ツール／高校数学。CDN: Plotly 2.35.2, math.js 12.4.1, KaTeX 0.16.11。すべてブラウザ内で動作します。</div>
+</div>
+
+<script>
+(() => {
+  // ====== Debug flag ======
+  const DEBUG = new URLSearchParams(location.search).get('debug') === '1';
+  const log = (...a)=>{ if(DEBUG) console.log('[sim]',...a); };
+  const time = (label, fn)=>{ const t0=performance.now(); const r=fn(); const t1=performance.now(); if(DEBUG) console.log(label+':', (t1-t0).toFixed(1)+'ms'); return r; };
+
+  // ====== DOM util ======
+  const $ = id => document.getElementById(id);
+                                                                                                  // === SAFE HELPERS ===
+                                                                                                  // nullでも落ちないchecked読み取り（既定はfalse）
+                                                                                                  function $checked(id, fallback=false){
+                                                                                                    const el = document.getElementById(id);
+                                                                                                    return el ? !!el.checked : fallback;
+                                                                                                  }
+  const modeRadios = [...document.querySelectorAll('input[name="mode"]')];
+  const deb = (fn, ms=200) => { let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a), ms); } };
+
+  // fold state persist
+  const persistDetails = (id, el)=>{ const k='sec-'+id; const saved=localStorage.getItem(k); if(saved!==null){ el.open = saved==='1'; } else { // 初期は sec-int を閉じる
+      if(id==='sec-int') el.open = false;
+    }
+    el.addEventListener('toggle', ()=> localStorage.setItem(k, el.open?'1':'0'));
+  };
+  ['sec-input','sec-range','sec-ref','sec-int','sec-tex'].forEach(id=>{ const el=$(id); if(el) persistDetails(id, el); });
+
+  // example toggle (初期は非表示)
+  $('toggleExample').addEventListener('click',()=>{ const box=$('exampleBox'); box.style.display = (box.style.display==='none'||box.style.display==='') ? 'block':'none'; });
+
+  // UI scale & plot height (保存/復元)
+  const savedScale = localStorage.getItem('uiScale'); if(savedScale){ $('uiScale').value=savedScale; document.documentElement.style.setProperty('--ui-scale', savedScale); }
+  $('uiScale').addEventListener('change', ()=>{ const s=$('uiScale').value; document.documentElement.style.setProperty('--ui-scale', s); localStorage.setItem('uiScale', s); });
+  const savedH = localStorage.getItem('plotH'); if(savedH){ $('plotH').value=savedH; document.documentElement.style.setProperty('--plot-h', savedH+'px'); }
+  $('plotH').addEventListener('change', ()=>{ const h=Number($('plotH').value)||360; document.documentElement.style.setProperty('--plot-h', h+'px'); try{ Plotly.relayout('plot', {height:h}); }catch(_){} localStorage.setItem('plotH', String(h)); });
+
+  // xtick mode persist
+  const savedTick = localStorage.getItem('xtickMode'); if(savedTick){ $('xtickMode').value=savedTick; }
+  $('xtickMode').addEventListener('change', ()=>{ localStorage.setItem('xtickMode', $('xtickMode').value); scheduleRedraw(); });
+
+  // π quick buttons (0 含む)
+  const addPiQuickRow = (container) => {
+    const buttons = [ {label:'0', val:'0'}, {label:'π/6', val:'pi/6'}, {label:'π/4', val:'pi/4'}, {label:'π/3', val:'pi/3'}, {label:'π/2', val:'pi/2'}, {label:'π', val:'pi'}, {label:'2π', val:'2*pi'} ];
+    container.innerHTML = '';
+    buttons.forEach(b=>{ const btn=document.createElement('button'); btn.type='button'; btn.textContent=b.label; btn.title=b.val; btn.addEventListener('click', ()=>{ const forId=container.getAttribute('data-for'); const el=$(forId); el.value=b.val; triggerInput(el); }); container.appendChild(btn); });
+  };
+  document.querySelectorAll('.pi-quick').forEach(addPiQuickRow);
+
+  function triggerInput(el){ el.dispatchEvent(new Event('input', {bubbles:true})); }
+  function setError(msg){ const box=$('errorBox'), t=$('errText'); if(!msg){ box.style.display='none'; t.textContent=''; return; } box.style.display='block'; t.textContent=msg; }
+
+  // ====== State ======
+  const state = {
+    mode:'plain', exprText:'sin(x)+x^2', fnNode:null, compiled:null,
+    d1Node:null, d2Node:null,
+    xmin:-Math.PI, xmax:Math.PI,
+    x0:1, a:null, b:null,
+    quad:'simpson', shade:true,
+    showTangent:true,
+    markZeros:true, markExtrema:true, markInflect:true,
+    showF:true, showF1:true, showF2:true,
+    piStep:false, snapEnable:true,
+    fitToTangent:false,
+    candidates:[], plotted:false, plotBound:false,
+    xtickMode:'auto',
+    specialPoints:[],
+  };
+
+  // ====== Parse helpers ======
+  function latexToPlain(src){
+    let s = src.trim();
+    s = s.replaceAll('\\,',''); s = s.replaceAll('\\left','').replaceAll('\\right','');
+    s = s.replace(/\\pi/g,'pi');
+    s = s.replace(/\\sin\s*\(?\s*x\s*\)?/g,'sin(x)');
+    s = s.replace(/\\cos\s*\(?\s*x\s*\)?/g,'cos(x)');
+    s = s.replace(/\\tan\s*\(?\s*x\s*\)?/g,'tan(x)');
+    s = s.replace(/\\ln\s*\(?\s*x\s*\)?/g,'ln(x)');
+    s = s.replace(/\\exp\s*\(?\s*x\s*\)?/g,'exp(x)');
+    s = s.replace(/\\sqrt\{([^}]+)\}/g,'sqrt($1)');
+    s = s.replace(/e\^\{([^}]+)\}/g,'exp($1)');
+    s = s.replace(/([a-zA-Z0-9\)\]])\^\{([^}]+)\}/g,'($1)^($2)');
+    s = s.replace(/([a-zA-Z0-9\)\]])\^([0-9]+)/g,'($1)^($2)');
+    s = s.replace(/(\d)(x)/g,'$1*$2'); s = s.replace(/(\))\s*(x)/g,'$1*$2');
+    return s;
+  }
+  function evalExprToNumber(text){ try{ const v=math.evaluate(text,{pi:Math.PI,e:Math.E}); if(typeof v==='number'&&Number.isFinite(v)) return v; }catch(_){ } return NaN; }
+
+  function compileAll(){
+    const raw = $('fnInput').value.trim();
+    const expr = state.mode==='plain' ? raw : latexToPlain(raw);
+    state.exprText = expr;
+    try{
+      const node = math.parse(expr);
+      const code = node.compile();
+      state.fnNode = node; state.compiled = code;
+      try{ state.d1Node = math.derivative(node,'x'); }catch(_){ state.d1Node = null; }
+      try{ state.d2Node = state.d1Node? math.derivative(state.d1Node,'x') : null; }catch(_){ state.d2Node = null; }
+      setError(null);
+      return true;
+    }catch(e){ setError('関数の解析に失敗：'+e.message); return false; }
+  }
+
+  function fOf(code,x){ try{ return code.evaluate({x,pi:Math.PI,e:Math.E}); }catch(_){ return NaN; } }
+  const numDiff=(f,x,h=1e-5)=> (f(x+h)-f(x-h))/(2*h);
+
+  // ====== 近似と整形 ======
+  function nearestPiRational(x, tol=1e-8){ const r=x/Math.PI; let best=null; for(let q=1;q<=12;q++){ const p=Math.round(r*q); const err=Math.abs(r - p/q); if(best===null || err<best.err){ best={p,q,err}; } } if(!best||best.err>tol) return null; return best; }
+  function piApproxText(x){ const best=nearestPiRational(x,1e-3); if(!best) return ''; const {p,q}=best; if(p===0) return ' (≈0)'; const sgn=p<0?'-':''; const ap=Math.abs(p); if(q===1) return ` (≈${sgn}${ap===1?"π":`${ap}π`})`; return ` (≈${sgn}${ap===1?"π":`${ap}π`}/${q})`; }
+  function rationalApprox(x, tol=1e-4){ let best=null; for(let q=1;q<=12;q++){ const p=Math.round(x*q); const err=Math.abs(x - p/q); if(best===null || err<best?.err){ best={p,q,err}; } } if(!best||best.err>tol) return null; return best; }
+  function fmt(v){ if(!Number.isFinite(v)) return '-'; const a=Math.abs(v); if(a<1e-8) return '0'; if(a>=1e6||(a>0&&a<1e-4)) return v.toExponential(3); return Math.round(v*1e3)/1e3; }
+
+  // 表示モードに合わせたx表示
+  function fmtXByMode(x){
+    let mode = $('xtickMode').value;
+    if(mode==='auto'){ mode = /\b(sin|cos|tan)\s*\(/i.test(state.exprText) ? 'pi':'num'; }
+    if(mode==='pi'){
+      const pr=nearestPiRational(x,1e-3); if(pr){ const {p,q}=pr; if(p===0) return '0'; const sgn=p<0?'-':''; const ap=Math.abs(p); if(q===1) return `${sgn}${ap===1?"π":`${ap}π`}`; return `${sgn}${ap===1?"π":`${ap}π`}/${q}`; }
+      const r=rationalApprox(x/Math.PI,1e-3); if(r){ const {p,q}=r; if(p===0) return '0'; const sgn=p<0?'-':''; const ap=Math.abs(p); if(q===1) return `${sgn}${ap===1?"π":`${ap}π`}`; return `${sgn}${ap===1?"π":`${ap}π`}/${q}`; }
+      return String(fmt(x));
+    }else if(mode==='frac'){
+      const r=rationalApprox(x,1e-4); if(r){ const {p,q}=r; if(p===0) return '0'; const sgn=p<0?'-':''; const ap=Math.abs(p); if(q===1) return `${sgn}${ap}`; return `${sgn}${ap}/${q}`; }
+      return String(fmt(x));
+    }
+    // num
+    return String(fmt(x));
+  }
+
+  // ====== Integral ======
+  function integrate(f,a,b,method='simpson',n=600){ if(!isFinite(a)||!isFinite(b)||a===b) return 0; if(n%2===1) n++; const h=(b-a)/n; if(method==='trapezoid'){ let sum=0,prev=f(a); for(let i=1;i<=n;i++){ const x=a+i*h; const cur=f(x); sum += 0.5*(prev+cur)*h; prev=cur;} return sum; } else { let s1=0,s2=0; for(let i=1;i<n;i+=2) s1+=f(a+i*h); for(let i=2;i<n;i+=2) s2+=f(a+i*h); return (h/3)*(f(a)+f(b)+4*s1+2*s2);} }
+
+  // ====== 候補検出（零点・極値・変曲） ======
+  function bracketZeros(f, xs){ const segs=[]; let prevX=xs[0], prevY=f(prevX); for(let i=1;i<xs.length;i++){ const x=xs[i], y=f(x); if(Number.isFinite(prevY) && Number.isFinite(y)){ if(prevY===0) segs.push([prevX, prevX]); else if(prevY*y<0) segs.push([prevX, x]); } prevX=x; prevY=y; } return segs; }
+  function bisectRoot(f,a,b,iter=60){ let fa=f(a), fb=f(b); if(!isFinite(fa)||!isFinite(fb)) return NaN; if(fa===0) return a; if(fb===0) return b; if(fa*fb>0) return NaN; let lo=a,hi=b; for(let k=0;k<iter;k++){ const m=0.5*(lo+hi); const fm=f(m); if(!isFinite(fm)) break; if(Math.abs(fm)<1e-12){ lo=hi=m; break;} if(fa*fm<0){ hi=m; fb=fm;} else { lo=m; fa=fm;} } return 0.5*(lo+hi); }
+
+  function classifyExtremum(f, d2f, r, xmin, xmax){
+    const eps2=1e-6; // f''(r)
+    const width=Math.max(1e-6, xmax-xmin);
+    const delta=1e-3*width;
+    let s=NaN; try{ s = d2f? d2f(r) : NaN; }catch(_){ s=NaN; }
+    if(Number.isFinite(s) && Math.abs(s)>=eps2){ return s<0? '極大' : '極小'; }
+    const fm=f(r), fl=f(r-delta), fr=f(r+delta);
+    if([fm,fl,fr].every(Number.isFinite)){
+      if(fm < fl && fm < fr) return '極小';
+      if(fm > fl && fm > fr) return '極大';
+      return '水平変曲';
+    }
+    return '極値';
+  }
+
+  function detectCandidates(f, d1f, d2f, xs, xmin, xmax){
+    const cands=[];
+    try{ const zSegs = bracketZeros(f,xs); zSegs.forEach(([a,b])=>{ const r=bisectRoot(f,a,b); if(Number.isFinite(r)) cands.push({x:r, kind:'zero', label:'0点'}); }); }catch(e){ log('zero detect error', e); }
+
+    try{
+      if(d1f){ const s1 = bracketZeros(d1f,xs); s1.forEach(([a,b])=>{ const r=bisectRoot(d1f,a,b); if(!Number.isFinite(r)) return; const f1 = Math.abs(d1f(r)); if(!(f1<=1e-7)) return; const label = classifyExtremum(f, d2f, r, xmin, xmax); cands.push({x:r, kind: label==='水平変曲'?'infl':'ext', label}); }); }
+                                                                                                else {
+                                                                                                  const dfAt = (x)=> numDiff(f, x);
+                                                                                                  let prev = dfAt(xs[0]);
+                                                                                                  for(let i=1;i<xs.length;i++){
+                                                                                                    const cur = dfAt(xs[i]);
+                                                                                                    if(!isFinite(prev)||!isFinite(cur)){ prev=cur; continue; }
+                                                                                                    if(prev===0){
+                                                                                                      cands.push({x:xs[i-1], kind:'ext', label:'極値'});
+                                                                                                    } else if(prev*cur<0){
+                                                                                                      const r=0.5*(xs[i-1]+xs[i]);
+                                                                                                      const label=classifyExtremum(f,null,r,xmin,xmax);
+                                                                                                      cands.push({x:r, kind: label==='水平変曲'?'infl':'ext', label});
+                                                                                                    }
+                                                                                                    prev=cur;
+                                                                                                  }
+                                                                                                }
+
+    }catch(e){ log('ext detect error', e); }
+
+    try{ if(d2f){ const s2 = bracketZeros(d2f,xs); s2.forEach(([a,b])=>{ const r=bisectRoot(d2f,a,b); if(Number.isFinite(r)) cands.push({x:r, kind:'infl', label:'変曲'}); }); }
+                                                                                                else {
+                                                                                                  const d2At = (x)=>{ const h=1e-3; return (f(x+h)-2*f(x)+f(x-h))/(h*h); };
+                                                                                                  let prev = d2At(xs[1]);
+                                                                                                  for(let i=2;i<xs.length;i++){
+                                                                                                    const cur = d2At(xs[i]);
+                                                                                                    if(!isFinite(prev)||!isFinite(cur)){ prev=cur; continue; }
+                                                                                                    if(prev*cur<0){
+                                                                                                      const r=xs[i-1];
+                                                                                                      cands.push({x:r, kind:'infl', label:'変曲'});
+                                                                                                    }
+                                                                                                    prev=cur;
+                                                                                                  }
+                                                                                                }
+
+    }catch(e){ log('infl detect error', e); }
+
+    cands.sort((a,b)=>a.x-b.x);
+    const out=[]; for(const c of cands){ if(out.length===0 || Math.abs(c.x-out[out.length-1].x)>1e-3) out.push(c); }
+    return out;
+  }
+
+  // ====== x軸: πベースtick と p/q ベースtick ======
+  function trigInExpr(){ const s=state.exprText.toLowerCase(); return /\b(sin|cos|tan)\s*\(/.test(s); }
+  function gcd(a,b){ a=Math.abs(a); b=Math.abs(b); while(b){ const t=a%b; a=b; b=t; } return a; }
+  function labelPiMultiple(p,q){ if(p===0) return '0'; const sgn=p<0?'-':''; const ap=Math.abs(p); if(q===1){ if(ap===1) return sgn+'π'; return sgn+ap+'π'; } const k=ap; if(k===q) return sgn+'π'; const g=gcd(k,q); const kp=k/g, qg=q/g; if(kp===1) return sgn+'π/'+qg; return sgn+kp+'π/'+qg; }
+  
+function buildPiTicks(xmin, xmax, widthPx){
+  var D=[1,2,3,4,6,8,12], minPx=70;
+  var span=Math.max(1e-9, xmax-xmin);
+  var plot=document.getElementById('plot');
+  var w = Math.max(1, Number(widthPx) || (plot ? (plot.getBoundingClientRect().width||0) : 0) || 800);
+
+  // 条件(minPx)を満たす中で「最大の q」を採用（最も細かい）
+  var picked=1, pickedPx=0;
+  for(var i=0;i<D.length;i++){
+    var q=D[i];
+    var step=Math.PI/q;
+    var count=Math.max(1, Math.floor(span/step));
+    var pxPerTick = w / count;
+    if(pxPerTick >= minPx && q >= picked){ picked=q; pickedPx=pxPerTick; }
+    if(pickedPx===0 && q>picked) picked=q; // 全滅時の保険
+  }
+
+  var step=Math.PI/picked;
+  var pMin=Math.ceil((xmin)/step - 0.5);
+  var pMax=Math.floor((xmax)/step + 0.5);
+
+  var vals=[], texts=[]
+  function gcd(a,b){ a=Math.abs(a); b=Math.abs(b); while(b){ var t=a%b; a=b; b=t; } return a||1; }
+
+  for(var p=pMin;p<=pMax;p++){
+    var x=p*step;
+    if(x<xmin-1e-12 || x>xmax+1e-12) continue;
+    vals.push(x);
+    if(p===0){ texts.push('0'); continue; }
+    var ap=Math.abs(p), sgn=p<0?'-':'';
+    var g=gcd(ap,picked), kp=ap/g, qg=picked/g;
+    texts.push(qg===1 ? sgn+(kp===1?'π':(kp+'π')) : sgn+(kp===1?('π/'+qg):(kp+'π/'+qg)));
+  }
+  return {vals: vals.length?vals:[xmin,xmax], texts: texts.length?texts:[String(xmin),String(xmax)]};
+}
+
+
+
+
+  // 新規: p/q（分数）ticks
+  function labelRational(p,q){ if(p===0) return '0'; const sgn=p<0?'-':''; const ap=Math.abs(p); if(q===1) return sgn+ap; const g=gcd(ap,q); return sgn+(ap/g)+'/'+(q/g); }
+  function buildRationalTicks(xmin,xmax,widthPx){
+    const D=[1,2,3,4,5,6,8,10,12]; const minPx=70;
+    const span = Math.max(1e-9, xmax-xmin);
+    let pickedQ = 1;
+    for(const q of D){
+      const step = 1/q;
+      const count = Math.max(1, Math.floor(span/step));
+      const pxPerTick = widthPx / count;
+      if(pxPerTick >= minPx){ pickedQ = q; break; }
+      pickedQ = q; // 最後まで満たさなくても一番細かいものを使う
+    }
+    const step=1/pickedQ;
+    const kMin=Math.ceil(xmin/step); const kMax=Math.floor(xmax/step);
+    const vals=[],texts=[];
+    for(let k=kMin;k<=kMax;k++){
+      const x=k*step;
+      const p=k, q=pickedQ;
+      const label = labelRational(p,q);
+      vals.push(x); texts.push(label);
+    }
+    if(!texts.length){ return {vals:[xmin,xmax], texts:[fmt(xmin),fmt(xmax)]}; }
+    return {vals, texts};
+  }
+
+  // ====== 表示 ======
+  function toTex(node){ try{ return node.toTex({parenthesis:'auto', implicit:'hide'}); }catch(_){ return '\\text{（表示不可）}'; } }
+  function renderTex(el,tex){ if(!el) return; try{ katex.render(tex, el, {throwOnError:false}); }catch(_){ if(el) el.textContent=tex; } }
+  function currentNumeric(id){ const el=$(id); const v=evalExprToNumber(el.value); el.classList.toggle('bad', !Number.isFinite(v)); return v; }
+
+  // 小数を分数に置換（q<=12, tol<=1e-9）
+  function decimalToFracTeX(numStr){
+    const v=Number(numStr);
+    if(!Number.isFinite(v)) return numStr;
+    const r=rationalApprox(v,1e-9);
+    if(!r) return numStr;
+    let {p,q}=r;
+    if(p===0) return '0';
+    const sgn = (p<0?'-':'');
+    p=Math.abs(p);
+    if(q===1) return sgn+p;
+    return sgn+'\\frac{'+p+'}{'+q+'}';
+  }
+  function texRationalizeDecimals(tex){
+    // すでに \frac{..}{..} の中の数字は残す想定のゆるい置換（基本的に小数だけ対象）
+    return tex.replace(/-?\d+\.\d+(?:e[+\-]?\d+)?/gi, m => decimalToFracTeX(m));
+  }
+  function texNormalizeCoeffOrder(s){
+  // x^{n} の後ろに "a/b" または \frac{a}{b} が付いたら前へ
+  s = s.replace(/(x(?:\^\{[^}]+\})?)\s*(\d+)\s*\/\s*(\d+)/g, '\\frac{$2}{$3} $1');
+  s = s.replace(/(x(?:\^\{[^}]+\})?)\s*\\frac\{(\d+)\}\{(\d+)\}/g, '\\frac{$2}{$3} $1');
+  // \cdot を挟む場合
+  s = s.replace(/(x(?:\^\{[^}]+\})?)\s*\\cdot\s*(\d+)\s*\/\s*(\d+)/g, '\\frac{$2}{$3} \\cdot $1');
+  s = s.replace(/(x(?:\^\{[^}]+\})?)\s*\\cdot\s*\\frac\{(\d+)\}\{(\d+)\}/g, '\\frac{$2}{$3} \\cdot $1');
+  // 一般の変数（べき/下付き含む）にも適用（簡易）
+  s = s.replace(/([a-zA-Z](?:_\{[^}]+\})?(?:\^\{[^}]+\})?)\s*(\d+)\s*\/\s*(\d+)/g, '\\frac{$2}{$3} $1');
+  s = s.replace(/([a-zA-Z](?:_\{[^}]+\})?(?:\^\{[^}]+\})?)\s*\\frac\{(\d+)\}\{(\d+)\}/g, '\\frac{$2}{$3} $1');
+  return s;
+}
+
+
+  // ====== Redraw ======
+  let plotRectW=800;
+  const scheduleRedraw = ( ()=>{ const fn=()=>{ try{ redraw(); }catch(e){ setError('描画エラー: '+e.message); log('redraw error', e); } }; return deb(fn, 200); })();
+
+  function redraw(){
+    time('redraw', ()=>{
+      // mode & compile
+      state.mode = modeRadios.find(r=>r.checked).value;
+      compileAll();
+
+      // inputs
+      const xmin=currentNumeric('xmin'); const xmax=currentNumeric('xmax'); let x0_in=currentNumeric('x0');
+      if(Math.abs(x0_in)<1e-8) x0_in=0; // 参照点 実質0
+      const aIn=currentNumeric('intA'); const bIn=currentNumeric('intB');
+
+      if(!(xmax>xmin && Number.isFinite(xmin) && Number.isFinite(xmax))){ setError('x 範囲の入力を確認してください'); return; }
+
+      state.xmin=xmin; state.xmax=xmax; state.xtickMode=$('xtickMode').value;
+      // 初期 a,b は [xmin,xmax]
+      if(state.a===null||state.b===null){ state.a=xmin; state.b=xmax; $('intA').value=String(xmin); $('intB').value=String(xmax); }
+
+      const locked=$('lockIntRange').checked;
+      if(locked){ state.a=xmin; state.b=xmax; $('intA').value=String(xmin); $('intB').value=String(xmax); $('intA').disabled=true; $('intB').disabled=true; }
+      else { $('intA').disabled=false; $('intB').disabled=false; if(Number.isFinite(aIn)) state.a=aIn; if(Number.isFinite(bIn)) state.b=bIn; }
+
+      state.x0=Number.isFinite(x0_in)?x0_in:(xmin+xmax)/2;
+      state.quad=$('quadRule').value; state.shade=$('shadeArea').checked; state.showTangent=$('showTangent').checked; state.piStep=$('piStep').checked; state.snapEnable=$('snapEnable').checked; state.fitToTangent = (document.getElementById('fitToTangent') ? document.getElementById('fitToTangent').checked : false);
+      state.markZeros=$('markZeros').checked; state.markExtrema=$('markExtrema').checked; state.markInflect=$('markInflect').checked; state.showF=$checked('showF', true); state.showF1=$checked('showF1', true); state.showF2=$checked('showF2', true); state.showG=$checked('showG', false);
+
+      const f=(x)=> fOf(state.compiled,x);
+      // d1,d2 はその都度 compile せず評価
+      const d1c = state.d1Node ? state.d1Node.compile() : null;
+      const d2c = state.d2Node ? state.d2Node.compile() : null;
+      const d1  = d1c ? (x)=> fOf(d1c,x) : null;
+      const d2  = d2c ? (x)=> fOf(d2c,x) : null;
+
+      // x0 を π有理倍に正規化（評価用）
+      let x0_eff = state.x0; const rat = nearestPiRational(state.x0,1e-8); if(rat){ x0_eff = rat.p*Math.PI/rat.q; }
+
+      // sampling
+      const N=900; const xs=new Array(N); const dx=(state.xmax-state.xmin)/(N-1); for(let i=0;i<N;i++) xs[i]=state.xmin+i*dx; const ys=xs.map(x=>{ const y=f(x); return (Number.isFinite(y)&&Math.abs(y)<1e10)?y:NaN; });
+
+      // values at x0 (ゼロ丸め)
+      const fx0=f(x0_eff);
+      const fpx0 = d1? (Number.isFinite(d1(x0_eff))? d1(x0_eff): numDiff(f,state.x0)) : numDiff(f,state.x0);
+      $('x0Echo').textContent = fmt(state.x0); $('x0PiEcho').textContent = piApproxText(state.x0);
+      $('fx0').textContent=fmt(fx0); $('fdx0').textContent=fmt(fpx0);
+
+      // traces
+      const data=[];
+      // area shading（塗りつぶしはセクション開時のみ）
+      const intOpen = $('sec-int').open; const A=Math.min(state.a,state.b), B=Math.max(state.a,state.b);
+      let intVal=NaN,intNote='',intAbs=NaN;
+      if(Number.isFinite(A)&&Number.isFinite(B)&&A<B){
+        // 値の更新（セクション開閉に関わらず計算自体は安全）
+        try{ intVal=integrate(f,A,B,state.quad,600); intNote=(state.quad==='simpson'?'Simpson':'台形則'); }catch(_){ intNote='積分失敗'; }
+        try{ intAbs=integrate(x=>Math.abs(f(x)),A,B,state.quad,600); }catch(_){}
+        if(intOpen && state.shade){
+          const ax=[], ay=[]; const M=360; const step=(B-A)/M; for(let x=A; x<=B+1e-12; x+=step){ ax.push(x); ay.push(f(x)); } ax.push(B,A); ay.push(0,0);
+          data.push({x:ax,y:ay,type:'scatter',mode:'lines',fill:'toself',line:{width:0},name:'area[a,b]'});
+        }
+      }
+      $('intVal').textContent = Number.isFinite(intVal)? fmt(intVal) : '-'; $('intNote').textContent=intNote;
+      $('intAbsVal').textContent = Number.isFinite(intAbs)? fmt(intAbs) : (Number.isFinite(A)&&Number.isFinite(B)&&A<B? '-' : '—');
+
+      data.push({x:xs,y:ys,mode:'lines',type:'scatter',name:'f(x)',line:{width:2}});
+if(state.showG){
+  var graw=(document.getElementById('fn2Input')||{value:''}).value.trim();
+  if(graw){
+    var gexpr=(state.mode==='latex')? latexToPlain(graw) : graw;
+    var yg=xs.map(function(x){ try{ var v=math.evaluate(gexpr,{x:x}); return (isFinite(v)?v:NaN);}catch(e){ return NaN; } });
+    data.push({x:xs,y:yg,mode:'lines',type:'scatter',name:'g(x)',line:{width:2,color:'#e67e22'}});
+  }
+}
+
+      if(state.showTangent){
+        const ty = xs.map(x=> fpx0*(x - x0_eff) + fx0 );
+        // decide axis usage and possible y-range override
+        const useY2 = !state.fitToTangent;
+        let yRangeOverride = null;
+        if(!useY2){
+          const finite = ty.filter(v=> Number.isFinite(v));
+          if(finite.length){
+            let tmin = Math.min.apply(null, finite);
+            let tmax = Math.max.apply(null, finite);
+            const span = tmax - tmin;
+            const pad = 0.08 * (span || 1);
+            yRangeOverride = [tmin - pad, tmax + pad];
+          }
+        }
+        const tanTrace = {x:xs, y:ty, mode:'lines', type:'scatter', name:'tangent', line:{width:1,dash:'dot'}};
+        if(useY2){ tanTrace.yaxis = 'y2'; }
+        data.push(tanTrace);
+        // store override globally via closure (hack: attach to window for later use post-layout create)
+        window.__tangentYRangeOverride__ = yRangeOverride;
+        window.__tangentUseY2__ = useY2;
+      } else {
+        window.__tangentYRangeOverride__ = null;
+        window.__tangentUseY2__ = null;
+      }
+
+      // candidates & markers
+      const cands=detectCandidates(f,d1,d2,xs,state.xmin,state.xmax); state.candidates=cands;
+      const zeroXs = state.markZeros? cands.filter(c=>c.kind==='zero').map(c=>c.x):[];
+      const extC  = state.markExtrema? cands.filter(c=>c.kind==='ext'):[];
+      const infC  = state.markInflect? cands.filter(c=>c.kind==='infl'):[];
+      if(zeroXs.length) data.push({x:zeroXs,y:zeroXs.map(_=>0),mode:'markers',type:'scatter',name:'0点',marker:{size:7,symbol:'x'}});
+      if(extC.length)  data.push({x:extC.map(c=>c.x), y:extC.map(c=>f(c.x)),mode:'markers',type:'scatter',name:'極値',marker:{size:8}});
+      if(infC.length)  data.push({x:infC.map(c=>c.x), y:infC.map(c=>f(c.x)),mode:'markers',type:'scatter',name:'変曲',marker:{size:7,symbol:'circle-open'}});
+
+      // x軸 tick
+      const layout={ margin:{l:34,r:10,t:6,b:28}, paper_bgcolor:'#161a22', plot_bgcolor:'#161a22',
+        xaxis:{range:[state.xmin,state.xmax],gridcolor:'#222838',zerolinecolor:'#394058',color:'#a0a7b4'},
+        yaxis:{gridcolor:'#222838',zerolinecolor:'#394058',color:'#a0a7b4'},
+                                                                                                    showlegend:true, height:(parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--plot-h'))||360)
+ };
+
+      const widthEl = $('plot'); plotRectW = widthEl.getBoundingClientRect().width || 800;
+      let mode = state.xtickMode; if(mode==='auto'){ mode = trigInExpr() ? 'pi' : 'num'; }
+      if(mode==='pi'){
+        const ticks = buildPiTicks(state.xmin,state.xmax,plotRectW);
+        layout.xaxis.tickmode='array'; layout.xaxis.tickvals=ticks.vals; layout.xaxis.ticktext=ticks.texts;
+      } else if(mode==='frac'){
+        const ticks = buildRationalTicks(state.xmin,state.xmax,plotRectW);
+        layout.xaxis.tickmode='array'; layout.xaxis.tickvals=ticks.vals; layout.xaxis.ticktext=ticks.texts;
+      } else {
+        layout.xaxis.tickmode='auto'; delete layout.xaxis.tickvals; delete layout.xaxis.ticktext;
+      }
+
+                                                                                                  
+      // Apply tangent axis/range policy after layout creation (non-invasive)
+      (function(){
+        var u2 = window.__tangentUseY2__;
+        var rng = window.__tangentYRangeOverride__;
+        if(u2===true){
+          // tangent on y2, keep y autoscale and fully match axes
+          if(layout && layout.yaxis){
+            layout.yaxis.autorange = true;
+            try{ delete layout.yaxis.range; }catch(_){}
+          }
+          layout.yaxis2 = {overlaying:'y', side:'right', matches:'y', showgrid:false, zeroline:false, color:'#a0a7b4'};
+        }else if(u2===false){
+          // fit to tangent: force y range if provided
+          if(rng && layout && layout.yaxis){
+            layout.yaxis.autorange = false;
+            layout.yaxis.range = rng;
+          }
+          // ensure y2 is not forcing anything
+          if(layout) try{ delete layout.yaxis2; }catch(_){}
+        }else{
+          // no tangent: default autoscale, clear overrides
+          if(layout && layout.yaxis){
+            layout.yaxis.autorange = true;
+            try{ delete layout.yaxis.range; }catch(_){}
+          }
+          if(layout) try{ delete layout.yaxis2; }catch(_){}
+        }
+      })();
+if(!state.gd){
+                                                                                                    const gd = document.getElementById('plot');
+                                                                                                    Plotly.newPlot(gd, data, layout, {responsive:true, displaylogo:false}).then(g=>{
+                                                                                                        state.gd = g;
+                                                                                                        state.plotted = true;
+                                                                                                        bindPlotEvents(); // 初回だけ
+                                                                                                    }).catch(e=>{
+                                                                                                        setError('グラフ初期化に失敗: '+e.message);
+                                                                                                    });
+                                                                                                  } else {
+                                                                                                    Plotly.react(state.gd, data, layout, {responsive:true, displaylogo:false});
+                                                                                                  }
+
+      // LaTeX display（f, f', f''）
+      $('texFx').innerHTML=''; $('texFdx').innerHTML=''; $('texFd2x').innerHTML='';
+      if(state.showF){ renderTex($('texFx'),  `\\displaystyle f(x) = ${toTex(state.fnNode)}`); }
+      if(state.showF1){
+        if(state.d1Node){
+          try{
+            const d1S = math.simplify(state.d1Node);
+            const d1R = math.rationalize(d1S,'x');
+            let tex = d1R.toTex({parenthesis:'auto', implicit:'hide'});
+            tex = texRationalizeDecimals(tex);
+            tex = texNormalizeCoeffOrder(tex);
+            renderTex($('texFdx'), `\\displaystyle f'(x) = ${tex}`);
+          }catch(_){
+            renderTex($('texFdx'), `\\displaystyle f'(x) = ${toTex(state.d1Node)}`);
+          }
+        }else{
+          renderTex($('texFdx'), `\\displaystyle f'(x) = \\text{（記号微分なし）}`);
+        }
+      }
+      if(state.showF2){
+  try{
+    const d2S = math.simplify(state.d2Node);
+    const d2R = math.rationalize(d2S,'x');
+    let tex2 = d2R.toTex({parenthesis:'auto', implicit:'hide'});
+    tex2 = texRationalizeDecimals(tex2);
+    tex2 = texNormalizeCoeffOrder(tex2);
+    renderTex($('texFd2x'), `\\displaystyle f''(x) = ${tex2}`);
+  }catch(_){
+    renderTex($('texFd2x'), `\\displaystyle f''(x) = ${toTex(state.d2Node)}`);
+  }
+}else{
+  renderTex($('texFd2x'), `\\displaystyle f''(x) = \\text{（記号微分なし）}`);
+}
+
+      // 特別スナップ集合を更新
+      state.specialPoints = buildSpecialPoints(state.xmin,state.xmax);
+
+      // 候補一覧（分数優先・選択モード反映）
+      const enabledKinds=new Set([state.markExtrema?'ext':null,state.markInflect?'infl':null,state.markZeros?'zero':null].filter(Boolean));
+      const list=state.candidates.filter(c=>enabledKinds.has(c.kind)).map((c,i)=>`${i+1}. ${c.label}: x≈${fmtXByMode(c.x)}`).join(' ／ ');
+      $('candidatesList').textContent = list || '（検出OFF または検出なし）';
+// PATCH-3: 数値情報（極値・変曲）を出力（DOM無ければスキップ）
+(function(){
+  var elExt = document.getElementById('extList');
+  var elInfl = document.getElementById('inflList');
+  if(!elExt || !elInfl) return;
+  try{
+    var extC  = (state.candidates||[]).filter(function(c){return c.kind==='ext';});
+    var inflC = (state.candidates||[]).filter(function(c){return c.kind==='infl';});
+    if(extC.length){
+      var s1 = extC.map(function(c){return 'x≈'+fmtXByMode(c.x)+', f≈'+fmt(f(c.x));}).join(' ／ ');
+      elExt.textContent = s1; elExt.classList.remove('muted');
+    }else{ elExt.textContent='なし'; elExt.classList.remove('muted'); }
+    if(inflC.length){
+      var s2 = inflC.map(function(c){return 'x≈'+fmtXByMode(c.x)+', f≈'+fmt(f(c.x));}).join(' ／ ');
+      elInfl.textContent = s2; elInfl.classList.remove('muted');
+    }else{ elInfl.textContent='なし'; elInfl.classList.remove('muted'); }
+  }catch(e){
+    elExt.textContent='エラー'; elInfl.textContent='エラー';
+  }
+})();
+
+    });
+  }
+
+  function buildSpecialPoints(xmin,xmax){ const S=new Set(); S.add(0);
+    const iMin=Math.ceil(xmin); const iMax=Math.floor(xmax); for(let n=iMin;n<=iMax;n++) S.add(n);
+    const Q=[1,2,3,4,6,8,12]; for(const q of Q){ const step=Math.PI/q; const pMin=Math.ceil(xmin/step); const pMax=Math.floor(xmax/step); for(let p=pMin;p<=pMax;p++){ S.add(p*step); } }
+    return Array.from(S.values()).sort((a,b)=>a-b);
+  }
+
+                                                                                                        function bindPlotEvents(){
+                                                                                                        if(state.plotBound) return;
+                                                                                                        const plotEl = state.gd || $('plot');
+                                                                                                        if(!plotEl || typeof plotEl.on !== 'function') return; // 初期化未完了なら何もしない
+                                                                                                        state.plotBound = true;
+                                                                                                        
+                                                                                                        plotEl.on('plotly_hover',(ev)=>{
+                                                                                                        if(!state.snapEnable) return;
+                                                                                                        const pt=ev.points?.[0]; if(!pt) return;
+                                                                                                        const snap=nearestSnap(pt.x);
+                                                                                                        $('snapBadge').textContent = snap ? `snap: ${snap.label}` : '';
+                                                                                                        $('snapHint').textContent  = snap ? `${snap.label} 近傍にスナップ中（x≈${fmtXByMode(snap.x)}）` : '';
+                                                                                                        });
+                                                                                                        
+                                                                                                        plotEl.on('plotly_click',(ev)=>{
+                                                                                                        const pt=ev.points?.[0]; if(!pt) return;
+                                                                                                        const snap= state.snapEnable? nearestSnap(pt.x): null;
+                                                                                                        const xPick = snap? snap.x : pt.x;
+                                                                                                        $('x0').value=String(xPick);
+                                                                                                        triggerInput($('x0'));
+                                                                                                        });
+                                                                                                        }
+
+
+  function nearestSnap(xHover){ const w=state.xmax-state.xmin; const pxPerX=(($('plot').getBoundingClientRect().width||800)/w); const baseThresh=(window.innerWidth<640?16:12);
+    let best=null, bestKey=1e12;
+    function consider(arr,label,kpri){ for(const x of arr){ const dxPx=Math.abs(x-xHover)*pxPerX; if(dxPx>baseThresh) continue; const key=kpri*1e6+dxPx; if(key<bestKey){ best={x,label}; bestKey=key; } } }
+    // S 最優先
+    consider(state.specialPoints.map(x=>x),'特別点',0);
+    // 極値・変曲・0点
+    consider(state.candidates.filter(c=>c.kind==='ext').map(c=>c.x),'極値',1);
+    consider(state.candidates.filter(c=>c.kind==='infl').map(c=>c.x),'変曲',2);
+    consider(state.candidates.filter(c=>c.kind==='zero').map(c=>c.x),'0点',3);
+    return best; }
+
+  // ====== Area inverse solve ======
+  $('solveArea').addEventListener('click', ()=>{
+    const A=evalExprToNumber($('targetArea').value); const a=currentNumeric('intA'); if(!Number.isFinite(A)||!Number.isFinite(a)){ $('areaSolveMsg').textContent='目標Aまたはaが不正です'; return; }
+    const dir=$('areaDir').value; const abs=$('areaAbs').checked; const maxSpan=evalExprToNumber($('areaMaxSpan').value); if(!(Number.isFinite(maxSpan)&&maxSpan>0)){ $('areaSolveMsg').textContent='上限 |b−a| を確認してください'; return; }
+    compileAll(); const f=(x)=> fOf(state.compiled,x); function F(b){ if(abs) return integrate(x=>Math.abs(f(x)),a,b,'simpson',800); else return integrate(f,a,b,'simpson',800); }
+    const step0=(dir==='right'?+0.25:-0.25); let span=0,bv=a,Fb=0,lo=a,hi=a,found=false; for(let k=0;k<200;k++){ span += Math.max(0.1,Math.abs(step0))*Math.pow(1.15,k); if(span>maxSpan) break; bv=a + (dir==='right'? +span : -span); Fb=F(bv); if((A>=0 && Fb>=A) || (A<0 && Fb<=A)){ if(dir==='right'){ lo=a; hi=bv; } else { lo=bv; hi=a; } found=true; break; } }
+    if(!found){ $('areaSolveMsg').textContent='所定の上限内で目標面積に到達しませんでした。単調でない可能性があります。'; return; }
+    function G(x){ return F(x)-A; } let L=lo,H=hi,GL=G(L),GH=G(H); if(GL*GH>0){ $('areaSolveMsg').textContent='収束のための区間が確保できません（関数形を確認）'; return; }
+    for(let i=0;i<60;i++){ const M=0.5*(L+H); const GM=G(M); if(Math.abs(GM)<1e-5){ L=H=M; break; } if(GL*GM<0){ H=M; GH=GM; } else { L=M; GL=GM; } }
+    const bsol=0.5*(L+H); $('intB').value=String(bsol); $('areaSolveMsg').innerHTML=`<span class="ok">b≈${fmt(bsol)}（x≈${fmtXByMode(bsol)}）</span> で目標 A≈${fmt(A)} を満たしました（Simpson近似）`; triggerInput($('intB'));
+  });
+
+  // ====== Events ======
+  const schedule = id => $(id).addEventListener('input', scheduleRedraw);
+  ['fnInput','fn2Input','xmin','xmax','x0','intA','intB'].forEach(schedule);
+  ['quadRule','shadeArea','showTangent','fitToTangent','markZeros','markExtrema','markInflect','showF','showF1','showF2','showG','snapEnable','lockIntRange','xtickMode']
+    .forEach(id=> { const el=$(id); if(el) el.addEventListener('change', scheduleRedraw); });
+                                                                                                        modeRadios.forEach(r=> r.addEventListener('change', ()=>{ $('latexHint').style.display = (r.value==='latex' && r.checked)?'block':'none'; // 初期描画（レイアウト完了後）
+                                                                                                        window.addEventListener('load', scheduleRedraw); }));
+  $('sec-int').addEventListener('toggle', scheduleRedraw);
+
+  // keyboard: Fit / Reset / Arrow step
+  document.addEventListener('keydown',(e)=>{ if(e.key==='F'||e.key==='f'){ toggleFit(); } if(e.key==='Z'||e.key==='z'){ $('resetBtn').click(); } });
+  function adjustSpin(id, dir){ const el=$(id); const v=evalExprToNumber(el.value); if(!Number.isFinite(v)) return; const step = $('piStep').checked ? (Math.PI/12) : 0.1; el.value = String(v + step*(dir>0?+1:-1)); triggerInput(el); }
+  document.querySelectorAll('[data-spin]').forEach(btn=>{ btn.addEventListener('click', ()=>{ const id=btn.getAttribute('data-spin'); const d=parseInt(btn.getAttribute('data-d'),10); adjustSpin(id, d); }); });
+  ;['xmin','xmax','x0','intA','intB'].forEach(id=>{ const el=$(id); el.addEventListener('keydown',(e)=>{ if(e.key==='ArrowUp'||e.key==='ArrowDown'){ e.preventDefault(); adjustSpin(id, e.key==='ArrowUp'? +1 : -1); } }); });
+
+  function toggleFit(){ document.body.classList.toggle('folded'); }
+  $('fitToggle').addEventListener('click', toggleFit);
+
+  // 初期描画
+  scheduleRedraw();
+})();
+</script>
+</body>
+</html>

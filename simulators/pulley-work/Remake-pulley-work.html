@@ -1,0 +1,990 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>定滑車・動滑車の仕事シミュレーター</title>
+<link rel="stylesheet" href="../../assets/common-sim.css">
+<script src="../../assets/sim-shell.js"></script>
+<style>
+  :root {
+    --bg: #f5f7fa;
+    --surface: #ffffff;
+    --ink: #182230;
+    --muted: #5c6b7d;
+    --line: #d8e0ea;
+    --rail: #768391;
+    --rope: #b9853a;
+    --rope-active: #2f77c8;
+    --load: #6b7480;
+    --accent: #2367bd;
+    --lift: #1e8a5a;
+    --force: #c43e33;
+    --support: #8b4dc2;
+    --work: #b56a00;
+    --radius: 8px;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    width: 100%;
+    overflow-x: hidden;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: ui-sans-serif, system-ui, -apple-system, "Hiragino Kaku Gothic ProN", Meiryo, sans-serif;
+    font-size: 14px;
+    line-height: 1.5;
+  }
+  .wrap {
+    width: min(1240px, 100%);
+    margin: 16px auto 28px;
+    padding: 0 12px;
+  }
+  h1 {
+    margin: 0 0 10px;
+    font-size: 20px;
+    line-height: 1.25;
+    letter-spacing: 0;
+  }
+  .layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(300px, 360px);
+    gap: 12px;
+    align-items: start;
+  }
+  .layout > * { min-width: 0; }
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 12px;
+    box-shadow: 0 8px 20px rgba(31, 42, 55, .06);
+  }
+  .panel-title {
+    margin: 0 0 8px;
+    color: #283546;
+    font-size: 13px;
+    font-weight: 800;
+  }
+  canvas {
+    display: block;
+    width: 100%;
+    height: min(62vh, 610px);
+    min-height: 450px;
+    border: 1px solid #dce4ee;
+    border-radius: var(--radius);
+    background: linear-gradient(#fbfdff, #eef4f8);
+  }
+  .controls {
+    display: grid;
+    gap: 10px;
+  }
+  .control {
+    display: grid;
+    grid-template-columns: 116px 1fr 66px;
+    gap: 8px;
+    align-items: center;
+  }
+  .control label {
+    color: #2a3747;
+    font-size: 12px;
+    font-weight: 800;
+  }
+  input, select, button { font: inherit; min-width: 0; }
+  input[type="range"] { width: 100%; }
+  select, .plain-button {
+    min-height: 34px;
+    border: 1px solid var(--line);
+    border-radius: 7px;
+    background: #f9fbfd;
+    color: var(--ink);
+    font-size: 12px;
+    font-weight: 700;
+  }
+  output {
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+  }
+  .toggle-row {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+  }
+  .plain-button {
+    cursor: pointer;
+  }
+  .plain-button[aria-pressed="true"] {
+    border-color: var(--accent);
+    background: #e8f1ff;
+    color: #17467f;
+  }
+  .readouts {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 7px;
+    margin-top: 10px;
+  }
+  .readout {
+    min-height: 50px;
+    border: 1px solid #e0e7ef;
+    border-radius: 7px;
+    padding: 7px 8px;
+    background: #fbfdff;
+  }
+  .readout .label {
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 800;
+  }
+  .readout .value {
+    margin-top: 2px;
+    color: #142033;
+    font-size: 16px;
+    font-weight: 800;
+    font-variant-numeric: tabular-nums;
+  }
+  .legend {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px 10px;
+    margin-top: 10px;
+    color: var(--muted);
+    font-size: 12px;
+  }
+  .legend span {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+  }
+  .swatch {
+    width: 18px;
+    height: 4px;
+    border-radius: 999px;
+    background: currentColor;
+    flex: 0 0 auto;
+  }
+  .formula {
+    margin-top: 10px;
+    border-left: 4px solid var(--accent);
+    padding: 8px 10px;
+    background: #f4f8fe;
+    color: #253243;
+    font-size: 12px;
+  }
+  .formula strong {
+    color: #10243e;
+  }
+  @media (max-width: 860px) {
+    .layout { grid-template-columns: 1fr; }
+    canvas { min-height: 520px; height: 70vh; }
+  }
+  @media (max-width: 560px) {
+    .wrap { padding: 0 8px; }
+    .control { grid-template-columns: 96px 1fr 56px; gap: 6px; }
+    .readouts, .legend { grid-template-columns: 1fr; }
+    canvas { min-height: 560px; }
+  }
+</style>
+  <link rel="stylesheet" href="../../assets/remake.css">
+</head>
+<body class="remake-ui">
+  <div class="remake-badge-host"><span class="remake-ribbon">リメイク版</span></div>
+<main class="wrap">
+  <h1>定滑車・動滑車の仕事シミュレーター</h1>
+  <div class="layout">
+    <section class="panel" aria-label="滑車の比較図">
+      <p class="panel-title">同じ高さまで持ち上げたときの比較</p>
+      <canvas id="scene" width="1200" height="650"></canvas>
+      <div class="legend" aria-label="凡例">
+        <span style="color: var(--rope-active)"><i class="swatch"></i>引いた紐の距離</span>
+        <span style="color: var(--lift)"><i class="swatch"></i>物体の上昇距離</span>
+        <span style="color: var(--force)"><i class="swatch"></i>必要な力</span>
+        <span style="color: var(--support)"><i class="swatch"></i>物体を支える紐</span>
+      </div>
+    </section>
+    <aside class="panel" aria-label="操作と数値">
+      <p class="panel-title">条件</p>
+      <div class="controls">
+        <div class="control">
+          <label for="liftHeight">上げる高さ</label>
+          <input id="liftHeight" type="range" min="10" max="180" step="5" value="80">
+          <output id="liftHeightOut">80 cm</output>
+        </div>
+        <div class="control">
+          <label for="mass">質量</label>
+          <input id="mass" type="range" min="1" max="60" step="1" value="20">
+          <output id="massOut">20 kg</output>
+        </div>
+        <div class="control">
+          <label for="objectType">物体</label>
+          <select id="objectType">
+            <option value="crate">木箱</option>
+            <option value="weight">実験用おもり</option>
+            <option value="books">本の束</option>
+            <option value="piano">重い荷物</option>
+            <option value="shiromo">モルカー（シロモ）</option>
+          </select>
+          <output></output>
+        </div>
+        <div class="control">
+          <label for="multiCount">複数動滑車</label>
+          <input id="multiCount" type="range" min="2" max="4" step="1" value="3">
+          <output id="multiCountOut">3個</output>
+        </div>
+        <div class="toggle-row">
+          <button class="plain-button" id="animate" type="button" aria-pressed="false">再生</button>
+          <button class="plain-button" id="showMulti" type="button" aria-pressed="false">複数を表示</button>
+          <button class="plain-button" id="showGuide" type="button" aria-pressed="true">式を表示</button>
+        </div>
+      </div>
+      <div class="readouts" aria-label="代表値">
+        <div class="readout"><div class="label">物体の重さ</div><div class="value" id="weightRead">196 N</div></div>
+        <div class="readout"><div class="label">定滑車の力</div><div class="value" id="fixedRead">196 N</div></div>
+        <div class="readout"><div class="label">動滑車1つの力</div><div class="value" id="singleRead">98 N</div></div>
+        <div class="readout"><div class="label">複数動滑車の力</div><div class="value" id="multiRead">33 N</div></div>
+      </div>
+      <div class="formula" id="formulaBox">
+        <strong>理想条件：</strong>
+        支える紐が <span id="supportText">6</span> 本なら、必要な力は重さの <span id="ratioText">1/6</span>。
+        そのかわり、同じ高さまで上げるには紐を <span id="distanceText">6倍</span> 引きます。
+      </div>
+    </aside>
+  </div>
+</main>
+<script>
+(() => {
+  const canvas = document.getElementById("scene");
+  const ctx = canvas.getContext("2d");
+  const dpr = Math.max(1, window.devicePixelRatio || 1);
+  const inputs = {
+    liftHeight: document.getElementById("liftHeight"),
+    mass: document.getElementById("mass"),
+    objectType: document.getElementById("objectType"),
+    multiCount: document.getElementById("multiCount"),
+    animate: document.getElementById("animate"),
+    showMulti: document.getElementById("showMulti"),
+    showGuide: document.getElementById("showGuide")
+  };
+  const outs = {
+    liftHeight: document.getElementById("liftHeightOut"),
+    mass: document.getElementById("massOut"),
+    multiCount: document.getElementById("multiCountOut"),
+    weight: document.getElementById("weightRead"),
+    fixed: document.getElementById("fixedRead"),
+    single: document.getElementById("singleRead"),
+    multi: document.getElementById("multiRead"),
+    supportText: document.getElementById("supportText"),
+    ratioText: document.getElementById("ratioText"),
+    distanceText: document.getElementById("distanceText"),
+    formulaBox: document.getElementById("formulaBox")
+  };
+  const colors = {
+    ropeActive: "#2f77c8",
+    lift: "#1e8a5a",
+    force: "#c43e33",
+    support: "#8b4dc2",
+    rope: "#b9853a"
+  };
+  const shiromoImage = new Image();
+  shiromoImage.src = "assets/shiromo.png?v=20260607";
+  shiromoImage.addEventListener("load", render);
+  let showMulti = false;
+  let showGuide = true;
+  let animate = false;
+  let animationStart = performance.now();
+  let frameId = null;
+  let liftProgress = 0;
+
+  function state() {
+    const liftCm = Number(inputs.liftHeight.value);
+    const massKg = Number(inputs.mass.value);
+    const multiMovable = Number(inputs.multiCount.value);
+    const weightN = massKg * 9.8;
+    return {
+      liftCm,
+      liftM: liftCm / 100,
+      massKg,
+      weightN,
+      objectType: inputs.objectType.value,
+      multiMovable,
+      multiSupports: multiMovable * 2
+    };
+  }
+
+  function setCanvasSize() {
+    const rect = canvas.getBoundingClientRect();
+    canvas.width = Math.max(1, Math.round(rect.width * dpr));
+    canvas.height = Math.max(1, Math.round(rect.height * dpr));
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+
+  function fmtN(value) {
+    return `${Math.round(value)} N`;
+  }
+
+  function updateReadouts(s) {
+    outs.liftHeight.textContent = `${s.liftCm} cm`;
+    outs.mass.textContent = `${s.massKg} kg`;
+    outs.multiCount.textContent = `${s.multiMovable}個`;
+    outs.weight.textContent = fmtN(s.weightN);
+    outs.fixed.textContent = fmtN(s.weightN);
+    outs.single.textContent = fmtN(s.weightN / 2);
+    outs.multi.textContent = fmtN(s.weightN / s.multiSupports);
+    const guideSupports = showMulti ? s.multiSupports : 2;
+    outs.supportText.textContent = guideSupports;
+    outs.ratioText.textContent = `1/${guideSupports}`;
+    outs.distanceText.textContent = `${guideSupports}倍`;
+    outs.formulaBox.style.display = showGuide ? "block" : "none";
+    inputs.animate.setAttribute("aria-pressed", String(animate));
+    inputs.animate.textContent = animate ? "停止" : "再生";
+    inputs.showMulti.setAttribute("aria-pressed", String(showMulti));
+    inputs.showGuide.setAttribute("aria-pressed", String(showGuide));
+  }
+
+  function line(x1, y1, x2, y2, color, width = 3, dash = []) {
+    ctx.save();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = width;
+    ctx.lineCap = "round";
+    ctx.setLineDash(dash);
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function ropeLine(x1, y1, x2, y2, color, width = 5) {
+    line(x1 + 2, y1 + 3, x2 + 2, y2 + 3, "rgba(47, 36, 22, .18)", width + 2);
+    line(x1, y1, x2, y2, color, width);
+    line(x1 - 1, y1 - 1, x2 - 1, y2 - 1, "rgba(255, 255, 255, .35)", Math.max(1, width * .28));
+  }
+
+  function ropeArc(x, y, r, start, end, color, width = 5) {
+    ctx.save();
+    ctx.lineCap = "round";
+    ctx.strokeStyle = "rgba(47, 36, 22, .18)";
+    ctx.lineWidth = width + 2;
+    ctx.beginPath();
+    ctx.arc(x + 2, y + 3, r, start, end);
+    ctx.stroke();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = width;
+    ctx.beginPath();
+    ctx.arc(x, y, r, start, end);
+    ctx.stroke();
+    ctx.strokeStyle = "rgba(255, 255, 255, .35)";
+    ctx.lineWidth = Math.max(1, width * .28);
+    ctx.beginPath();
+    ctx.arc(x - 1, y - 1, r, start, end);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function motionSegment(x, y1, y2, labelText, side = 1) {
+    if (Math.abs(y2 - y1) < 4) return;
+    ropeLine(x, y1, x, y2, colors.ropeActive, 7);
+    arrow(x + side * 20, y2, x + side * 20, y1, colors.ropeActive, labelText, side);
+  }
+
+  function drawSling(x, pulleyBottomY, loadTopY, frontLines = true) {
+    const ringY = loadTopY - 10;
+    if (frontLines) {
+      ropeLine(x, pulleyBottomY, x, ringY, "#667483", 3);
+      line(x, ringY, x - 34, loadTopY + 14, "#667483", 2);
+      line(x, ringY, x + 34, loadTopY + 14, "#667483", 2);
+    } else {
+      ropeLine(x, pulleyBottomY, x, loadTopY + 26, "#667483", 3);
+      line(x - 16, loadTopY + 2, x + 16, loadTopY + 2, "rgba(70, 82, 96, .5)", 3);
+    }
+    ctx.save();
+    ctx.fillStyle = "#ffffff";
+    ctx.strokeStyle = "#667483";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(x, ringY, 6, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function beam3d(x1, y, x2, depth = 10) {
+    const grad = ctx.createLinearGradient(0, y - 8, 0, y + depth);
+    grad.addColorStop(0, "#9aa6b5");
+    grad.addColorStop(.45, "#6f7d8d");
+    grad.addColorStop(1, "#465362");
+    ctx.save();
+    ctx.fillStyle = "rgba(20, 31, 45, .12)";
+    ctx.beginPath();
+    ctx.roundRect(x1 + 5, y + depth, x2 - x1, 8, 5);
+    ctx.fill();
+    ctx.fillStyle = grad;
+    ctx.strokeStyle = "#516071";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.roundRect(x1, y - 5, x2 - x1, 12, 6);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = "#c7d0da";
+    ctx.fillRect(x1 + 6, y - 3, Math.max(10, x2 - x1 - 12), 2);
+    ctx.restore();
+  }
+
+  function post3d(x, y1, y2) {
+    const grad = ctx.createLinearGradient(x - 6, 0, x + 8, 0);
+    grad.addColorStop(0, "#d1d8e1");
+    grad.addColorStop(.45, "#758294");
+    grad.addColorStop(1, "#3f4c5b");
+    ctx.save();
+    ctx.fillStyle = "rgba(18, 29, 43, .12)";
+    ctx.fillRect(x + 6, y1 + 8, 7, y2 - y1);
+    ctx.fillStyle = grad;
+    ctx.strokeStyle = "#526173";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.roundRect(x - 5, y1, 12, y2 - y1, 6);
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function arrow(x1, y1, x2, y2, color, label, labelSide = 1) {
+    line(x1, y1, x2, y2, color, 4);
+    const angle = Math.atan2(y2 - y1, x2 - x1);
+    const head = 10;
+    ctx.save();
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.moveTo(x2, y2);
+    ctx.lineTo(x2 - head * Math.cos(angle - Math.PI / 6), y2 - head * Math.sin(angle - Math.PI / 6));
+    ctx.lineTo(x2 - head * Math.cos(angle + Math.PI / 6), y2 - head * Math.sin(angle + Math.PI / 6));
+    ctx.closePath();
+    ctx.fill();
+    if (!label) {
+      ctx.restore();
+      return;
+    }
+    ctx.font = "700 12px ui-sans-serif, system-ui";
+    ctx.textAlign = labelSide > 0 ? "left" : "right";
+    ctx.textBaseline = "middle";
+    const tx = x2 + 8 * labelSide;
+    const labelWidth = ctx.measureText(label).width;
+    const boxX = labelSide > 0 ? tx - 4 : tx - labelWidth - 4;
+    ctx.fillStyle = "rgba(255, 255, 255, .86)";
+    ctx.beginPath();
+    ctx.roundRect(boxX, y2 - 10, labelWidth + 8, 20, 5);
+    ctx.fill();
+    ctx.fillStyle = color;
+    ctx.fillText(label, tx, y2);
+    ctx.restore();
+  }
+
+  function initialGuide(x1, x2, y, color) {
+    line(x1, y, x2, y, color, 1.6, [5, 5]);
+  }
+
+  function initialGuideLegend(x, y) {
+    label("点線 緑: 荷物の最初", x, y, {
+      box: "rgba(255, 255, 255, .82)",
+      color: colors.lift,
+      align: "left",
+      font: "800 10px ui-sans-serif, system-ui"
+    });
+    label("点線 青: 紐の最初", x, y + 20, {
+      box: "rgba(255, 255, 255, .82)",
+      color: colors.ropeActive,
+      align: "left",
+      font: "800 10px ui-sans-serif, system-ui"
+    });
+  }
+
+  function pulley(x, y, r, movable = false) {
+    ctx.save();
+    ctx.fillStyle = "rgba(18, 30, 45, .18)";
+    ctx.beginPath();
+    ctx.ellipse(x + 8, y + r * .62, r * 1.05, r * .26, 0, 0, Math.PI * 2);
+    ctx.fill();
+    const rim = ctx.createRadialGradient(x - r * .25, y - r * .28, r * .15, x, y, r * 1.1);
+    rim.addColorStop(0, "#ffffff");
+    rim.addColorStop(.45, movable ? "#dfeaff" : "#edf2f7");
+    rim.addColorStop(1, "#7d8a9b");
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = "#526174";
+    ctx.fillStyle = rim;
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    const groove = ctx.createRadialGradient(x, y, r * .2, x, y, r * .75);
+    groove.addColorStop(0, "#f8fbff");
+    groove.addColorStop(.75, "#bac5d1");
+    groove.addColorStop(1, "#718091");
+    ctx.fillStyle = groove;
+    ctx.strokeStyle = "#738295";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(x, y, r * 0.55, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = "#465365";
+    ctx.strokeStyle = "#eef3f8";
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(x, y, Math.max(4, r * .15), 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = "rgba(255, 255, 255, .48)";
+    ctx.beginPath();
+    ctx.ellipse(x - r * .28, y - r * .32, r * .22, r * .1, -0.45, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function drawSuspensionHook(x, y1, y2) {
+    post3d(x, y1, y2);
+    ctx.save();
+    ctx.strokeStyle = "#4f5d6e";
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(x, y2 + 4, 8, Math.PI * .15, Math.PI * .9);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawLoad(x, y, type, scale = 1) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.scale(scale, scale);
+    ctx.fillStyle = "rgba(18, 30, 45, .18)";
+    ctx.beginPath();
+    ctx.ellipse(7, 34, 46, 11, 0, 0, Math.PI * 2);
+    ctx.fill();
+    if (type === "shiromo" && shiromoImage.complete && shiromoImage.naturalWidth > 0) {
+      ctx.drawImage(shiromoImage, -52, -48, 104, 95);
+    } else if (type === "crate") {
+      const front = ctx.createLinearGradient(0, -24, 0, 24);
+      front.addColorStop(0, "#c9904d");
+      front.addColorStop(1, "#8f5e2f");
+      ctx.fillStyle = "#936334";
+      ctx.beginPath();
+      ctx.moveTo(34, -24);
+      ctx.lineTo(44, -31);
+      ctx.lineTo(44, 17);
+      ctx.lineTo(34, 24);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = "#d19a5a";
+      ctx.beginPath();
+      ctx.moveTo(-34, -24);
+      ctx.lineTo(-24, -31);
+      ctx.lineTo(44, -31);
+      ctx.lineTo(34, -24);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = front;
+      ctx.strokeStyle = "#704922";
+      ctx.lineWidth = 2;
+      ctx.fillRect(-34, -24, 68, 48);
+      ctx.strokeRect(-34, -24, 68, 48);
+      line(-34, -24, 34, 24, "#7c552f", 2);
+      line(34, -24, -34, 24, "#7c552f", 2);
+    } else if (type === "weight") {
+      const metal = ctx.createLinearGradient(0, -26, 0, 24);
+      metal.addColorStop(0, "#768293");
+      metal.addColorStop(.45, "#4e5966");
+      metal.addColorStop(1, "#2f3741");
+      ctx.fillStyle = metal;
+      ctx.strokeStyle = "#2f3741";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.roundRect(-32, -18, 64, 42, 8);
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = "rgba(255, 255, 255, .22)";
+      ctx.fillRect(-22, -13, 16, 32);
+      ctx.beginPath();
+      ctx.arc(0, -18, 14, Math.PI, 0);
+      ctx.stroke();
+    } else if (type === "books") {
+      const colors = ["#3b77b6", "#d65f45", "#4f9a66", "#e0b34c"];
+      colors.forEach((color, i) => {
+        ctx.fillStyle = color;
+        ctx.fillRect(-34 + i * 3, -24 + i * 11, 68 - i * 4, 10);
+      });
+      ctx.strokeStyle = "#273241";
+      ctx.strokeRect(-34, -24, 68, 44);
+      ctx.fillStyle = "rgba(255, 255, 255, .34)";
+      ctx.fillRect(-26, -21, 46, 3);
+    } else if (type === "piano") {
+      const piano = ctx.createLinearGradient(0, -25, 0, 24);
+      piano.addColorStop(0, "#505968");
+      piano.addColorStop(.5, "#303742");
+      piano.addColorStop(1, "#171c24");
+      ctx.fillStyle = piano;
+      ctx.fillRect(-38, -25, 76, 43);
+      ctx.fillStyle = "#232a34";
+      ctx.beginPath();
+      ctx.moveTo(38, -25);
+      ctx.lineTo(48, -32);
+      ctx.lineTo(48, 10);
+      ctx.lineTo(38, 18);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = "#f6f7f9";
+      for (let i = 0; i < 7; i++) ctx.fillRect(-30 + i * 8, 6, 6, 10);
+      ctx.fillStyle = "#202630";
+      ctx.beginPath();
+      ctx.arc(-25, 23, 5, 0, Math.PI * 2);
+      ctx.arc(25, 23, 5, 0, Math.PI * 2);
+      ctx.fill();
+    } else {
+      const body = ctx.createLinearGradient(0, -24, 0, 24);
+      body.addColorStop(0, "#ffffff");
+      body.addColorStop(.55, "#f4f1e9");
+      body.addColorStop(1, "#d6d1c5");
+      ctx.fillStyle = "#0f5f48";
+      ctx.beginPath();
+      ctx.ellipse(-32, 18, 10, 17, -.25, 0, Math.PI * 2);
+      ctx.ellipse(32, 18, 10, 17, .25, 0, Math.PI * 2);
+      ctx.ellipse(-18, 25, 12, 9, 0, 0, Math.PI * 2);
+      ctx.ellipse(18, 25, 12, 9, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#f2cf51";
+      ctx.beginPath();
+      ctx.arc(-33, 14, 2.5, 0, Math.PI * 2);
+      ctx.arc(33, 14, 2.5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = body;
+      ctx.strokeStyle = "#2f3741";
+      ctx.lineWidth = 2.2;
+      ctx.beginPath();
+      ctx.roundRect(-43, -25, 86, 45, 18);
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = "#fff7df";
+      ctx.beginPath();
+      ctx.ellipse(-21, 1, 18, 24, .18, 0, Math.PI * 2);
+      ctx.ellipse(21, 1, 18, 24, -.18, 0, Math.PI * 2);
+      ctx.fill();
+      const patch = ctx.createLinearGradient(0, -32, 0, -6);
+      patch.addColorStop(0, "#caa36a");
+      patch.addColorStop(1, "#9c7650");
+      ctx.fillStyle = patch;
+      ctx.strokeStyle = "#7d5b3c";
+      ctx.lineWidth = 1.4;
+      ctx.beginPath();
+      ctx.moveTo(-24, -18);
+      ctx.bezierCurveTo(-22, -31, -12, -36, 0, -35);
+      ctx.bezierCurveTo(12, -36, 22, -31, 24, -18);
+      ctx.bezierCurveTo(16, -10, -16, -10, -24, -18);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = "#fff1d3";
+      ctx.beginPath();
+      ctx.ellipse(-43, -12, 9, 6, -.2, 0, Math.PI * 2);
+      ctx.ellipse(43, -12, 9, 6, .2, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "#2f3741";
+      ctx.stroke();
+      ctx.fillStyle = "#111820";
+      ctx.beginPath();
+      ctx.arc(-14, -5, 4.8, 0, Math.PI * 2);
+      ctx.arc(14, -5, 4.8, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#ffffff";
+      ctx.beginPath();
+      ctx.arc(-12.5, -6.7, 1.4, 0, Math.PI * 2);
+      ctx.arc(15.5, -6.7, 1.4, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = "#2b3038";
+      ctx.lineWidth = 1.8;
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.lineTo(-5, 8);
+      ctx.moveTo(0, 0);
+      ctx.lineTo(5, 8);
+      ctx.stroke();
+      ctx.fillStyle = "#d96b52";
+      ctx.strokeStyle = "#7e3c32";
+      ctx.lineWidth = 1.1;
+      ctx.beginPath();
+      ctx.ellipse(0, 16, 6, 12, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = "rgba(255, 255, 255, .5)";
+      ctx.beginPath();
+      ctx.ellipse(-16, -18, 17, 5, -.2, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.restore();
+  }
+
+  function label(text, x, y, opts = {}) {
+    ctx.save();
+    ctx.font = opts.font || "800 14px ui-sans-serif, system-ui";
+    ctx.fillStyle = opts.color || "#182230";
+    ctx.textAlign = opts.align || "center";
+    ctx.textBaseline = "middle";
+    if (opts.box) {
+      const w = ctx.measureText(text).width + 16;
+      let boxX = x - w / 2;
+      if ((opts.align || "center") === "left") boxX = x - 8;
+      if ((opts.align || "center") === "right") boxX = x - w + 8;
+      ctx.fillStyle = opts.box;
+      ctx.beginPath();
+      ctx.roundRect(boxX, y - 13, w, 26, 7);
+      ctx.fill();
+      ctx.fillStyle = opts.color || "#182230";
+    }
+    ctx.fillText(text, x, y);
+    ctx.restore();
+  }
+
+  function panelFrame(x, y, w, h, title) {
+    ctx.save();
+    const bg = ctx.createLinearGradient(0, y, 0, y + h);
+    bg.addColorStop(0, "#fbfdff");
+    bg.addColorStop(.55, "#f5f8fb");
+    bg.addColorStop(1, "#e8eef4");
+    ctx.fillStyle = "rgba(18, 30, 45, .12)";
+    ctx.beginPath();
+    ctx.roundRect(x + 5, y + 7, w, h, 10);
+    ctx.fill();
+    ctx.fillStyle = bg;
+    ctx.strokeStyle = "#d7e0ea";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.roundRect(x, y, w, h, 10);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = "rgba(93, 111, 129, .08)";
+    ctx.beginPath();
+    ctx.moveTo(x + 18, y + h - 98);
+    ctx.lineTo(x + w - 18, y + h - 126);
+    ctx.lineTo(x + w - 18, y + h - 44);
+    ctx.lineTo(x + 18, y + h - 20);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = "rgba(93, 111, 129, .12)";
+    ctx.lineWidth = 1;
+    for (let i = 0; i < 5; i++) {
+      const yy = y + h - 104 + i * 18;
+      line(x + 24, yy, x + w - 24, yy - 20, "rgba(93, 111, 129, .12)", 1);
+    }
+    label(title, x + w / 2, y + 24, { font: "800 16px ui-sans-serif, system-ui" });
+    ctx.restore();
+  }
+
+  function drawFixed(area, s) {
+    const { x, y, w, h } = area;
+    panelFrame(x, y, w, h, "定滑車");
+    const top = y + 70;
+    const px = x + w * 0.5;
+    const py = top + 46;
+    const lift = s.visualLiftCm ?? s.liftCm;
+    const shiromo = s.objectType === "shiromo";
+    const startLoadY = y + h - (shiromo ? 140 : 132);
+    const loadY = y + h - (shiromo ? 140 : 132) - lift * 0.55;
+    const startObjectY = startLoadY + 34;
+    const objectY = loadY + 34;
+    const startRopeEndY = y + h - 190;
+    const freeEndY = startRopeEndY + lift * 0.55;
+    beam3d(x + 48, top, x + w - 48);
+    initialGuideLegend(x + 22, y + 48);
+    initialGuide(x + 54, x + w - 54, startObjectY, colors.lift);
+    initialGuide(x + 54, x + w - 54, startRopeEndY, colors.ropeActive);
+    initialGuide(x + w * 0.56, x + w - 54, freeEndY, colors.ropeActive);
+    drawSuspensionHook(px, top + 4, py - 25);
+    ropeLine(px - 28, py, px - 28, loadY - 28, colors.support, 5);
+    ropeArc(px, py, 28, Math.PI, Math.PI * 2, colors.rope, 5);
+    ropeLine(px + 28, py, px + 28, freeEndY, colors.ropeActive, 5);
+    pulley(px, py, 28, false);
+    ropeArc(px, py, 28, Math.PI, Math.PI * 2, colors.rope, 5);
+    drawSling(px - 28, loadY - 28, loadY + 2, !shiromo);
+    drawLoad(px - 28, loadY + 34, s.objectType, shiromo ? 0.78 : 0.9);
+    const fixedPullX = px + 58;
+    arrow(fixedPullX, startRopeEndY, fixedPullX, freeEndY, colors.ropeActive, "", 1);
+    label(`引く ${Math.round(lift)} cm`, fixedPullX + 62, (startRopeEndY + freeEndY) / 2, { box: "#eaf3ff", color: "#245f9f", font: "800 12px ui-sans-serif, system-ui" });
+    arrow(px - 82, startObjectY, px - 82, objectY, colors.lift, `${Math.round(lift)} cm`, -1);
+    arrow(px + 78, py + 78, px + 78, py + 138, colors.force, fmtN(s.weightN), -1);
+    label(`支える紐 1本 / 仕事 ${Math.round(s.weightN * s.liftM)} J`, x + w / 2, y + h - 42, { box: "#f3eefe", color: "#62400d", font: "800 12px ui-sans-serif, system-ui" });
+  }
+
+  function drawSingleMovable(area, s) {
+    const { x, y, w, h } = area;
+    panelFrame(x, y, w, h, "動滑車1つ＋定滑車1つ");
+    const top = y + 70;
+    const movableR = 27;
+    const fixedR = 24;
+    const left = x + w * 0.39;
+    const right = left + movableR + fixedR;
+    const lift = s.visualLiftCm ?? s.liftCm;
+    const shiromo = s.objectType === "shiromo";
+    const startLoadY = y + h - (shiromo ? 140 : 132);
+    const loadY = y + h - (shiromo ? 140 : 132) - lift * 0.55;
+    const startObjectY = startLoadY + 34;
+    const objectY = loadY + 34;
+    const py = loadY - 40;
+    const fixedY = top + 46;
+    const startRopeEndY = y + h - 260;
+    const freeEndY = startRopeEndY + lift * 1.1;
+    const movedPx = Math.min(90, lift * 0.55);
+    beam3d(x + 48, top, x + w - 48);
+    initialGuideLegend(x + 22, y + 48);
+    initialGuide(x + 54, x + w - 54, startObjectY, colors.lift);
+    initialGuide(x + 54, x + w - 54, startRopeEndY, colors.ropeActive);
+    initialGuide(x + w * 0.56, x + w - 54, freeEndY, colors.ropeActive);
+    drawSuspensionHook(right, top + 4, fixedY - 23);
+    ropeLine(left - movableR, top, left - movableR, py, colors.support, 5);
+    ropeArc(left, py, movableR, 0, Math.PI, colors.rope, 5);
+    ropeLine(left + movableR, py, right - fixedR, fixedY, colors.support, 5);
+    ropeArc(right, fixedY, fixedR, Math.PI, Math.PI * 2, colors.rope, 5);
+    ropeLine(right + fixedR, fixedY, right + fixedR, freeEndY, colors.ropeActive, 5);
+    motionSegment(left - movableR, py - movedPx, py, "左 h", -1);
+    motionSegment(left + movableR, py - movedPx, py, "右 h", 1);
+    pulley(right, fixedY, fixedR, false);
+    pulley(left, py, movableR, true);
+    ropeArc(left, py, movableR, 0, Math.PI, colors.rope, 5);
+    ropeArc(right, fixedY, fixedR, Math.PI, Math.PI * 2, colors.rope, 5);
+    drawSling(left, py + movableR, loadY + 2, !shiromo);
+    drawLoad(left, loadY + 34, s.objectType, shiromo ? 0.78 : 0.9);
+    const pullArrowX = x + w - 44;
+    arrow(pullArrowX, startRopeEndY, pullArrowX, freeEndY, colors.ropeActive, "", -1);
+    label(`引く ${Math.round(lift * 2)} cm`, pullArrowX - 50, (startRopeEndY + freeEndY) / 2, { box: "#eaf3ff", color: "#245f9f", font: "800 12px ui-sans-serif, system-ui" });
+    arrow(left - 58, startObjectY, left - 58, objectY, colors.lift, `${Math.round(lift)} cm`, -1);
+    arrow(right + 56, fixedY + 76, right + 56, fixedY + 130, colors.force, fmtN(s.weightN / 2));
+    label(`支える紐 2本 / 仕事 ${Math.round((s.weightN / 2) * s.liftM * 2)} J`, x + w / 2, y + h - 42, { box: "#f3eefe", color: "#62400d", font: "800 12px ui-sans-serif, system-ui" });
+  }
+
+  function drawMultiple(area, s) {
+    const { x, y, w, h } = area;
+    panelFrame(x, y, w, h, `複数動滑車 ${s.multiMovable}個`);
+    const top = y + 70;
+    const lift = s.visualLiftCm ?? s.liftCm;
+    const bottom = y + h - 150 - lift * 0.44;
+    const columns = s.multiSupports;
+    const left = x + 54;
+    const right = x + w - 54;
+    beam3d(x + 42, top, x + w - 42);
+    for (let i = 0; i < s.multiMovable; i++) {
+      const t = s.multiMovable === 1 ? 0.5 : i / (s.multiMovable - 1);
+      drawSuspensionHook(left + (right - left) * t, top + 4, top + 20);
+      ropeArc(left + (right - left) * t, top + 40, 21, 0, Math.PI, colors.rope, 4);
+      ropeArc(left + (right - left) * t, bottom, 21, Math.PI, Math.PI * 2, colors.rope, 4);
+      pulley(left + (right - left) * t, top + 40, 21, false);
+      pulley(left + (right - left) * t, bottom, 21, true);
+      ropeArc(left + (right - left) * t, top + 40, 21, 0, Math.PI, colors.rope, 4);
+      ropeArc(left + (right - left) * t, bottom, 21, Math.PI, Math.PI * 2, colors.rope, 4);
+    }
+    for (let i = 0; i < columns; i++) {
+      const t = columns === 1 ? 0.5 : i / (columns - 1);
+      const rx = left + (right - left) * t;
+      const color = i === columns - 1 ? colors.ropeActive : colors.support;
+      ropeLine(rx, top + 40, rx, bottom, color, 4);
+    }
+    beam3d(left, bottom + 22, right, 7);
+    post3d((left + right) / 2, bottom + 25, bottom + 45);
+    drawLoad((left + right) / 2, bottom + 76, s.objectType, 0.86);
+    const pullDistance = lift * s.multiSupports;
+    arrow(right + 18, y + h - 122, right + 18, y + h - 122 + Math.min(98, pullDistance * 0.18), colors.ropeActive, `${Math.round(pullDistance)} cm`, -1);
+    arrow(left - 24, y + h - 96, left - 24, y + h - 96 - Math.min(145, lift * 1.15), colors.lift, `${Math.round(lift)} cm`, -1);
+    arrow(right + 34, bottom + 70, right + 34, bottom + 120, colors.force, fmtN(s.weightN / s.multiSupports), -1);
+    label(`支える紐 ${s.multiSupports}本`, x + w / 2, y + h - 58, { box: "#f3eefe", color: "#583586", font: "800 12px ui-sans-serif, system-ui" });
+    label(`仕事 ${Math.round((s.weightN / s.multiSupports) * s.liftM * s.multiSupports)} J`, x + w / 2, y + h - 32, { color: "#7b4800", font: "800 12px ui-sans-serif, system-ui" });
+  }
+
+  function render() {
+    setCanvasSize();
+    const s = state();
+    if (animate) {
+      const duration = 5200;
+      const t = Math.min(1, (performance.now() - animationStart) / duration);
+      liftProgress = t * t * (3 - 2 * t);
+      if (t >= 1) {
+        liftProgress = 1;
+        animate = false;
+        frameId = null;
+      }
+    }
+    s.visualLiftCm = s.liftCm * liftProgress;
+    updateReadouts(s);
+    const rect = canvas.getBoundingClientRect();
+    const w = rect.width;
+    const h = rect.height;
+    ctx.clearRect(0, 0, w, h);
+    ctx.fillStyle = "#eef4f8";
+    ctx.fillRect(0, 0, w, h);
+    ctx.save();
+    const gap = 12;
+    const count = showMulti ? 3 : 2;
+    const panelW = (w - gap * (count + 1)) / count;
+    const panelH = h - 24;
+    const baseY = 12;
+    drawFixed({ x: gap, y: baseY, w: panelW, h: panelH }, s);
+    drawSingleMovable({ x: gap * 2 + panelW, y: baseY, w: panelW, h: panelH }, s);
+    if (showMulti) {
+      drawMultiple({ x: gap * 3 + panelW * 2, y: baseY, w: panelW, h: panelH }, s);
+    }
+    ctx.restore();
+  }
+
+  function scheduleFrame() {
+    if (!animate) return;
+    frameId = requestAnimationFrame(() => {
+      render();
+      scheduleFrame();
+    });
+  }
+
+  function cancelAnimation() {
+    if (frameId !== null) {
+      cancelAnimationFrame(frameId);
+      frameId = null;
+    }
+    animate = false;
+  }
+
+  function resetToStart() {
+    cancelAnimation();
+    liftProgress = 0;
+    render();
+  }
+
+  Object.values(inputs).forEach((el) => {
+    if (el instanceof HTMLInputElement || el instanceof HTMLSelectElement) {
+      el.addEventListener("input", resetToStart);
+      el.addEventListener("change", resetToStart);
+    }
+  });
+  inputs.showMulti.addEventListener("click", () => {
+    showMulti = !showMulti;
+    render();
+  });
+  inputs.animate.addEventListener("click", () => {
+    if (animate) {
+      cancelAnimation();
+      render();
+      return;
+    }
+    liftProgress = 0;
+    animate = true;
+    animationStart = performance.now();
+    render();
+    scheduleFrame();
+  });
+  inputs.showGuide.addEventListener("click", () => {
+    showGuide = !showGuide;
+    render();
+  });
+  window.addEventListener("resize", render);
+  if (document.fonts && document.fonts.ready) {
+    document.fonts.ready.then(render);
+  }
+  render();
+})();
+</script>
+</body>
+</html>

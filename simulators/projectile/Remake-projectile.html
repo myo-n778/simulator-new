@@ -1,0 +1,655 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>斜方投射シミュレーター（可動壁つき・拡張版 v8 完全版）</title>
+<link rel="stylesheet" href="../../assets/common-sim.css">
+<script src="../../assets/sim-shell.js"></script>
+<script src="../../assets/sim-clock.js"></script>
+<style>
+  :root{
+    --bg:#0b0f14; --card:#101720; --ink:#e7edf5; --mut:#a7b0bd; --grid:#1c2430;
+    --ok:#76d275; --warn:#ffcf5c; --bad:#ff7a7a; --info:#68b7ff;
+    --w: 980px;
+  }
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--ink);font-family:system-ui,-apple-system,"Segoe UI",Roboto,"Noto Sans JP","Hiragino Kaku Gothic ProN",sans-serif;}
+  .wrap{max-width:var(--w);margin:0px auto;padding:0 10px;}
+  h1{font-size:18px;margin:0 0 8px 0;letter-spacing:.02em}
+  .row{display:grid;grid-template-columns:1.1fr 0.7fr;gap:10px;align-items:start}
+  .card{background:var(--card);border:1px solid #111a24;border-radius:14px;box-shadow:0 8px 22px rgba(0,0,0,.25);padding:10px}
+  .title{font-weight:700;margin-bottom:6px;font-size:12px;color:var(--mut);letter-spacing:.06em;text-transform:uppercase}
+  canvas{display:block;width:100%;height:360px;border-radius:10px;background:linear-gradient(#0d141d,#0a1119);cursor:grab}
+  canvas.dragging{cursor:grabbing}
+  .controls{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .ctrl{display:flex;flex-direction:column;gap:4px;background:#0b131c;border:1px solid #0f1822;border-radius:10px;padding:8px}
+  label{font-size:11px;color:var(--mut);display:flex;justify-content:space-between;gap:8px;line-height:1.15}
+  input[type=range]{width:100%;margin:0}
+  input[type=number]{width:98px;background:#0e1721;border:1px solid #152130;color:var(--ink);border-radius:7px;padding:4px 6px;font-size:12px;line-height:1.1}
+  .row2{display:grid;grid-template-columns:repeat(8,1fr);gap:6px;margin-top:6px}
+  .row2 .tiny{font-size:11px;padding:6px 8px}
+  button{background:#0d1620;border:1px solid #162232;color:var(--ink);padding:8px 10px;border-radius:10px;cursor:pointer;font-size:12px;line-height:1}
+  button:hover{border-color:#223249}
+  button.primary{background:#0f2030;border-color:#1b3650}
+  .pill{display:inline-flex;gap:4px;align-items:center;padding:3px 8px;border-radius:999px;border:1px solid #1a293b;background:#0c1520;color:var(--mut);font-size:11px;line-height:1}
+  .kv{display:flex;gap:4px;flex-wrap:wrap;margin-top:4px}
+  .kv .pill b{color:var(--ink);font-weight:600}
+  .kv .pill .val{ color: var(--ink); font-weight: 700; }
+  .row3{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:6px}
+  .note{color:var(--mut);font-size:11px;line-height:1.4}
+  .hr{height:1px;background:#0f1924;margin:6px 0}
+  .mini{font-size:11px;color:var(--mut);line-height:1.1}
+  .right{justify-self=end}
+  code{background:#0d1620;border:1px solid #142031;padding:1px 4px;border-radius:5px;font-size:11px}
+  .annos{margin-top:6px;font-size:11px;color:var(--mut);line-height:1.25;display:flex;flex-wrap:wrap;gap:6px}
+  .anno{background:#0c1520;border:1px solid #142031;border-radius:8px;padding:4px 6px;white-space:nowrap}
+  .anno b{color:var(--ink)}
+  .dpad{display:grid;grid-template-columns:40px 40px 40px;grid-template-rows:28px 28px 28px;gap:4px;align-items:center;justify-items:center}
+  .dpad button{width:40px;height:28px;padding:0}
+</style>
+  <link rel="stylesheet" href="../../assets/remake.css">
+</head>
+<body class="remake-ui">
+  <div class="remake-badge-host"><span class="remake-ribbon">リメイク版</span></div>
+<script>
+  PhysicsSimShell.create({
+    title: '斜方投射',
+    subtitle: '重力下の投射・可動壁・地面反発・軌跡表示',
+    basePath: '../../'
+  });
+</script>
+<div class="wrap">
+  <h1>斜方投射シミュレーター（可動壁つき・拡張版 v8 完全版）</h1>
+
+  <div class="row">
+    <div class="card">
+      <div class="title">シーン</div>
+      <canvas id="view" width="1200" height="640"></canvas>
+      <div class="kv" id="stats"></div>
+      <div class="annos" id="annos"></div>
+      <div class="row2">
+        <button id="play" class="primary">▶/⏸</button>
+        <button id="step">⏭1step</button>
+        <button id="reset">↺リセット</button>
+        <button id="fit">🗺フィット</button>
+        <button id="zin">＋ズーム</button>
+        <button id="zout">−ズーム</button>
+        <button id="z1" class="tiny">1x</button>
+        <button id="z2" class="tiny">2x</button>
+      </div>
+      <div class="row3">
+        <div class="mini">凡例：<span style="color:var(--ok)">緑=軌跡</span>・<span style="color:var(--warn)">黄=壁</span>・<span style="color:var(--bad)">赤=衝突点</span>・<span style="color:var(--info)">青=理論軌道</span></div>
+        <div class="right mini">単位：m・s・m/s・m/s²</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="title">コントロール</div>
+      <div class="controls">
+        <div class="ctrl">
+          <label><span>初期位置 x₀ [m]</span><input id="x0n" type="number" step="0.1"></label>
+          <input id="x0" type="range" min="-10" max="1000" step="0.1">
+          <label><span>初期高さ y₀ [m]</span><input id="y0n" type="number" step="0.1"></label>
+          <input id="y0" type="range" min="0" max="5000" step="0.1">
+          <label><span>初速度 v₀ [m/s]</span><input id="v0n" type="number" step="0.1"></label>
+          <input id="v0" type="range" min="1" max="300" step="0.1">
+          <label><span>射角 θ [deg]</span><input id="angn" type="number" step="0.1"></label>
+          <input id="ang" type="range" min="-5" max="85" step="0.1">
+        </div>
+        <div class="ctrl">
+          <label><span>重力 g [m/s²]</span><input id="gn" type="number" step="0.1"></label>
+          <input id="g" type="range" min="1" max="20" step="0.1">
+          <label><span>壁 位置 x<sub>w</sub> [m]</span><input id="wxn" type="number" step="0.1"></label>
+          <input id="wx" type="range" min="-5" max="1000" step="0.1">
+          <label><span>壁 高さ h<sub>w</sub> [m]</span><input id="whn" type="number" step="0.1"></label>
+          <input id="wh" type="range" min="0" max="5000" step="0.1">
+          <label><span>反発係数（壁） e<sub>w</sub></span><input id="ewn" type="number" step="0.01"></label>
+          <input id="ew" type="range" min="0" max="1" step="0.01">
+          <div class="pill"><input id="showWall" type="checkbox" checked> 壁を表示</div>
+        </div>
+      </div>
+      <div class="controls" style="margin-top:6px">
+        <div class="ctrl">
+          <label><span>反発係数（地面） e<sub>g</sub></span><input id="egn" type="number" step="0.01"></label>
+          <input id="eg" type="range" min="0" max="1" step="0.01">
+          <label><span>タイムスケール（速さ）</span><input id="spedn" type="number" step="0.1"></label>
+          <input id="sped" type="range" min="0.1" max="3" step="0.1">
+          <label><span>時間刻み dt [s]</span><input id="dtn" type="number" step="0.001"></label>
+          <input id="dt" type="range" min="0.001" max="0.05" step="0.001">
+          <div class="pill"><input id="trace" type="checkbox" checked> 軌跡を残す</div>
+          <label><span>衝突注記の上限（個）</span><input id="hitMax" type="number" step="1" min="0" max="50" value="1"></label>
+        </div>
+        <div class="ctrl">
+          <div class="pill"><input id="stopOnHit" type="checkbox"> 衝突時に停止</div>
+          <div class="pill"><input id="predict" type="checkbox" checked> 理論軌道（無反射）</div>
+          <div class="pill"><input id="showApex" type="checkbox" checked> 最高点・到達距離</div>
+          <div class="pill"><input id="showGrid" type="checkbox" checked> グリッド</div>
+          <div class="hr"></div>
+          <div style="display:grid;grid-template-columns:1fr auto;gap:8px;align-items:center">
+            <button id="apply" class="primary">設定を適用（初期化）</button>
+            <div class="dpad">
+              <span></span><button id="panU">↑</button><span></span>
+              <button id="panL">←</button><span></span><button id="panR">→</button>
+              <span></span><button id="panD">↓</button><span></span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="note">
+        ・注記は基本オフキャンバスですが、指定どおり <b>apex/ground/start/wall</b> をキャンバス上にも重ならないよう配置します。<br>
+        ・衝突注記は初期値で「1件のみ」。必要に応じて「衝突注記の上限」を変更できます。<br>
+        ・ドラッグでパン、＋/−/1x/2xでズーム、フィットで自動調整。<br>
+      </div>
+    </div>
+  </div>
+
+  <!-- TARGET-STATE START -->
+  <script>
+  'use strict';
+  const $ = (id)=>document.getElementById(id);
+  const cvs = $('view'); const ctx = cvs.getContext('2d');
+  const annosEl = $('annos');
+  let DPR = Math.max(1, Math.min(2.5, window.devicePixelRatio||1));
+  function resizeCanvas(){
+    const rect = cvs.getBoundingClientRect();
+    cvs.width = Math.floor(rect.width*DPR);
+    cvs.height = Math.floor(360*DPR);
+    ctx.setTransform(DPR,0,0,DPR,0,0);
+  }
+  resizeCanvas(); addEventListener('resize', resizeCanvas);
+
+  const COL = { path:'#74d37a', predict:'#68b7ff', wall:'#ffcf5c', hit:'#ff8080', text:'#cdd6e3' };
+
+  const state = {
+    x:0, y:0, vx:0, vy:0, g:9.8,
+    wx:20, wh:2, ew:1.0, showWall:true,
+    eg:1.0,
+    t:0, playing:false, trace:true, dt:0.02, speed:1.0, stopOnHit:false,
+    x0:0, y0:0, v0:9.8, angDeg:30,
+    view:{xmin:-5,xmax:50,ymin:-1,ymax:25},
+    path:[],
+    predict:true, showApex:true, showGrid:true,
+    hits:[],
+    startMark:null,
+    hitNoteMax:1
+  };
+
+  const binds = [
+    ['x0','x0n','x0'], ['y0','y0n','y0'], ['v0','v0n','v0'],
+    ['ang','angn','angDeg'], ['g','gn','g'],
+    ['wx','wxn','wx'], ['wh','whn','wh'], ['ew','ewn','ew'],
+    ['eg','egn','eg'], ['dt','dtn','dt'], ['sped','spedn','speed']
+  ];
+  function syncInputs(){
+    for(const [r,n,k] of binds){ $(r).value = state[k]; $(n).value = state[k]; }
+    $('trace').checked = state.trace;
+    $('predict').checked = state.predict;
+    $('showApex').checked = state.showApex;
+    $('showGrid').checked = state.showGrid;
+    $('stopOnHit').checked = state.stopOnHit;
+    $('showWall').checked = state.showWall;
+    $('hitMax').value = state.hitNoteMax;
+  }
+  function hookInputs(){
+    for(const [r,n,k] of binds){
+      $(r).addEventListener('input', e=>{ state[k]=Number(e.target.value); $(n).value=state[k]; if(k==='g') recomputeFit(); });
+      $(n).addEventListener('change', e=>{ state[k]=Number(e.target.value); $(r).value=state[k]; if(k==='g') recomputeFit(); });
+    }
+    $('trace').onchange = e=>state.trace=e.target.checked;
+    $('predict').onchange = e=>state.predict=e.target.checked;
+    $('showApex').onchange = e=>state.showApex=e.target.checked;
+    $('showGrid').onchange = e=>state.showGrid=e.target.checked;
+    $('stopOnHit').onchange = e=>state.stopOnHit=e.target.checked;
+    $('showWall').onchange = e=>{ state.showWall=e.target.checked; draw(); };
+    $('hitMax').onchange = e=>{ state.hitNoteMax = Math.max(0, Math.min(50, Number(e.target.value)||0)); draw(); };
+
+    $('apply').onclick = ()=>{ initFromParams(); };
+    $('play').onclick = ()=>{ state.playing = !state.playing; };
+    $('reset').onclick = ()=>{ initFromParams(); };
+    $('fit').onclick = ()=>{ recomputeFit(true); };
+    $('step').onclick = ()=>{ stepSim(state.dt); };
+
+    $('zin').onclick = ()=> zoom(1.25);
+    $('zout').onclick = ()=> zoom(1/1.25);
+    $('z1').onclick = ()=> setZoom(1.0);
+    $('z2').onclick = ()=> setZoom(2.0);
+
+    $('panU').onclick = ()=> pan(0, +0.1);
+    $('panD').onclick = ()=> pan(0, -0.1);
+    $('panL').onclick = ()=> pan(+0.1, 0);
+    $('panR').onclick = ()=> pan(-0.1, 0);
+
+    // drag pan
+    let dragging=false, lastX=0, lastY=0;
+    cvs.addEventListener('mousedown', (e)=>{ dragging=true; lastX=e.clientX; lastY=e.clientY; cvs.classList.add('dragging'); });
+    window.addEventListener('mouseup', ()=>{ dragging=false; cvs.classList.remove('dragging'); });
+    window.addEventListener('mousemove', (e)=>{
+      if(!dragging) return;
+      const dx=e.clientX-lastX, dy=e.clientY-lastY;
+      panPx(dx, dy);
+      lastX=e.clientX; lastY=e.clientY;
+    });
+  }
+
+  function initFromParams(){
+    const th = state.angDeg * Math.PI/180;
+    state.x = state.x0;
+    state.y = Math.max(1e-6, state.y0);
+    state.vx = state.v0 * Math.cos(th);
+    state.vy = state.v0 * Math.sin(th);
+    state.t = 0;
+    state.path = [[state.x,state.y]];
+    state.playing = false;
+    state.hits = [];
+    state.startMark = {x:state.x, y:state.y, vx:state.vx, vy:state.vy, speed:Math.hypot(state.vx,state.vy)};
+    recomputeFit(true);
+  }
+
+  function w2s(x,y){
+    const v=state.view, W=cvs.width/DPR, H=cvs.height/DPR;
+    const sx = (x - v.xmin) * (W/(v.xmax - v.xmin));
+    const sy = H - (y - v.ymin) * (H/(v.ymax - v.ymin));
+    return [sx,sy];
+  }
+  function s2w(sx,sy){
+    const v=state.view, W=cvs.width/DPR, H=cvs.height/DPR;
+    const x = v.xmin + sx*(v.xmax-v.xmin)/W;
+    const y = v.ymin + (H-sy)*(v.ymax-v.ymin)/H;
+    return [x,y];
+  }
+  function stepNice(span){
+    const pow = Math.pow(10, Math.floor(Math.log10(span)));
+    const f = span / pow;
+    let n=1; if(f<=1.2) n=1; else if(f<=2.5) n=2; else if(f<=5) n=5; else n=10;
+    return n*pow;
+  }
+  function drawGrid(){
+    if(!state.showGrid) return;
+    const v=state.view, W=cvs.width/DPR, H=cvs.height/DPR;
+    ctx.save(); ctx.lineWidth=1; ctx.strokeStyle=getCSS('--grid');
+    const nx = stepNice((v.xmax-v.xmin)/10);
+    for(let x=Math.ceil(v.xmin/nx)*nx; x<=v.xmax; x+=nx){
+      const [sx] = w2s(x,0); ctx.beginPath(); ctx.moveTo(sx,0); ctx.lineTo(sx,H); ctx.stroke();
+    }
+    const ny = stepNice((v.ymax-v.ymin)/10);
+    for(let y=Math.ceil(v.ymin/ny)*ny; y<=v.ymax; y+=ny){
+      const [,sy] = w2s(0,y); ctx.beginPath(); ctx.moveTo(0,sy); ctx.lineTo(W,sy); ctx.stroke();
+    }
+    ctx.strokeStyle="#2d3b4d"; const [,gy] = w2s(0,0); ctx.beginPath(); ctx.moveTo(0,gy); ctx.lineTo(W,gy); ctx.stroke();
+    ctx.restore();
+  }
+  function getCSS(v){ return getComputedStyle(document.documentElement).getPropertyValue(v); }
+
+  function flightNoBounce(){
+    const th = state.angDeg*Math.PI/180, vx = state.v0*Math.cos(th), vy=state.v0*Math.sin(th);
+    const g = state.g, y0=state.y0, x0=state.x0;
+    const a=-0.5*g, b=vy, c=y0;
+    let t=0; const disc=b*b - 4*a*c;
+    if(disc>=0){ const t1=(-b-Math.sqrt(disc))/(2*a), t2=(-b+Math.sqrt(disc))/(2*a); t=Math.max(t1,t2); }
+    const xR = x0 + vx*t, tApex = vy/g;
+    const yApex = y0 + vy*tApex - 0.5*g*tApex*tApex;
+    const xApex = x0 + vx*tApex;
+    const vApex = Math.abs(vx);
+    return {t,xR,xApex,yApex,vApex,tApex};
+  }
+
+  function recomputeFit(reset=false){
+    const {xR,xApex,yApex} = flightNoBounce();
+    const xmin = Math.min(state.x0, xR, state.wx) - 2;
+    const xmax = Math.max(state.x0, xR, state.wx, 5) + 2;
+    const ymax = Math.max(state.y0, yApex, state.wh, 2) + 3;
+    const ymin = -1;
+    if(reset){ state.view = {xmin, xmax, ymin, ymax: Math.max(2,ymax)}; }
+    draw();
+  }
+
+  function zoom(scale){
+    const v=state.view;
+    const cx=(v.xmin+v.xmax)/2, cy=(v.ymin+v.ymax)/2;
+    const w=(v.xmax-v.xmin)/scale, h=(v.ymax-v.ymin)/scale;
+    state.view = {xmin:cx-w/2, xmax:cx+w/2, ymin:cy-h/2, ymax:cy+h/2};
+    draw();
+  }
+  function setZoom(factor){
+    const v=state.view;
+    const cx=(v.xmin+v.xmax)/2, cy=(v.ymin+v.ymax)/2;
+    const w=(v.xmax-v.xmin), h=(v.ymax-v.ymin);
+    state.view = {xmin:cx-w/(2*factor), xmax:cx+w/(2*factor), ymin:cy-h/(2*factor), ymax:cy+h/(2*factor)};
+    draw();
+  }
+  function pan(nx, ny){
+    const v=state.view;
+    const dx = nx*(v.xmax-v.xmin), dy = ny*(v.ymax-v.ymin);
+    state.view = {xmin:v.xmin+dx, xmax:v.xmax+dx, ymin:v.ymin+dy, ymax:v.ymax+dy};
+    draw();
+  }
+  function panPx(dx,dy){
+    const v=state.view, W=cvs.width/DPR, H=cvs.height/DPR;
+    const wx = (v.xmax-v.xmin) * (dx/W);
+    const wy = (v.ymax-v.ymin) * (-dy/H);
+    state.view = {xmin:v.xmin-wx, xmax:v.xmax-wx, ymin:v.ymin-wy, ymax:v.ymax-wy};
+    draw();
+  }
+
+  syncInputs(); hookInputs(); initFromParams();
+
+  function setStats(){
+    const s = $('stats'); const {x,y,vx,vy,t} = state;
+    const sp = Math.hypot(vx,vy);
+    const fb = flightNoBounce();
+    s.innerHTML = `
+  <span class="pill"><b>t</b> <span class="val">${t.toFixed(2)} s</span></span>
+  <span class="pill"><b style="color:yellow">pos</b> <span class="val">(${x.toFixed(2)}, ${y.toFixed(2)}) m</span></span>
+  <span class="pill"><b style="color:red">|v|</b> <span class="val">${sp.toFixed(2)} m/s</span></span>
+  <span class="pill"><b style="color:orange">vx</b> <span class="val">${vx.toFixed(2)}</span></span>
+  <span class="pill"><b style="color:orange">vy</b> <span class="val">${vy.toFixed(2)}</span></span>
+  <span class="pill"><b>apex*</b> (${fb.xApex.toFixed(2)}, ${fb.yApex.toFixed(2)}) m / |v|=${fb.vApex.toFixed(2)} m/s</span>
+`;
+    const list = [];
+    if(state.startMark){
+      list.push(`<span class="anno"><b>start</b> (${state.startMark.x.toFixed(2)}, ${state.startMark.y.toFixed(2)}) |v|=${state.startMark.speed.toFixed(2)}</span>`);
+    }
+    if(state.t >= fb.tApex){
+      list.push(`<span class="anno"><b>apex*</b> (${fb.xApex.toFixed(2)}, ${fb.yApex.toFixed(2)}) |v|=${fb.vApex.toFixed(2)}</span>`);
+    }else{
+      list.push(`<span class="anno"><b>apex*</b></span>`);
+    }
+    const maxN = state.hitNoteMax;
+    for(let i=0;i<Math.min(maxN, state.hits.length); i++){
+      const h = state.hits[i];
+      list.push(`<span class="anno"><b>${h.type}</b> (${h.x.toFixed(2)}, ${h.y.toFixed(2)}) |v|=${h.speed.toFixed(2)} (vx=${h.vx.toFixed(2)}, vy=${h.vy.toFixed(2)})</span>`);
+    }
+    annosEl.innerHTML = list.join('');
+  }
+
+  // ==== ラベル描画ユーティリティ（重なり回避を優先） ====
+  // side: 'right'|'left' （基本はright。画面外なら自動で反転）
+  // vpos: 'above'|'below'|'center'
+  function drawTagBox(lines, sx, sy, {side='right', vpos='below', margin=12}={}){
+    ctx.save();
+    ctx.font = "11px system-ui, -apple-system, Segoe UI, Roboto";
+    const pad=3, lineH=14;
+    const w = Math.max(...lines.map(l=>ctx.measureText(l).width)) + pad*2;
+    const h = lines.length*lineH + pad;
+    const W = cvs.width/DPR, H = cvs.height/DPR;
+    let x = (side==='right') ? sx + margin : sx - w - margin;
+
+    // 垂直配置：上/下/中央
+    let y;
+    if(vpos==='above') y = sy - margin - h;        // 上にボックス全体を持ち上げる（行数に応じて自動で高く）
+    else if(vpos==='center') y = sy - h/2;         // 中央合わせ
+    else y = sy + margin;                          // below
+
+    // 画面外なら自動クランプ＆サイド反転
+    if(x + w + 4 > W){ x = sx - w - margin; }
+    if(x < 4){ x = 4; }
+    if(y < 4){ y = 4; }
+    if(y + h + 4 > H){ y = H - h - 4; }
+
+    ctx.fillStyle = "rgba(12,21,32,0.88)";
+    ctx.strokeStyle="#142031"; ctx.lineWidth=1;
+    // roundRectポリフィル
+    if(!CanvasRenderingContext2D.prototype.roundRect){
+      CanvasRenderingContext2D.prototype.roundRect=function(x,y,w,h,r){ this.rect(x,y,w,h); };
+    }
+    ctx.beginPath(); ctx.roundRect(x,y,w,h,5); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = COL.text;
+    lines.forEach((l,i)=>ctx.fillText(l, x+pad, y+(i+1)*lineH-3));
+    ctx.restore();
+  }
+
+  /* 反射・接地補正・静止自動停止つきステップ */
+  function stepSim(dt, render=true){
+    let rem = dt;
+    const eps=1e-9, uMin=1e-6;
+    for(let iter=0; iter<200 && rem>1e-8; iter++){
+      const px=state.x, py=state.y, pvx=state.vx, pvy=state.vy, g=state.g;
+      const nx = px + pvx*rem;
+      const ny = py + pvy*rem - 0.5*g*rem*rem;
+
+      let tau = 1, hit = null;
+
+      // 壁
+      if(state.showWall && (px - state.wx)*(nx - state.wx) <= 0 && (nx!==px)){
+        const tauW = (state.wx - px) / (nx - px);
+        if(tauW >= uMin && tauW <= 1+eps){
+          const yAt = py + pvy*tauW*rem - 0.5*g*(tauW*rem)*(tauW*rem);
+          if(yAt >= -1e-7 && yAt <= state.wh + 1e-7){
+            tau = Math.min(tau, Math.max(uMin,Math.min(1,tauW)));
+            hit = {type:'wall', x: state.wx, y: yAt};
+          }
+        }
+      }
+
+      // 地面
+      {
+        const A = -0.5*g*rem*rem, B = pvy*rem, C = py;
+        const D = B*B - 4*A*C;
+        if(D>=0){
+          const roots = [(-B - Math.sqrt(D))/(2*A), (-B + Math.sqrt(D))/(2*A)];
+          const cand = roots.filter(u=>u>=uMin && u<=1+eps);
+          if(cand.length){
+            const ug = Math.min(...cand.map(u=>Math.max(uMin,Math.min(1,u))));
+            const yBefore = py + pvy*(ug*rem - 1e-9) - 0.5*g*(ug*rem - 1e-9)*(ug*rem - 1e-9);
+            const yAfter  = py + pvy*(ug*rem + 1e-9) - 0.5*g*(ug*rem + 1e-9)*(ug*rem + 1e-9);
+            if(yBefore>0 && yAfter<=0 && ug < tau - 1e-12){
+              tau = ug;
+              const tx = px + pvx*(tau*rem);
+              hit = {type:'ground', x: tx, y: 0};
+            
+              // follow-up: in the same substep, check wall hit after ground bounce (to prevent tunneling)
+              if(state.showWall){
+                const tc = tau*rem;                 // time to ground within this step
+                const xC = px + pvx*tc;
+                const yC = 0;
+                const vyC = -(pvy - g*tc) * state.eg;  // post-bounce vy
+                const vxC = pvx;
+                const rem2 = (1 - tau)*rem;         // remaining time in this step
+                if(rem2 > 1e-10){
+                  const nx2 = xC + vxC*rem2;
+                  if( (xC - state.wx)*(nx2 - state.wx) <= 0 && (nx2!==xC) ){
+                    const tw2 = (state.wx - xC) / (nx2 - xC); // [0,1] within the remaining segment
+                    if(tw2 >= 1e-6 && tw2 <= 1+1e-9){
+                      const yAt2 = yC + vyC*tw2*rem2 - 0.5*state.g*(tw2*rem2)*(tw2*rem2);
+                      if(yAt2 >= -1e-7 && yAt2 <= state.wh + 1e-7){
+                        const tauW_post = tau + (1 - tau)*Math.max(1e-6, Math.min(1, tw2));
+                        if(tauW_post < tau - 1e-12){
+                          tau = tauW_post;
+                          hit = {type:'wall', x: state.wx, y: yAt2};
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+}
+          }
+        }
+      }
+
+      if(hit){
+        const tc = tau*rem;
+        const xC = px + pvx*tc;
+        const yC = py + pvy*tc - 0.5*g*tc*tc;
+        const vyC = pvy - g*tc, vxC = pvx;
+        state.x = xC; state.y = yC; state.vx = vxC; state.vy = vyC; state.t += tc;
+        if(state.trace) state.path.push([state.x,state.y]);
+
+        state.hits.push({type:hit.type, x:xC, y:yC, t:state.t, vx:vxC, vy:vyC, speed:Math.hypot(vxC,vyC)});
+
+        if(state.stopOnHit){ state.playing=false; rem=0; draw(); break; }
+
+        if(hit.type==='wall'){
+          state.vx = - state.ew * state.vx;
+          state.x += Math.sign(state.vx||1)*1e-6;
+        }else if(hit.type==='ground'){
+          state.vy = - state.eg * state.vy;
+          state.y = 0;
+          if(Math.abs(state.vy) < 1e-4) state.vy = 0;
+        }
+        rem = rem - tc;
+      }else{
+        state.x = nx; state.y = ny;
+        state.vx = pvx; state.vy = pvy - g*rem;
+        state.t += rem;
+        if(state.trace) state.path.push([state.x,state.y]);
+        rem = 0;
+
+        if(state.y < 0){
+          const vxA = state.vx, vyA = state.vy;
+          state.hits.push({type:'ground', x: state.x, y: 0, t: state.t, vx:vxA, vy:vyA, speed:Math.hypot(vxA,vyA)});
+          state.y = 0;
+          state.vy = - state.eg * vyA;
+          if(Math.abs(state.vy) < 1e-4) state.vy = 0;
+        }
+      }
+      if(state.t>600 || state.y< -100){ state.playing=false; break; }
+    }
+
+    const vmag = Math.hypot(state.vx, state.vy);
+    if(state.y===0 && vmag < 1e-3){ state.playing = false; }
+
+    if(render) draw();
+  }
+
+  let simAccumulator = 0;
+  const clock = new PhysicsSimClock.FixedStepClock({
+    step: 1 / 120,
+    onStep(dt){
+    if(state.playing){
+      simAccumulator += dt * state.speed;
+      const maxStep = Math.max(1e-4, state.dt>0 ? state.dt : 0.02);
+      let guard = 0;
+      while(simAccumulator > 1e-8 && guard < 20){
+        const h = Math.min(maxStep, simAccumulator);
+        stepSim(h, false);
+        simAccumulator -= h;
+        guard++;
+      }
+    } else {
+      simAccumulator = 0;
+    }
+    },
+    onRender(){
+      draw();
+    }
+  });
+  clock.start();
+
+  function draw(){
+    const W=cvs.width/DPR, H=cvs.height/DPR;
+    ctx.clearRect(0,0,W,H);
+    drawGrid();
+
+    // 壁本体
+    if(state.showWall){
+      ctx.save();
+      ctx.strokeStyle = COL.wall; ctx.lineWidth=2;
+      const w0 = w2s(state.wx, 0), w1 = w2s(state.wx, state.wh);
+      ctx.beginPath(); ctx.moveTo(...w0); ctx.lineTo(...w1); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(w1[0]-6,w1[1]); ctx.lineTo(w1[0]+6,w1[1]); ctx.stroke();
+
+      // 壁ラベル：右側優先（はみ出すと自動左）
+      const mid = w2s(state.wx, Math.max(0, state.wh*0.5));
+      drawTagBox([
+        `wall`,
+        `x=${state.wx.toFixed(2)}`,
+        `h=${state.wh.toFixed(2)}`
+      ], mid[0], mid[1], {side:'right', vpos:'center', margin:12});
+      ctx.restore();
+    }
+
+    // 理論軌道
+    if(state.predict){
+      ctx.save(); ctx.strokeStyle=COL.predict; ctx.lineWidth=1.5;
+      const fb = flightNoBounce(); const N=300;
+      ctx.beginPath();
+      for(let i=0;i<=N;i++){
+        const tt = i/N * fb.t;
+        const th = state.angDeg*Math.PI/180;
+        const x = state.x0 + state.v0*Math.cos(th)*tt;
+        const y = state.y0 + state.v0*Math.sin(th)*tt - 0.5*state.g*tt*tt;
+        const p = w2s(x,y);
+        if(i===0) ctx.moveTo(p[0],p[1]); else ctx.lineTo(p[0],p[1]);
+      }
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    // 実軌道
+    if(state.path.length>1){
+      ctx.save(); ctx.strokeStyle=COL.path; ctx.lineWidth=2;
+      ctx.beginPath();
+      for(let i=0;i<state.path.length;i++){
+        const p = w2s(state.path[i][0], state.path[i][1]);
+        if(i===0) ctx.moveTo(p[0],p[1]); else ctx.lineTo(p[0],p[1]);
+      }
+      ctx.stroke(); ctx.restore();
+    }
+
+    // 物体
+    const [sx,sy] = w2s(state.x,state.y);
+    ctx.save();
+    ctx.fillStyle="#9ad9ff"; ctx.strokeStyle="#244a66"; ctx.lineWidth=1.5;
+    ctx.beginPath(); ctx.arc(sx,sy,4.5,0,Math.PI*2); ctx.fill(); ctx.stroke();
+    ctx.restore();
+
+    // on-canvas：start（下側）
+    if(state.startMark){
+      const ps = w2s(state.startMark.x, state.startMark.y);
+      drawTagBox([
+        `start`,
+        `(${state.startMark.x.toFixed(2)}, ${state.startMark.y.toFixed(2)})`,
+        `|v|=${state.startMark.speed.toFixed(2)}`
+      ], ps[0], ps[1], {side:'right', vpos:'below', margin:12});
+    }
+
+    // apex：3行分を自動計算して軌道の上側に
+    const fb = flightNoBounce();
+    if(state.showApex){
+      const pa = w2s(fb.xApex, fb.yApex);
+      ctx.beginPath(); ctx.arc(pa[0], pa[1], 3, 0, Math.PI*2); ctx.strokeStyle="#2b3d53"; ctx.lineWidth=1; ctx.stroke();
+      if(state.t >= fb.tApex){
+        drawTagBox([
+          `apex*`,
+          `(${fb.xApex.toFixed(2)}, ${fb.yApex.toFixed(2)})`,
+          `|v|=${fb.vApex.toFixed(2)}`
+        ], pa[0], pa[1], {side:'right', vpos:'above', margin:12});
+      }else{
+        drawTagBox([`apex*`], pa[0], pa[1], {side:'right', vpos:'above', margin:12});
+      }
+    }
+
+    // ground / wall-hit：上限N件
+    const N = state.hitNoteMax;
+    for(let i=0;i<Math.min(N, state.hits.length); i++){
+      const h = state.hits[i];
+      const p = w2s(h.x, h.y);
+      ctx.fillStyle = (h.type==='wall')? COL.warn : COL.bad;
+      ctx.beginPath(); ctx.arc(p[0], p[1], 4, 0, Math.PI*2); ctx.fill();
+      ctx.fillStyle = COL.text;
+
+      if(h.type==='ground'){
+        drawTagBox([
+          `ground`,
+          `(${h.x.toFixed(2)}, ${h.y.toFixed(2)})`,
+          `|v|=${h.speed.toFixed(2)}`,
+          `(vx=${h.vx.toFixed(2)}, vy=${h.vy.toFixed(2)})`
+        ], p[0], p[1], {side:'right', vpos:'below', margin:12});
+      }else if(h.type==='wall'){
+        drawTagBox([
+          `wall-hit`,
+          `(${h.x.toFixed(2)}, ${h.y.toFixed(2)})`,
+          `|v|=${h.speed.toFixed(2)}`,
+          `(vx=${h.vx.toFixed(2)}, vy=${h.vy.toFixed(2)})`
+        ], p[0], p[1], {side:'right', vpos:'above', margin:12});
+      }
+    }
+
+    setStats();
+  }
+  /* TARGET-STATE END */
+  </script>
+</div>
+</body>
+</html>

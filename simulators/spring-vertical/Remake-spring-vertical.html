@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>鉛直ばね振り子シミュレーター（HTML版・右側3グラフ密着＆フルブリード）</title>
+  <link rel="stylesheet" href="../../assets/common-sim.css">
+  <script src="../../assets/sim-shell.js"></script>
+  <script src="../../assets/sim-clock.js"></script>
+  <style>
+    :root { --bg:#0b1220; --panel:#0f172a; --ink:#e5e7eb; --sub:#94a3b8; --accent:#38bdf8; --grid:#1f2937; --frame:#334155; }
+    html, body { height: 100%; }
+    body { margin: 0; background: var(--bg); color: var(--ink); font-family: ui-sans-serif, -apple-system, system-ui, Segoe UI, Roboto, Helvetica, Arial; }
+    .wrap { max-width: 1120px; margin: 0 auto; padding: 10px; }
+
+    /* 2カラム：左にアニメ＋右側にコントロール。アニメ枠内は左右2分割（狭い隙間） */
+    .layout { display: grid; grid-template-columns: 720px 1fr; gap: 10px; align-items: start; }
+    @media (max-width: 1100px){ .layout { grid-template-columns: 1fr; } }
+
+    .card { background: var(--panel); border: 1px solid var(--frame); border-radius: 14px; padding: 12px; box-shadow: 0 10px 30px rgb(0 0 0 / 0.25); }
+    .title { font-weight: 700; font-size: 16px; margin-bottom: 8px; }
+    .subtitle { color: var(--sub); font-size: 11px; margin-top: 6px; }
+
+    /* シーン行：アニメ(左340px)＋グラフ(右、隙間4px) */
+    .sceneRow { display: grid; grid-template-columns: 340px 1fr; gap: 4px; align-items: start; }
+    .scene { position: relative; }
+    canvas { display:block; }
+
+    /* 右側の3グラフ（縦積み） */
+    .miniGraphs { display: grid; grid-auto-rows: min-content; gap: 6px; }
+    .gTitle { color: var(--sub); font-size: 12px; margin: 0 0 2px 2px; }
+    .gBox { border:1px solid var(--frame); border-radius:10px; padding: 0; background:#0f172a; height: 110px; }
+    .gBox canvas { width: 100%; height: 100%; }
+
+    /* コントロール小さめ */
+    .controls { display: grid; grid-template-columns: 1fr; gap: 6px; font-size: 12px; }
+    .row { display: grid; grid-template-columns: 1fr auto; gap: 6px; align-items: center; }
+    .row label { font-size: 12px; color: var(--ink); }
+    .row input[type="number"] { width: 80px; background:#0b1220; color: var(--ink); border:1px solid var(--frame); border-radius:8px; padding:4px 6px; text-align:right; font-size: 12px; }
+    .row input[type="range"] { width: 100%; height: 20px; }
+    .check { display:flex; align-items:center; gap:6px; font-size: 12px; color: var(--sub); }
+
+    .btns { display:flex; gap:8px; align-items:center; }
+    .btn { background: var(--accent); color:#002; border:none; padding:6px 12px; border-radius:10px; font-weight:700; cursor:pointer; font-size: 12px; }
+    .btn.secondary { background:#1f2937; color: var(--ink); }
+
+    .stats { display:grid; grid-template-columns: repeat(2, 1fr); gap: 6px; margin-top: 8px; }
+    .stat { background:#0b1220; border:1px solid var(--frame); border-radius:10px; padding:8px; }
+    .stat .k { color: var(--sub); font-size: 11px; }
+    .stat .v { font-weight: 700; font-size: 14px; }
+    /* 新設: 左カード下の横一列ステータス */
+    .statsInline { display:grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin: 8px 0; }
+    .statInline { background:#0b1220; border:1px solid var(--frame); border-radius:10px; padding:6px 8px; }
+    .statInline .k { color: var(--sub); font-size: 11px; }
+    .statInline .v { font-weight: 700; font-size: 14px; }
+  </style>
+  <link rel="stylesheet" href="../../assets/remake.css">
+</head>
+<body class="remake-ui">
+  <div class="remake-badge-host"><span class="remake-ribbon">リメイク版</span></div>
+  <script>
+    PhysicsSimShell.create({
+      title: '鉛直ばね振り子',
+      subtitle: '重力下ばね・変位・力・エネルギー',
+      basePath: '../../'
+    });
+  </script>
+  <div class="wrap">
+  <div class="layout">
+    <!-- LEFT: Animation with right-side triple graphs tightly attached -->
+    <div class="leftCol">
+      <div class="card">
+        <div class="title">鉛直ばね振り子（重力あり・減衰あり）</div>
+        <!-- 新設: ステータスの横一列枠（右パネルから移設） -->
+        <div class="statsInline">
+          <div class="statInline"><div class="k">小振幅の周期 T₀</div><div class="v" id="T0Disp">—</div></div>
+          <div class="statInline"><div class="k">固有角振動数 ω₀</div><div class="v" id="w0Disp">—</div></div>
+          <div class="statInline"><div class="k">減衰比 ζ</div><div class="v" id="zetaDisp">—</div></div>
+          <div class="statInline"><div class="k">静的つり合い y_eq</div><div class="v" id="yEqDisp">—</div></div>
+        </div>
+        <div class="sceneRow">
+          <div class="scene">
+            <!-- アニメーション領域（右グラフに密着） -->
+            <canvas id="scene" width="340" height="300"></canvas>
+          </div>
+          <div class="miniGraphs">
+            <div>
+              <div class="gTitle">変位 y(t) [m] <span id="yRange" style="float:right; color:#cbd5e1; font-size:10px"></span></div>
+              <div class="gBox"><canvas id="gy"></canvas></div>
+            </div>
+            <div>
+              <div class="gTitle">速度 v(t) [m/s] <span id="vRange" style="float:right; color:#cbd5e1; font-size:10px"></span></div>
+              <div class="gBox"><canvas id="gv"></canvas></div>
+            </div>
+            <div>
+              <div class="gTitle">加速度 a(t) [m/s²] <span id="aRange" style="float:right; color:#cbd5e1; font-size:10px"></span></div>
+              <div class="gBox"><canvas id="ga"></canvas></div>
+            </div>
+          </div>
+        </div>
+        <div class="btns" style="margin-top:8px;">
+          <button id="runBtn" class="btn">再生</button>
+          <button id="resetBtn" class="btn secondary">リセット</button>
+          <!-- 追加: リアルタイム値表示（変位x, 速度v, 加速度a） -->
+          <div id="rtVals" style="display:flex; gap:12px; align-items:center; font-size:12px; color:var(--sub); margin-left:12px;">
+            <div>x=<span id="rtX">0.000</span> m</div>
+            <div>v=<span id="rtV">0.000</span> m/s</div>
+            <div>a=<span id="rtA">0.000</span> m/s²</div>
+          </div>
+          <div style="margin-left:auto; color:var(--sub); font-size:12px;">t = <span id="tDisp">0.00</span> s</div>
+        </div>
+        <div class="subtitle">右側に y, v, a を密着表示。各グラフはフルブリード＋0ライン／最大最小を注記。yグラフにはつり合い線も描画します。</div>
+      </div>
+    </div>
+
+    <!-- RIGHT: Controls + Stats -->
+    <div class="rightCol">
+      <div class="card">
+        <div class="title">パラメータ（コンパクト）</div>
+        <div class="controls">
+          <div class="row"><label>質量 m [kg] = <span id="mDisp">0.50</span></label><input id="mVal" type="number" step="0.01" value="0.5"></div>
+          <input id="m" type="range" min="0.1" max="5" step="0.01" value="0.5">
+
+          <div class="row"><label>ばね定数 k [N/m] = <span id="kDisp">10.00</span></label><input id="kVal" type="number" step="0.1" value="10"></div>
+          <input id="k" type="range" min="1" max="100" step="0.1" value="10">
+
+          <div class="row"><label>減衰 c [N·s/m] = <span id="cDisp">0.000</span></label><input id="cVal" type="number" step="0.001" value="0"></div>
+          <input id="c" type="range" min="0" max="2" step="0.001" value="0">
+
+          <div class="row"><label>重力 g [m/s²] = <span id="gDisp">9.800</span></label><input id="gVal" type="number" step="0.001" value="9.8"></div>
+          <input id="g" type="range" min="0" max="20" step="0.001" value="9.8">
+
+          <div class="row"><label>初期変位 y0 [m] = <span id="y0Disp">0.200</span></label><input id="y0Val" type="number" step="0.001" value="0.2"></div>
+          <input id="y0" type="range" min="-0.5" max="0.8" step="0.001" value="0.2">
+
+          <div class="row"><label>初期速度 v0 [m/s] = <span id="v0Disp">0.000</span></label><input id="v0Val" type="number" step="0.001" value="0"></div>
+          <input id="v0" type="range" min="-3" max="3" step="0.001" value="0">
+
+          <div class="row"><label>拡大率 [px/m] = <span id="pxDisp">140</span></label><input id="pxVal" type="number" step="1" value="140"></div>
+          <input id="px" type="range" min="50" max="400" step="1" value="140">
+
+          <!-- NEW: アニメ拡大率（スライダー 10%〜200%） -->
+          <div class="row"><label>アニメ拡大率 [%] = <span id="zoomDisp">50</span></label><input id="zoomVal" type="number" step="1" value="50"></div>
+          <input id="zoom" type="range" min="10" max="200" step="1" value="50">
+
+          <div class="row"><label>グラフ時間幅 [s] = <span id="winDisp">12</span></label><input id="winVal" type="number" step="1" value="12"></div>
+          <input id="win" type="range" min="4" max="30" step="1" value="12">
+
+          <label class="check"><input id="eqOn" type="checkbox" checked> 静的つり合い位置の表示（アニメ）</label>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+<script>
+(() => {
+  // ====== State ======
+  let m = 0.5, k = 10, c = 0.0, g = 9.8;
+  let y0 = 0.2, v0 = 0.0;
+  let y = y0, v = v0;
+  let t = 0;
+  let running = false;
+
+  // 基本スケール（zoomFactorで等倍縮尺）
+  const TOP_Y0 = 24;              // px: anchor y (基準)
+  const BASE_LEN_PX0 = 70;        // px: 自然長（基準）
+  const BLOCK_W0 = 58, BLOCK_H0 = 38; // ブロック寸法（基準）
+  const SPRING_WIDTH0 = 24;       // ジグザグの横振幅（基準）
+  const BAR_W0 = 112, BAR_THICK0 = 5; // 天井バー（基準）
+  let PX_PER_M = 140;             // px per meter（物理→画面換算）
+
+  let plotWindow = 12;           // seconds for graph window（左端0は固定）
+  const graphBuf = [];           // {t,y,x,v,a,a_eq}
+  let releaseX = 0;
+  let yMaxSeen = 0; // 最下点（下向き正）の追跡用（最大y）           // {t,y,x,v,a,a_eq}
+  let zoomFactor = 0.5;          // アニメ拡大率（0.5=50% 初期）。ばね・ブロック・自然長・振幅すべてに反映
+
+  // ====== Elements ======
+  const scene = document.getElementById('scene');
+  const gy = document.getElementById('gy');
+  const gv = document.getElementById('gv');
+  const ga = document.getElementById('ga');
+  // 右側グラフ全体（scene の兄弟要素）を参照
+  const miniGraphs = scene.parentElement ? scene.parentElement.nextElementSibling : null;
+  const tDisp = document.getElementById('tDisp');
+  const yRange = document.getElementById('yRange');
+  const vRange = document.getElementById('vRange');
+  const aRange = document.getElementById('aRange');
+  // Realtime readouts
+  const rtX = document.getElementById('rtX');
+  const rtV = document.getElementById('rtV');
+  const rtA = document.getElementById('rtA');
+
+  const el = (id) => document.getElementById(id);
+  const i_m = el('m'), i_mVal = el('mVal'), mDisp = el('mDisp');
+  const i_k = el('k'), i_kVal = el('kVal'), kDisp = el('kDisp');
+  const i_c = el('c'), i_cVal = el('cVal'), cDisp = el('cDisp');
+  const i_g = el('g'), i_gVal = el('gVal'), gDisp = el('gDisp');
+  const i_y0 = el('y0'), i_y0Val = el('y0Val'), y0Disp = el('y0Disp');
+  const i_v0 = el('v0'), i_v0Val = el('v0Val'), v0Disp = el('v0Disp');
+  const i_px = el('px'), i_pxVal = el('pxVal'), pxDisp = el('pxDisp');
+  const i_zoom = el('zoom'), i_zoomVal = el('zoomVal'), zoomDisp = el('zoomDisp');
+  const i_win = el('win'), i_winVal = el('winVal'), winDisp = el('winDisp');
+  const eqOn = el('eqOn');
+
+  const T0Disp = el('T0Disp');
+  const w0Disp = el('w0Disp');
+  const zetaDisp = el('zetaDisp');
+  const yEqDisp = el('yEqDisp');
+
+  const runBtn = document.getElementById('runBtn');
+  const resetBtn = document.getElementById('resetBtn');
+
+  // ====== DPR helpers ======
+  function fitCanvasDPRFull(cnv){
+    const dpr = window.devicePixelRatio || 1;
+    cnv.style.width = '100%';
+    cnv.style.height = '100%';
+    const rect = cnv.getBoundingClientRect();
+    const cssW = Math.max(1, rect.width);
+    const cssH = Math.max(1, rect.height);
+    cnv.width  = Math.floor(cssW * dpr);
+    cnv.height = Math.floor(cssH * dpr);
+    // 保存しておく（CSS座標でのW/H, およびDPR）
+    cnv._dpr = dpr; cnv._cssW = cssW; cnv._cssH = cssH;
+    const ctx = cnv.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    return ctx;
+  }
+  function fitCanvasDPRFixed(cnv){
+    const dpr = window.devicePixelRatio || 1;
+    cnv.style.width = cnv.width + 'px';
+    cnv.style.height = cnv.height + 'px';
+    // 保存（固定キャンバスなのでCSS幅=指定px）
+    cnv._dpr = dpr; cnv._cssW = cnv.width; cnv._cssH = cnv.height;
+    const ctx = cnv.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    return ctx;
+  }
+
+  const sceneCtx = fitCanvasDPRFixed(scene);
+  const gyCtx = fitCanvasDPRFull(gy);
+  const gvCtx = fitCanvasDPRFull(gv);
+  const gaCtx = fitCanvasDPRFull(ga);
+
+  const ro = new ResizeObserver(() => {
+    fitCanvasDPRFull(gy); fitCanvasDPRFull(gv); fitCanvasDPRFull(ga);
+    resizeSceneToMiniGraphs();
+    drawAllGraphs();
+    drawScene();
+  });
+  ro.observe(gy.parentElement); ro.observe(gv.parentElement); ro.observe(ga.parentElement);
+  if (miniGraphs) ro.observe(miniGraphs);
+
+  // 右側グラフ全体の高さにあわせて左のシーンキャンバスの高さを拡張
+  function resizeSceneToMiniGraphs(){
+    if (!miniGraphs || !scene) return;
+    const rect = miniGraphs.getBoundingClientRect();
+    const newH = Math.max(300, Math.round(rect.height));
+    if (scene.height !== newH) {
+      scene.height = newH;            // 内部ピクセルバッファも更新
+      fitCanvasDPRFixed(scene);       // DPR再適用＆_cssH更新
+    }
+  }
+  // キャンバスのサイズが整うまで待ってから初回描画
+  function ensureGraphCanvasReady(attempt=0){
+    const ok = gy.width>0 && gv.width>0 && ga.width>0;
+    if(!ok && attempt<10){ requestAnimationFrame(()=>ensureGraphCanvasReady(attempt+1)); return; }
+    resizeSceneToMiniGraphs();
+    drawAllGraphs();
+  }
+
+  // ====== Physics ======
+  function accel(y, v){ return -(k/m)*y - (c/m)*v + g; }
+  function stepRK4(y, v, dt){
+    const k1y = v;                  const k1v = accel(y, v);
+    const k2y = v + 0.5*dt*k1v;     const k2v = accel(y + 0.5*dt*k1y, v + 0.5*dt*k1v);
+    const k3y = v + 0.5*dt*k2v;     const k3v = accel(y + 0.5*dt*k2y, v + 0.5*dt*k2v);
+    const k4y = v + dt*k3v;         const k4v = accel(y + dt*k3y, v + dt*k3v);
+    const yNext = y + (dt/6)*(k1y + 2*k2y + 2*k3y + k4y);
+    const vNext = v + (dt/6)*(k1v + 2*k2v + 2*k3v + k4v);
+    return [yNext, vNext];
+  }
+
+  // ====== Drawing: Animation ======
+  function drawScene(){
+    const ctx = sceneCtx;
+    const dpr = scene._dpr || (window.devicePixelRatio || 1);
+    const W = (scene._cssW ?? (scene.width / dpr));
+    const H = (scene._cssH ?? (scene.height / dpr));
+    ctx.clearRect(0,0,W,H); ctx.fillStyle = '#0f172a'; ctx.fillRect(0,0,W,H);
+
+    // スケール適用（拡大率で全体が縮尺）
+    const TOP_Y = TOP_Y0 * zoomFactor;
+    const BASE_LEN_PX = BASE_LEN_PX0 * zoomFactor;
+    const BLOCK_W = BLOCK_W0 * zoomFactor, BLOCK_H = BLOCK_H0 * zoomFactor;
+    const SPRING_WIDTH = SPRING_WIDTH0 * zoomFactor;
+    const BAR_W = BAR_W0 * zoomFactor, BAR_THICK = Math.max(1, BAR_THICK0 * zoomFactor);
+
+    // 質点を球にするので半径Rを基準オフセットとして使用
+    const R = Math.min(BLOCK_W, BLOCK_H)/2;
+
+    // spring center x（左余白を自動確保）
+    const leftMargin = 12 * zoomFactor;
+    const cx = Math.max(44, leftMargin + SPRING_WIDTH + R + 4);
+
+    ctx.fillStyle = '#64748b'; ctx.fillRect(cx-BAR_W/2, TOP_Y-14*zoomFactor, BAR_W, BAR_THICK);
+
+    // spring（長さ=自然長+変位の画面換算*縮尺）
+    const lengthPx = BASE_LEN_PX + y * (PX_PER_M * zoomFactor);
+    const turns = 9; const topY = TOP_Y; const bottomY = topY + lengthPx;
+    ctx.strokeStyle = '#93c5fd'; ctx.lineWidth = Math.max(1, 2 * zoomFactor); ctx.beginPath();
+    ctx.moveTo(cx, topY);
+    for(let i=1;i<=turns;i++){
+      const yy = topY + i*(lengthPx/turns);
+      const xx = (i%2===0)? cx - SPRING_WIDTH : cx + SPRING_WIDTH; ctx.lineTo(xx, yy);
+    }
+    ctx.lineTo(cx, bottomY); ctx.stroke();
+
+    // mass（球）
+    const centerX = cx;
+    const centerY = bottomY + R; // ばね端から半径分下
+    ctx.fillStyle = 'rgba(125, 211, 252, 0.85)';
+    ctx.strokeStyle = '#38bdf8';
+    ctx.lineWidth = Math.max(1, 1.8 * zoomFactor);
+    ctx.beginPath();
+    ctx.arc(centerX, centerY, R, 0, Math.PI*2);
+    ctx.fill();
+    ctx.stroke();
+
+    // equilibrium line（既存の表示）
+    if (eqOn.checked){
+      const yEq = (m * g) / k; // m
+      const eqLenPx = BASE_LEN_PX + yEq * (PX_PER_M * zoomFactor);
+      const eqY = TOP_Y + eqLenPx + R;
+      ctx.setLineDash([5,5]); ctx.strokeStyle = '#94a3b8'; ctx.lineWidth = 1.2;
+      ctx.beginPath(); ctx.moveTo(2, eqY); ctx.lineTo(W-2, eqY); ctx.stroke(); ctx.setLineDash([]);
+    }
+
+    // --- Y軸と目印（自然長 / つり合い / 最下点） ---
+    const axisX = 6.5; // y軸を左側に（ピクセルスナップ）
+    ctx.strokeStyle = '#e5e7eb'; ctx.lineWidth = 2; ctx.setLineDash([]);
+    ctx.beginPath(); ctx.moveTo(axisX, TOP_Y - 8*zoomFactor); ctx.lineTo(axisX, H - 4); ctx.stroke();
+
+    function yPixFor(yMeters){ return TOP_Y + (BASE_LEN_PX + yMeters * (PX_PER_M * zoomFactor)) + R; }
+    const yEqVal = (m*g)/k;
+    const marks = [
+      { yVal: 0,        label: '自然長' },
+      { yVal: yEqVal,   label: 'つり合い' },
+      { yVal: yMaxSeen, label: '最下点' },
+    ];
+    ctx.font = '10px ui-sans-serif'; ctx.fillStyle = '#cbd5e1';
+    // ラベルはばね・球のすぐ右に表示（右端に寄せない）
+    ctx.textAlign = 'left';
+    const labelBaseX = Math.min(W - 12, cx + SPRING_WIDTH + R + 8);
+    for(const mk of marks){
+      const yy = yPixFor(mk.yVal);
+      // 全幅の薄い点線
+      ctx.setLineDash([3,3]); ctx.strokeStyle = '#334155';
+      ctx.beginPath(); ctx.moveTo(2, yy); ctx.lineTo(W-2, yy); ctx.stroke(); ctx.setLineDash([]);
+      // 目盛り（右側のy軸）
+      ctx.strokeStyle = '#94a3b8';
+      ctx.beginPath(); ctx.moveTo(axisX-5, yy); ctx.lineTo(axisX+5, yy); ctx.stroke();
+      // ラベル2行（ラベル／値＋(つり合い0基準)）をばねのすぐ右に
+      const valStr = `${mk.yVal.toFixed(3)} m`;
+      const parStr = `(${(mk.yVal - yEqVal).toFixed(3)} m)`;
+      ctx.fillText(mk.label, labelBaseX, yy - 2);
+      ctx.fillText(`${valStr} ${parStr}`, labelBaseX, yy + 10);
+    }
+    // 軸を最前面にもう一度描画（見落とし防止）
+    ctx.strokeStyle = '#e5e7eb'; ctx.lineWidth = 2; ctx.setLineDash([]);
+    ctx.beginPath(); ctx.moveTo(axisX, TOP_Y - 8*zoomFactor); ctx.lineTo(axisX, H - 4); ctx.stroke();
+  }
+
+  // ====== Drawing helpers for graphs ======
+  function clearMini(ctx){
+    const cnv = ctx.canvas;
+    const dpr = cnv._dpr || (window.devicePixelRatio || 1);
+    const W = (cnv._cssW ?? (cnv.width / dpr));
+    const H = (cnv._cssH ?? (cnv.height / dpr));
+    ctx.clearRect(0,0,W,H); ctx.fillStyle = '#0f172a'; ctx.fillRect(0,0,W,H);
+    ctx.strokeStyle = '#1f2937'; ctx.lineWidth = 1; // vertical guides
+    ctx.beginPath(); for(let i=1;i<5;i++){ const x = (W*i/5) + 0.5; ctx.moveTo(x,0); ctx.lineTo(x,H); } ctx.stroke();
+  }
+
+  function drawSeries({ctx, data, valueOf, unit, rangeEl, hlineVal, minSpan=1e-3}){
+    const cnv = ctx.canvas;
+    const dpr = cnv._dpr || (window.devicePixelRatio || 1);
+    const W = (cnv._cssW ?? (cnv.width / dpr));
+    const H = (cnv._cssH ?? (cnv.height / dpr));
+    clearMini(ctx);
+    if (data.length < 1) { if(rangeEl) rangeEl.textContent = ''; return; }
+    const tMax = data[data.length-1].t; // 0→tMax を常に表示
+    const tMin = 0;
+
+    // 最小・最大（NaN対策込）
+    let sMin = Infinity, sMax = -Infinity; let seen=false;
+    for(const p of data){ const val = valueOf(p); if(!Number.isFinite(val)) continue; sMin = Math.min(sMin, val); sMax = Math.max(sMax, val); seen=true; }
+    if(!seen){ if(rangeEl) rangeEl.textContent=''; return; }
+
+    // ゼロ中心（必ず対称）。わずかな振幅でも最小レンジ確保し、ヘッドルーム付与
+    const mag = Math.max(Math.abs(sMin), Math.abs(sMax));
+    const span = Math.max(mag, minSpan);
+    const ymax = span * 1.35; // 35% ヘッドルーム
+    const yMin = -ymax, yMax = ymax;
+
+    const xOfT = (tt) => ((tt - tMin) / (tMax - tMin || 1e-6)) * (W-1);
+    const yOfS = (sv) => (H-1) - ((sv - yMin) / (yMax - yMin)) * (H-1);
+
+    // 0ライン（中央）
+    ctx.strokeStyle = '#64748b'; ctx.setLineDash([4,4]);
+    const y0 = yOfS(0); ctx.beginPath(); ctx.moveTo(0, y0); ctx.lineTo(W, y0); ctx.stroke(); ctx.setLineDash([]);
+
+    // 参照線（変位のみ：つり合い位置）
+    if (typeof hlineVal === 'number' && Number.isFinite(hlineVal)){
+      ctx.strokeStyle = '#475569'; ctx.setLineDash([2,3]);
+      const yh = yOfS(hlineVal); ctx.beginPath(); ctx.moveTo(0, yh); ctx.lineTo(W, yh); ctx.stroke(); ctx.setLineDash([]);
+    }
+
+    // データ線
+    ctx.strokeStyle = '#93c5fd'; ctx.lineWidth = 2; ctx.beginPath();
+    let started = false;
+    for(let i=0;i<data.length;i++){
+      const p = data[i]; const val = valueOf(p); if(!Number.isFinite(val)) continue; const x = xOfT(p.t), ypx = yOfS(val);
+      if (!started) { ctx.moveTo(x, ypx); started = true; } else { ctx.lineTo(x, ypx); }
+    }
+    if(!started){ if(rangeEl) rangeEl.textContent=''; return; }
+    ctx.stroke();
+
+    // 現在値ドット
+    const lastVal = valueOf(data[data.length-1]);
+    if(Number.isFinite(lastVal)){
+      const xNow = xOfT(tMax), yNow = yOfS(lastVal);
+      ctx.fillStyle = '#93c5fd'; ctx.beginPath(); ctx.arc(xNow, yNow, 2.5, 0, Math.PI*2); ctx.fill();
+    }
+
+    // ラベル
+    if (rangeEl) rangeEl.textContent = `${sMin.toPrecision(3)} … ${sMax.toPrecision(3)} ${unit||''}`;
+    ctx.fillStyle = '#e5e7eb'; ctx.font = '10px ui-sans-serif';
+    ctx.textAlign = 'left'; ctx.fillText((yMax).toPrecision(3), 4, 10);
+    ctx.textAlign = 'left'; ctx.fillText((yMin).toPrecision(3), 4, H-2);
+    ctx.textAlign = 'right'; ctx.fillText(`0 → t=${tMax.toFixed(1)}s`, W-4, 10);
+  }
+
+  function drawAllGraphs(){
+    const yEq = (m*g)/k;
+    drawSeries({ ctx: gyCtx, data: graphBuf, valueOf: (p)=> p.x, unit:'m', rangeEl: yRange, hlineVal: releaseX, minSpan: 1e-3 });
+    drawSeries({ ctx: gvCtx, data: graphBuf, valueOf: (p)=> p.v, unit:'m/s', rangeEl: vRange, minSpan: 1e-3 });
+    drawSeries({ ctx: gaCtx, data: graphBuf, valueOf: (p)=> (Number.isFinite(p.a_eq)? p.a_eq : p.a), unit:'m/s²', rangeEl: aRange, minSpan: 1e-2 });
+  }
+
+  // ====== Loop ======
+  function advance(dt){
+    if (!running) return;
+
+    // Integrate with fixed substeps
+    let acc = dt; const h = 1/240;
+    while(acc > 1e-9){ const step = Math.min(h, acc); const nxt = stepRK4(y, v, step); y = nxt[0]; v = nxt[1]; acc -= step; }
+
+    // 同期して描画
+    t += dt; tDisp.textContent = t.toFixed(2);
+
+    const yEq = (m*g)/k;
+    const x = y - yEq;                 // つり合い基準の変位
+    const a = accel(y, v);              // y''（= x''）
+    const a_eq = -(k/m)*x - (c/m)*v;    // 数式通りの x''（理想的には a と一致）
+
+    // リアルタイム表示更新 & 最下点更新
+    if (rtX) rtX.textContent = x.toFixed(3);
+    if (rtV) rtV.textContent = v.toFixed(3);
+    if (rtA) rtA.textContent = a_eq.toFixed(3);
+    yMaxSeen = Math.max(yMaxSeen, y);
+
+    drawScene();
+
+    graphBuf.push({ t, y, x, v, a, a_eq });
+    drawAllGraphs();
+  }
+
+  const clock = new PhysicsSimClock.FixedStepClock({
+    step: 1 / 60,
+    onStep(dt){ advance(dt); }
+  });
+
+  // ====== Controls ======
+  function recalcDerived(){
+    const w0 = Math.sqrt(k/m); const T0 = 2*Math.PI/w0; const zeta = c / (2*Math.sqrt(k*m)); const yEq = (m*g)/k;
+    w0Disp.textContent = w0.toFixed(3) + ' rad/s'; T0Disp.textContent = T0.toFixed(3) + ' s'; zetaDisp.textContent = zeta.toFixed(3); yEqDisp.textContent = yEq.toFixed(3) + ' m';
+  }
+  function syncDisplays(){ mDisp.textContent = (+m).toFixed(2); kDisp.textContent = (+k).toFixed(2); cDisp.textContent = (+c).toFixed(3); gDisp.textContent = (+g).toFixed(3); y0Disp.textContent = (+y0).toFixed(3); v0Disp.textContent = (+v0).toFixed(3); pxDisp.textContent = (+PX_PER_M).toFixed(0); winDisp.textContent = (+plotWindow).toFixed(0); zoomDisp.textContent = Math.round(zoomFactor*100); recalcDerived(); }
+  function applyStoppedParams(){ if (running) return; y = y0; v = v0; t = 0; graphBuf.length = 0; seedInitialPoint(); tDisp.textContent = '0.00'; drawScene(); drawAllGraphs(); }
+  function bindPair(rangeEl, numEl, setter){ function setBoth(val){ setter(val); rangeEl.value = String(val); numEl.value = String(val); syncDisplays(); applyStoppedParams(); } rangeEl.addEventListener('input', e => setBoth(parseFloat(e.target.value))); numEl.addEventListener('change', e => setBoth(parseFloat(e.target.value))); }
+
+  bindPair(i_m, i_mVal, v=> m=v); bindPair(i_k, i_kVal, v=> k=v); bindPair(i_c, i_cVal, v=> c=v); bindPair(i_g, i_gVal, v=> g=v); bindPair(i_y0, i_y0Val, v=> y0=v); bindPair(i_v0, i_v0Val, v=> v0=v); bindPair(i_px, i_pxVal, v=> PX_PER_M=v); bindPair(i_win, i_winVal, v=> plotWindow=v);
+
+  // zoom slider（10%〜200%）。描画のみ反映（物理はそのまま）
+  function setZoomFromPercent(p){
+    const pp = Math.max(10, Math.min(200, p));
+    zoomFactor = pp / 100;
+    i_zoom.value = String(pp);
+    i_zoomVal.value = String(pp);
+    zoomDisp.textContent = String(pp);
+    drawScene(); drawAllGraphs();
+  }
+  i_zoom.addEventListener('input', e => setZoomFromPercent(parseFloat(e.target.value)));
+  i_zoomVal.addEventListener('change', e => setZoomFromPercent(parseFloat(e.target.value)));
+
+  runBtn.addEventListener('click', () => { running = !running; if (running){ runBtn.textContent = '一時停止'; clock.reset(); } else { runBtn.textContent = '再生'; } });
+  resetBtn.addEventListener('click', () => { running = false; runBtn.textContent = '再生'; y = y0; v = v0; t = 0; graphBuf.length = 0; seedInitialPoint(); tDisp.textContent = '0.00'; drawScene(); drawAllGraphs(); });
+
+  // 初期点（t=0）を強制投入してグラフが空にならないように
+  function seedInitialPoint(){
+    const yEq = (m*g)/k; const x = y0 - yEq; const a = accel(y0, v0); const a_eq = -(k/m)*x - (c/m)*v0;
+    releaseX = x; yMaxSeen = y0; // 最下点の初期化
+    if (rtX) rtX.textContent = x.toFixed(3);
+    if (rtV) rtV.textContent = v0.toFixed(3);
+    if (rtA) rtA.textContent = a_eq.toFixed(3);
+    graphBuf.push({ t: 0, y: y0, x, v: v0, a, a_eq });
+  }
+
+  // ====== Initial draw ======
+  y = y0; v = v0;
+  seedInitialPoint();
+  syncDisplays();
+  resizeSceneToMiniGraphs();
+  drawScene();
+  ensureGraphCanvasReady();
+  clock.start();
+})();
+</script>
+</body>
+</html>

@@ -49,7 +49,7 @@ function createCard(simulator) {
 
   const reStatus = document.createElement("span");
   reStatus.className = simulator.reRoute ? "re-status is-ready" : "re-status";
-  reStatus.textContent = simulator.reRoute ? (simulator.reStatus ?? "Re版あり") : "Re版準備中";
+  reStatus.textContent = simulator.reRoute ? (simulator.reStatus ?? "リメイク版あり") : "リメイク準備中";
   meta.append(reStatus);
 
   const sourceCount = document.createElement("span");
@@ -75,7 +75,7 @@ function createCard(simulator) {
     const reLink = document.createElement("a");
     reLink.className = "variant-link";
     reLink.href = simulator.reRoute;
-    reLink.textContent = "Re版";
+    reLink.textContent = "リメイク版";
 
     const primary = preferredVersion === "re" ? reLink : originalLink;
     primary.classList.add("is-primary");
@@ -85,7 +85,7 @@ function createCard(simulator) {
     originalLink.classList.add("is-primary");
     const pending = document.createElement("span");
     pending.className = "variant-note";
-    pending.textContent = "Re版準備中";
+    pending.textContent = "リメイク準備中";
     actions.append(originalLink, pending);
   }
 

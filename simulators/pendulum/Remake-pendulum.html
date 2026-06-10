@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>単振り子シミュレーター v1</title>
+<link rel="stylesheet" href="../../assets/common-sim.css">
+<script src="../../assets/sim-shell.js"></script>
+<script src="../../assets/sim-clock.js"></script>
+<style>
+  :root{
+    --bg:#0b0f14;        /* 全体の背景（ダーク） */
+    --card:#121923;      /* カード背景 */
+    --ink:#e6eef7;       /* 文字色 */
+    --ink-dim:#a6b0bf;   /* 補助文字 */
+    --accent:#6ec1ff;    /* 強調 */
+    --ok:#5de8a5;        /* 実行色 */
+    --warn:#ffbe5b;      /* 注意(オレンジ) */
+    --err:#ff6b6b;       /* エラー */
+    --grid:#223044;      /* グリッド線 */
+  }
+  html,body{height:100%;}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans JP", Arial, "Hiragino Kaku Gothic ProN", Meiryo, sans-serif;
+    -webkit-font-smoothing: antialiased; text-rendering: optimizeLegibility;
+  }
+  .wrap{ max-width:1200px; margin:24px auto; padding:0 16px; }
+  .title{ font-size:20px; font-weight:700; letter-spacing:0.02em; margin-bottom:12px; }
+  .grid{ display:grid; grid-template-columns: 1.3fr 1fr; gap:16px; }
+  .card{ background:var(--card); border:1px solid #1b2533; border-radius:14px; box-shadow:0 10px 24px rgba(0,0,0,0.25); }
+  .card .head{ padding:12px 14px; border-bottom:1px solid #18202c; display:flex; align-items:center; justify-content:space-between; }
+  .card .head .h{ font-weight:700; }
+  .card .body{ padding:12px 14px; }
+  .row{ display:flex; align-items:center; gap:10px; flex-wrap:wrap; margin:8px 0; }
+  .row label{ font-size:12px; color:var(--ink-dim); }
+  .row input[type="number"], .row input[type="range"], .row select{ accent-color: var(--accent); }
+  input[type="number"]{ width:90px; background:#0f1620; color:var(--ink); border:1px solid #233247; border-radius:8px; padding:6px 8px; }
+  input[type="checkbox"]{ transform: translateY(1px); }
+  button{ background:#162233; color:var(--ink); border:1px solid #223044; border-radius:10px; padding:8px 12px; cursor:pointer; font-weight:600; }
+  button:hover{ border-color:#2d4260; }
+  button.primary{ background:#133a53; border-color:#2a6c9d; }
+  button.green{ background:#114531; border-color:#2e8b57; }
+  button.red{ background:#4a1b1b; border-color:#7a2b2b; }
+  button.outline{ background:transparent; }
+  .muted{ color:var(--ink-dim); font-size:12px; }
+  canvas{ display:block; width:100%; height:auto; border-radius:12px; }
+  .readout{ display:grid; grid-template-columns:1fr 1fr; gap:6px; font-variant-numeric: tabular-nums; }
+  .readout div{ background:#0f1620; border:1px solid #1f2a3a; border-radius:10px; padding:8px; }
+  .readout strong{ color:var(--accent); }
+  .chips{ display:flex; gap:6px; flex-wrap:wrap; }
+  .chip{ font-size:12px; padding:6px 8px; border-radius:999px; border:1px solid #253247; background:#0f1620; cursor:pointer; }
+  .chip:hover{ background:#132033; }
+  .warn{ color:var(--warn); font-weight:700; }
+  .badge{ background:rgba(255,190,91,0.15); color:var(--warn); border:1px solid rgba(255,190,91,0.45); padding:4px 8px; border-radius:999px; font-weight:700; }
+  @media (max-width: 920px){ .grid{ grid-template-columns:1fr; } }
+</style>
+  <link rel="stylesheet" href="../../assets/remake.css">
+</head>
+<body class="remake-ui">
+  <div class="remake-badge-host"><span class="remake-ribbon">リメイク版</span></div>
+<script>
+  PhysicsSimShell.create({
+    title: '単振り子',
+    subtitle: '周期・角度・角速度・小角近似',
+    basePath: '../../'
+  });
+</script>
+<div class="wrap">
+    <div class="title">単振り子シミュレーター v1（小角近似/非線形・減衰・エネルギー表示）</div>
+    <div class="grid">
+      <!-- 左：描画 & グラフ -->
+      <div class="card">
+        <div class="head">
+          <div class="h">描画</div>
+          <div class="row">
+            <button id="btnFit" class="outline">⧉ フィット</button>
+            <label class="muted"><input id="autoFit" type="checkbox" /> 自動フィット（支点上固定）</label>
+            <span class="muted">左ドラッグで視点移動 / ホイールで拡大縮小</span>
+          </div>
+        </div>
+        <div class="body">
+          <canvas id="view" width="800" height="520" aria-label="pendulum view"></canvas>
+          <div class="row" style="justify-content:space-between; margin-top:10px;">
+            <div class="row" style="gap:12px;">
+              <button id="btnStart" class="primary">▶ 再生</button>
+              <button id="btnStep">⏭ 1ステップ</button>
+              <button id="btnReset" class="red">⟲ リセット</button>
+            </div>
+            <div class="row">
+              <label>速度</label>
+              <input id="speed" type="range" min="0.1" max="3" step="0.1" value="1" />
+              <span id="speedVal" class="muted">1.0×</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 右：コントロール＆読み取り -->
+      <div class="card">
+        <div class="head">
+          <div class="h">パラメータ</div>
+          <div class="chips">
+            <span class="chip" data-preset="earth">地球 g=9.81</span>
+            <span class="chip" data-preset="moon">月 g=1.62</span>
+            <span class="chip" data-preset="mars">火星 g=3.71</span>
+          </div>
+        </div>
+        <div class="body">
+          <div class="row">
+            <label for="L">糸の長さ L [m]</label>
+            <input id="L" type="number" step="0.01" min="0.05" value="1.00" />
+            <label for="m">質量 m [kg]</label>
+            <input id="m" type="number" step="0.1" min="0.1" value="1.0" />
+          </div>
+          <div class="row">
+            <label for="g">重力加速度 g [m/s²]</label>
+            <input id="g" type="number" step="0.01" min="0.1" value="9.81" />
+            <label for="c">減衰 c [1/s]</label>
+            <input id="c" type="number" step="0.001" min="0" value="0.020" />
+          </div>
+          <div class="row">
+            <label for="th0">初期角 θ₀ [deg]</label>
+            <input id="th0" type="number" step="0.1" value="20" />
+            <label for="om0">初期角速度 ω₀ [deg/s]</label>
+            <input id="om0" type="number" step="0.1" value="0" />
+          </div>
+          <div class="row">
+            <label for="dt">内部dt [s]</label>
+            <input id="dt" type="number" step="0.001" min="0.001" value="0.005" />
+            <label><input id="smallAngle" type="checkbox" /> 小角近似（sinθ≒θ）</label>
+            <label><input id="trace" type="checkbox" /> 見取り線</label>
+          </div>
+          <div class="row">
+            <label><input id="showV" type="checkbox" /> 速度ベクトル</label>
+            <label><input id="showA" type="checkbox" /> 加速度ベクトル</label>
+          </div>
+
+          <div class="row" style="justify-content:space-between; align-items:center;">
+            <span class="muted">T₀ = 2π√(L/g) は小角近似の理論周期</span>
+            <span id="T0Badge" class="badge">T₀: <span id="T0" class="warn">2.007 s</span></span>
+          </div>
+
+          <div class="readout" style="margin-top:10px;">
+            <div>θ [deg]<br><strong id="roTheta">0.0</strong></div>
+            <div>ω [deg/s]<br><strong id="roOmega">0.0</strong></div>
+            <div>速度 |v| [m/s]<br><strong id="roSpeed">0.0</strong></div>
+            <div>位置 (x,y) [m]<br><strong id="roPos">0.00, 1.00</strong></div>
+            <div>エネルギー 合計 E [J]<br><strong id="roE">0.000</strong></div>
+            <div>経過時間 t [s]<br><strong id="roTime">0.000</strong></div>
+            <div>T₀ [s]<br><strong id="roT0" style="color:var(--warn);">2.007</strong></div>
+          </div>
+
+          <div class="row" style="margin-top:12px;">
+            <span class="muted">※ 減衰 <span class="warn">c</span> は 1/s（角速度に比例の抵抗）として実装しています。</span>
+          </div>
+
+          <div class="card" style="margin-top:12px;">
+            <div class="head"><div class="h">θ(t) グラフ（直近 12 s）</div></div>
+            <div class="body">
+              <canvas id="plot" width="780" height="200" aria-label="angle plot"></canvas>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+(() => {
+  // ========= ユーティリティ =========
+  const $ = sel => document.querySelector(sel);
+  const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
+  const rad = d => d * Math.PI / 180;
+  const deg = r => r * 180 / Math.PI;
+
+  // ========= DOM 参照 =========
+  const cvs = $('#view');
+  const ctx = cvs.getContext('2d');
+  const plot = $('#plot');
+  const ptx = plot.getContext('2d');
+  const el = {
+    L: $('#L'), m: $('#m'), g: $('#g'), c: $('#c'),
+    th0: $('#th0'), om0: $('#om0'), dt: $('#dt'),
+    speed: $('#speed'), speedVal: $('#speedVal'),
+    small: $('#smallAngle'), trace: $('#trace'),
+    T0: $('#T0'), T0Badge: $('#T0Badge'), chips: document.querySelectorAll('.chip'),
+    roTheta: $('#roTheta'), roOmega: $('#roOmega'), roSpeed: $('#roSpeed'), roPos: $('#roPos'), roE: $('#roE'), roTime: $('#roTime'), roT0: $('#roT0'),
+    btnStart: $('#btnStart'), btnStep: $('#btnStep'), btnReset: $('#btnReset'), btnFit: $('#btnFit'),
+    showV: $('#showV'), showA: $('#showA'), autoFit: $('#autoFit')
+  };
+
+  // ★初期状態を強制OFF（HTML側のchecked有無に依らず）
+  if (el.autoFit) el.autoFit.checked = false;
+  if (el.trace)   el.trace.checked   = false;
+
+  // ========= 物理パラメータ =========
+  let state = { theta: 0, omega: 0, t: 0 };
+  let P = { L: 1, m: 1, g: 9.81, c: 0.02, small: false, dt: 0.005 };
+
+  const view = {
+    cx: 0, cy: 0,   // 世界座標の表示中心（m）
+    scale: 180,     // m→px
+    dragging: false, lastX:0, lastY:0
+  };
+
+  // ========= プロット用バッファ =========
+  const plotBuf = []; // {t, theta}
+  const PLOT_SPAN = 12; // 秒
+
+  // ========= DPI スケーリング =========
+  function fixDPI(canvas){
+    const dpr = Math.max(1, window.devicePixelRatio || 1);
+    const rect = canvas.getBoundingClientRect();
+    canvas.width = Math.round(rect.width * dpr);
+    canvas.height = Math.round(rect.height * dpr);
+    const ctx = canvas.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    return dpr;
+  }
+  const resizeAll = () => { fixDPI(cvs); fixDPI(plot); };
+  new ResizeObserver(resizeAll).observe(cvs);
+  new ResizeObserver(resizeAll).observe(plot);
+  window.addEventListener('resize', () => { resizeAll(); if(el.autoFit.checked) fitPivotTop(); drawPendulum(); });
+  resizeAll();
+
+  // ========= 入出力ヘルパ =========
+  function updateT0(){
+    const T0 = 2*Math.PI*Math.sqrt(P.L/P.g);
+    el.T0.textContent = `${T0.toFixed(3)} s`;
+    el.roT0.textContent = T0.toFixed(3);
+  }
+  function readParams(){
+    P.L = clamp(parseFloat(el.L.value)||1, 0.05, 50);
+    P.m = clamp(parseFloat(el.m.value)||1, 0.01, 1000);
+    P.g = clamp(parseFloat(el.g.value)||9.81, 0.1, 100);
+    P.c = clamp(parseFloat(el.c.value)||0, 0, 10);
+    P.small = !!el.small.checked;
+    P.dt = clamp(parseFloat(el.dt.value)||0.005, 0.001, 0.05);
+    updateT0();
+  }
+  function writeReadout(){
+    const x =  P.L * Math.sin(state.theta);
+    const y =  P.L * Math.cos(state.theta); // ↓を正方向
+    const yDisp = y - P.L; // 表示用: 最下点=0
+    const v = Math.abs(P.L * state.omega);
+    const U = P.m * P.g * P.L * (1 - Math.cos(state.theta)); // 最下点基準
+    const K = 0.5 * P.m * (P.L*state.omega)**2;
+    const E = U + K;
+    el.roTheta.textContent = deg(state.theta).toFixed(2);
+    el.roOmega.textContent = deg(state.omega).toFixed(2);
+    el.roSpeed.textContent = v.toFixed(3);
+    el.roPos.textContent = `${x.toFixed(2)}, ${yDisp.toFixed(2)}`;
+    el.roE.textContent = E.toFixed(3);
+    el.roTime.textContent = state.t.toFixed(3);
+  }
+
+  // ========= 力学 =========
+  function accel(theta, omega){
+    const grav = P.small ? -(P.g/P.L) * theta : -(P.g/P.L) * Math.sin(theta);
+    const damp = -P.c * omega;
+    return grav + damp;
+  }
+  function rk4Step(dt){
+    const f = (th, om) => ({ dth: om, dom: accel(th, om) });
+    const k1 = f(state.theta, state.omega);
+    const k2 = f(state.theta + 0.5*dt*k1.dth, state.omega + 0.5*dt*k1.dom);
+    const k3 = f(state.theta + 0.5*dt*k2.dth, state.omega + 0.5*dt*k2.dom);
+    const k4 = f(state.theta + dt*k3.dth,     state.omega + dt*k3.dom);
+    state.theta += dt * (k1.dth + 2*k2.dth + 2*k3.dth + k4.dth)/6;
+    state.omega += dt * (k1.dom + 2*k2.dom + 2*k3.dom + k4.dom)/6;
+    state.t += dt;
+  }
+
+  // ========= ビュー制御 =========
+  function bobRadiusPx(){
+    const r = clamp(10 + Math.log2(P.m+1)*4, 12, 30);
+    return r; // px
+  }
+  function fitPivotTop(mTop=40, mBottom=40, mSide=40){
+    const w = cvs.clientWidth, h = cvs.clientHeight;
+    const rpx = bobRadiusPx();
+    // 現在位置
+    const x = P.L * Math.sin(state.theta);
+    const y = P.L * Math.cos(state.theta);
+    // 垂直方向：pivot(0)→bob(y) が収まるように
+    const availH = Math.max(60, h - mTop - mBottom - rpx*2);
+    const scaleH = availH / Math.max(P.L, 1e-6);
+    // 水平方向：pivot(0) と bob(x) を収める
+    const spanX = Math.abs(x) + rpx/Math.max(view.scale,1e-6); // rpxを世界長さに換算
+    let scaleW = (w - 2*mSide - rpx*2) / Math.max(spanX, 1e-6);
+    if(!isFinite(scaleW) || scaleW<=0) scaleW = 1e9; // 角度ほぼ0のときは高さ優先
+    const scale = clamp(Math.min(scaleH, scaleW), 10, 600);
+    view.scale = scale;
+    // pivot を画面上(mTop)に固定
+    const cxPix = w/2, cyPix = h/2;
+    view.cx = 0; // pivot x=0 を画面中央に
+    // (0 - view.cy)*scale + cyPix = mTop  → view.cy = (cyPix - mTop)/scale
+    view.cy = (cyPix - mTop)/scale;
+  }
+
+  // 外部から押す用のフィット（UI）
+  function doFit(){
+    fitPivotTop();
+    drawPendulum();
+  }
+
+  // ========= 描画 =========
+  function worldToScreen(x, y){
+    const cx = cvs.clientWidth/2, cy = cvs.clientHeight/2;
+    const px = (x - view.cx) * view.scale + cx;
+    const py = (y - view.cy) * view.scale + cy; // 下方向が+
+    return [px, py];
+  }
+  function drawGrid(){
+    const w = cvs.clientWidth, h = cvs.clientHeight;
+    ctx.clearRect(0,0,w,h);
+    ctx.save();
+    ctx.strokeStyle = 'rgba(98,132,173,0.25)';
+    ctx.lineWidth = 1;
+    const step = 0.2; // m
+    const left = view.cx - w/(2*view.scale);
+    const right= view.cx + w/(2*view.scale);
+    const top  = view.cy - h/(2*view.scale);
+    const bottom=view.cy + h/(2*view.scale);
+    const x0 = Math.floor(left/step)*step;
+    const y0 = Math.floor(top /step)*step;
+    for(let x=x0; x<=right; x+=step){ const [px] = worldToScreen(x,0); ctx.beginPath(); ctx.moveTo(px,0); ctx.lineTo(px,h); ctx.stroke(); }
+    for(let y=y0; y<=bottom; y+=step){ const [,py] = worldToScreen(0,y); ctx.beginPath(); ctx.moveTo(0,py); ctx.lineTo(w,py); ctx.stroke(); }
+    ctx.restore();
+  }
+  function drawPendulum(){
+    drawGrid();
+
+    if(el.autoFit.checked) fitPivotTop();
+
+    const x =  P.L * Math.sin(state.theta);
+    const y =  P.L * Math.cos(state.theta); // 下向き正
+    const [ox, oy] = worldToScreen(0,0);
+    const [bx, by] = worldToScreen(x,y);
+
+    if(el.trace.checked){
+      ctx.save(); ctx.strokeStyle = 'rgba(110,193,255,0.55)'; ctx.lineWidth = 2; ctx.beginPath();
+      const N = Math.min(tracePts.length, 600);
+      for(let i=Math.max(0, tracePts.length-N); i<tracePts.length; i++){
+        const [tx, ty] = worldToScreen(tracePts[i][0], tracePts[i][1]);
+        if(i===Math.max(0, tracePts.length-N)) ctx.moveTo(tx,ty); else ctx.lineTo(tx,ty);
+      }
+      ctx.stroke(); ctx.restore();
+    }
+
+    // ロープ（細く）
+    ctx.save(); ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(ox,oy); ctx.lineTo(bx,by); ctx.stroke(); ctx.restore();
+
+    // 支点
+    ctx.save(); ctx.fillStyle = '#e6eef7'; ctx.beginPath(); ctx.arc(ox,oy,5,0,Math.PI*2); ctx.fill(); ctx.restore();
+
+    // おもり（銀色のグラデーション）
+    const r = bobRadiusPx();
+    const grad = ctx.createRadialGradient(bx - r*0.35, by - r*0.35, r*0.2, bx, by, r);
+    grad.addColorStop(0, '#ffffff');
+    grad.addColorStop(0.5, '#c0c0c0');
+    grad.addColorStop(0.8, '#9aa0a6');
+    grad.addColorStop(1, '#6f6f6f');
+    ctx.save(); ctx.fillStyle = grad; ctx.beginPath(); ctx.arc(bx,by,r,0,Math.PI*2); ctx.fill(); ctx.restore();
+
+    // 速度ベクトル（接線方向）
+    if(el.showV.checked){
+      const vx =  P.L * state.omega * Math.cos(state.theta);
+      const vy = -P.L * state.omega * Math.sin(state.theta);
+      drawArrow(bx,by, bx + vx*view.scale*0.2, by + vy*view.scale*0.2, '#ffbe5b');
+    }
+
+    // 加速度ベクトル（総加速度 a = (x'', y'')、赤）
+    if(el.showA.checked){
+      const omegadot = accel(state.theta, state.omega);
+      const ax = P.L * (omegadot * Math.cos(state.theta) - (state.omega**2) * Math.sin(state.theta));
+      const ay = P.L * (-omegadot * Math.sin(state.theta) - (state.omega**2) * Math.cos(state.theta));
+      drawArrow(bx,by, bx + ax*view.scale*0.1, by + ay*view.scale*0.1, '#ff6b6b');
+    }
+
+    // 下向き基準ガイド（θ=0 の方向）
+    ctx.save(); ctx.strokeStyle = 'rgba(230,238,247,0.5)'; ctx.setLineDash([4,4]);
+    const [dx,dy] = worldToScreen(0, +P.L); ctx.beginPath(); ctx.moveTo(ox,oy); ctx.lineTo(dx,dy); ctx.stroke(); ctx.restore();
+  }
+  function drawArrow(x1,y1,x2,y2,color){
+    ctx.save(); ctx.strokeStyle = color; ctx.fillStyle = color; ctx.lineWidth = 2.0;
+    ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
+    const ang = Math.atan2(y2-y1, x2-x1), ah = 8, aw = 6;
+    ctx.beginPath(); ctx.moveTo(x2, y2);
+    ctx.lineTo(x2 - ah*Math.cos(ang) + aw*Math.sin(ang), y2 - ah*Math.sin(ang) - aw*Math.cos(ang));
+    ctx.lineTo(x2 - ah*Math.cos(ang) - aw*Math.sin(ang), y2 - ah*Math.sin(ang) + aw*Math.cos(ang));
+    ctx.closePath(); ctx.fill(); ctx.restore();
+  }
+
+  // ========= プロット =========
+  function pushPlot(){ plotBuf.push({ t: state.t, theta: state.theta }); while(plotBuf.length && state.t - plotBuf[0].t > PLOT_SPAN){ plotBuf.shift(); } }
+  function drawPlot(){
+    const w = plot.clientWidth, h = plot.clientHeight;
+    ptx.clearRect(0,0,w,h);
+    ptx.save(); ptx.strokeStyle = 'rgba(98,132,173,0.35)'; ptx.lineWidth = 1;
+    ptx.beginPath(); ptx.moveTo(0, h/2); ptx.lineTo(w, h/2); ptx.stroke();
+    const yTop = h*(0.5 -  rad(90)/rad(180)); const yBot = h*(0.5 +  rad(90)/rad(180));
+    ptx.beginPath(); ptx.moveTo(0,yTop); ptx.lineTo(w,yTop); ptx.stroke();
+    ptx.beginPath(); ptx.moveTo(0,yBot); ptx.lineTo(w,yBot); ptx.stroke();
+    if(plotBuf.length>1){
+      const t0 = plotBuf[0].t, t1 = plotBuf[plotBuf.length-1].t, span = Math.max(1e-6, t1 - t0);
+      ptx.strokeStyle = '#6ec1ff'; ptx.lineWidth = 2; ptx.beginPath();
+      for(let i=0;i<plotBuf.length;i++){
+        const x = (plotBuf[i].t - t0)/span * w; const y = h/2 - (plotBuf[i].theta/Math.PI) * (h/2);
+        if(i===0) ptx.moveTo(x,y); else ptx.lineTo(x,y);
+      }
+      ptx.stroke();
+    }
+    ptx.restore();
+  }
+
+  // ========= ループ =========
+  let running = false;
+  let simAccumulator = 0;
+  const BASE_DT = () => P.dt;
+  const tracePts = [];
+
+  function stepOnce(dt = BASE_DT()){
+    rk4Step(dt);
+    const x =  P.L * Math.sin(state.theta); const y =  P.L * Math.cos(state.theta);
+    tracePts.push([x,y]); if(tracePts.length>2400) tracePts.shift();
+    pushPlot();
+  }
+
+  const clock = new PhysicsSimClock.FixedStepClock({
+    step: 1 / 120,
+    onStep(dt){
+      if(!running){
+        simAccumulator = 0;
+        return;
+      }
+      readParams();
+      const speed = parseFloat(el.speed.value)||1; el.speedVal.textContent = `${speed.toFixed(1)}×`;
+      simAccumulator += dt * speed;
+      const h = BASE_DT();
+      let guard = 0;
+      while(simAccumulator >= h && guard < 240){
+        stepOnce(h);
+        simAccumulator -= h;
+        guard++;
+      }
+    },
+    onRender(){
+      drawPendulum(); drawPlot(); writeReadout();
+    }
+  });
+  // ★ reset（最小追加）：既存仕様どおりに初期化して再描画
+  function reset(){
+    readParams();
+    state = { theta: rad(parseFloat(el.th0.value)||0), omega: rad(parseFloat(el.om0.value)||0), t: 0 };
+    tracePts.length = 0; plotBuf.length = 0; pushPlot();
+    if (el.autoFit.checked) fitPivotTop();
+    drawPendulum(); drawPlot(); writeReadout();
+  }
+
+  // === 分離: 初期化 / 描画 / 入力 & セルフチェック（副作用なし） ===
+  const DEBUG = false; // ← trueにするとセルフチェックのログを出します
+  function drawOnce(){ drawPendulum(); drawPlot(); writeReadout(); }
+  function initPhase(){
+    readParams();
+    state = { theta: rad(parseFloat(el.th0.value)||0), omega: rad(parseFloat(el.om0.value)||0), t: 0 };
+    tracePts.length = 0; plotBuf.length = 0; pushPlot();
+    // 現行仕様：初回のみフィットを呼ぶ（自動フィットは初期OFFのまま）
+    fitPivotTop();
+    drawOnce();
+  }
+  function bindUIPhase(){
+    if (bindUIPhase._bound) return; // 二重バインド防止
+    bindUIPhase._bound = true;
+
+    // 再生/一時停止
+    el.btnStart.addEventListener('click', () => {
+      running = !running;
+      el.btnStart.textContent = running ? '⏸ 一時停止' : '▶ 再生';
+      el.btnStart.classList.toggle('green', running);
+    });
+
+    // 1ステップ（単発）
+    el.btnStep.addEventListener('click', () => { readParams(); stepOnce(); drawPendulum(); drawPlot(); writeReadout(); });
+
+    // 1ステップ（長押し連続）
+    let stepHolding = false; let stepHoldRAF = 0;
+    function stepHoldLoop(){
+      if(!stepHolding) return;
+      readParams(); stepOnce(); drawPendulum(); drawPlot(); writeReadout();
+      stepHoldRAF = requestAnimationFrame(stepHoldLoop);
+    }
+    el.btnStep.addEventListener('mousedown', () => { stepHolding = true; stepHoldLoop(); });
+    window.addEventListener('mouseup', () => { stepHolding = false; cancelAnimationFrame(stepHoldRAF); });
+    el.btnStep.addEventListener('touchstart', (e) => { e.preventDefault(); stepHolding = true; stepHoldLoop(); }, { passive:false });
+    window.addEventListener('touchend', () => { stepHolding = false; cancelAnimationFrame(stepHoldRAF); });
+
+    // 表示系チェック（実行中のみ即時反映）
+    ;['showV','showA','trace'].forEach(k => {
+      if (el[k]) el[k].addEventListener('change', () => { if (running) { drawPendulum(); drawPlot(); } });
+    });
+
+    // フィット/リセット
+    el.btnFit.addEventListener('click', () => { doFit(); });
+    el.btnReset.addEventListener('click', reset);
+
+    // g プリセット（地球・月・火星）
+    el.chips.forEach(ch => ch.addEventListener('click', () => {
+      const t = ch.getAttribute('data-preset');
+      if (t === 'earth') el.g.value = 9.81;
+      if (t === 'moon')  el.g.value = 1.62;
+      if (t === 'mars')  el.g.value = 3.71;
+      readParams(); updateT0();
+      drawPendulum(); drawPlot(); writeReadout();
+    }));
+  }
+
+  // === 初期化（分離） ===
+  initPhase();
+  bindUIPhase();
+  clock.start();
+
+})();
+</script>
+</body>
+</html>

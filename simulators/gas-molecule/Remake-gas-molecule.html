@@ -1,0 +1,706 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>3D 理想気体シミュレーター (idealgussim0.19)</title>
+<link rel="stylesheet" href="../../assets/common-sim.css">
+<script src="../../assets/sim-shell.js"></script>
+<script src="../../assets/sim-clock.js"></script>
+<style>
+  html, body { margin:0; padding:0; height:100%; background:#0b0e12; color:#e7ecf2; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", "Yu Gothic UI", "Yu Gothic", Meiryo, sans-serif; }
+  #app { display:grid; grid-template-columns: 420px 1fr; grid-template-rows: 50px 1fr; grid-template-areas: "header header" "panel view"; height:100%; }
+  header { grid-area: header; display:flex; align-items:center; gap:10px; padding:8px 12px; background:#0f141b; border-bottom:1px solid #1b2430; }
+  header h1 { margin:0; font-size:15px; font-weight:600; color:#d0d6dd; }
+  header .sub { opacity:.8; font-size:11px; }
+  #panel { grid-area: panel; overflow:auto; padding:8px; background:#0f141b; border-right:1px solid #1b2430; }
+  #view { grid-area: view; position:relative; min-height:300px; }
+  #renderer { position:absolute; inset:0; }
+  .card { background:#111722; border:1px solid #1b2430; border-radius:10px; padding:8px; margin-bottom:8px; }
+  .card h3 { margin:0 0 6px; font-size:13px; color:#d0d6dd; }
+  .row { display:flex; align-items:center; justify-content:space-between; gap:6px; margin:4px 0; font-size:12.5px; }
+  .row > span:first-child { font-size:11px; opacity:.85; flex: 0 0 110px; width:110px; }
+  .row .ctrl { display:flex; align-items:center; gap:6px; flex: 1 1 auto; }
+  .row .ctrl.wrap { flex-wrap: wrap; }
+  .row input[type="range"] { width:80px; }
+  .row input[type="number"] { width:50px; background:#0f141b; border:1px solid #263349; color:#e7ecf2; border-radius:8px; padding:3px 5px; }
+  .hint { font-size:11px; opacity:.8; }
+  .btn { display:inline-flex; align-items:center; justify-content:center; padding:5px 7px; border-radius:9px; background:#1a2230; border:1px solid #243044; color:#d7dee6; cursor:pointer; user-select:none; gap:6px; }
+  .btn:active { transform: translateY(1px); }
+  .mini { padding:2px 6px; font-size:11px; border-radius:7px; background:#182233; border:1px solid #243044; color:#d7dee6; cursor:pointer; }
+  .pill { display:inline-block; padding:1px 6px; border-radius:999px; background:#1e2736; border:1px solid #2a374c; font-size:10px; }
+  .stat { display:grid; grid-template-columns: auto 1fr; gap:6px 8px; font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace; font-size:13px; }
+  .legend { position:absolute; right:10px; top:56px; background:rgba(10,12,16,.85); border:1px solid #1b2430; border-radius:8px; padding:6px 8px; font-size:11px; }
+  canvas { display:block; }
+  /* HUD overlay */
+  #hud { position:absolute; left:10px; bottom:10px; display:flex; flex-direction:column; gap:6px; pointer-events:none; }
+  .hudbtn { pointer-events:auto; align-self:flex-start; }
+  .hudcard { pointer-events:auto; background:rgba(12,16,22,.92); border:1px solid #233046; border-radius:10px; padding:8px; }
+  #spdHist { width:300px; height:140px; display:block; }
+  #histStat { display:grid; grid-template-columns:auto 1fr auto 1fr; gap:4px 8px; font-family: ui-monospace, Menlo, Consolas, monospace; font-size:12px; margin-top:4px; }
+  /* Zoom vertical HUD (right-bottom, tall & narrow) */
+  #zoomHud { position:absolute; right:10px; bottom:10px; pointer-events:auto; display:flex; flex-direction:column; align-items:center; gap:6px; background:rgba(12,16,22,.92); border:1px solid #233046; border-radius:10px; padding:8px; width:56px; }
+  #zoomSlider { writing-mode: bt-lr; -webkit-appearance: slider-vertical; appearance: slider-vertical; width:22px; height:240px; }
+  #zoomLabel { font-size:11px; opacity:.85; text-align:center; }
+</style>
+  <link rel="stylesheet" href="../../assets/remake.css">
+</head>
+<body class="remake-ui">
+  <div class="remake-badge-host"><span class="remake-ribbon">リメイク版</span></div>
+<script>
+  PhysicsSimShell.create({
+    title: '気体分子運動',
+    subtitle: '3D粒子・温度・圧力・速度分布',
+    basePath: '../../'
+  });
+</script>
+<div id="app">
+  <header>
+    <h1>3D 理想気体シミュレーター</h1>
+    <div class="sub">箱の枠を白に v0.19</div>
+  </header>
+
+  <div id="panel">
+    <div class="card">
+      <h3>基本パラメータ（リアルタイム）</h3>
+
+      <div class="row">
+        <span>N（分子数）</span>
+        <div class="ctrl">
+          <button class="mini" data-stepper="nSlider" data-d="-1">−</button>
+          <input id="nSlider" type="range" min="10" max="400" step="1">
+          <button class="mini" data-stepper="nSlider" data-d="1">＋</button>
+          <input id="nInput" type="number" min="10" max="400" step="1">
+          <span id="nVal" class="pill"></span>
+        </div>
+      </div>
+
+      <div class="row">
+        <span>T（K, 目標）</span>
+        <div class="ctrl">
+          <button class="mini" data-stepper="tSlider" data-d="-1">−</button>
+          <input id="tSlider" type="range" min="0" max="3000" step="10">
+          <button class="mini" data-stepper="tSlider" data-d="1">＋</button>
+          <input id="tInput" type="number" min="0" max="3000" step="10">
+          <span id="tVal" class="pill"></span>
+        </div>
+      </div>
+
+      <div class="row">
+        <span>温度プリセット</span>
+        <div class="ctrl wrap">
+          <button class="mini" data-tpreset="0">0K</button>
+          <button class="mini" data-tpreset="100">100K</button>
+          <button class="mini" data-tpreset="273">273K</button>
+          <button class="mini" data-tpreset="300">300K</button>
+          <button class="mini" data-tpreset="400">400K</button>
+          <button class="mini" data-tpreset="600">600K</button>
+          <button class="mini" data-tpreset="800">800K</button>
+          <button class="mini" data-tpreset="900">900K</button>
+          <button class="mini" data-tpreset="1200">1200K</button>
+          <button class="mini" data-tpreset="2400">2400K</button>
+          <button class="mini" data-tpreset="3600">3600K</button>
+        </div>
+      </div>
+
+      <div class="row">
+        <span>箱の一辺 L（μm）</span>
+        <div class="ctrl">
+          <button class="mini" data-stepper="lSlider" data-d="-1">−</button>
+          <input id="lSlider" type="range" min="0.5" max="3.0" step="0.1">
+          <button class="mini" data-stepper="lSlider" data-d="1">＋</button>
+          <input id="lInput" type="number" min="0.5" max="3.0" step="0.1">
+          <span id="lVal" class="pill"></span>
+        </div>
+      </div>
+
+      <div class="row">
+        <span>分子半径 r（nm）</span>
+        <div class="ctrl">
+          <button class="mini" data-stepper="rSlider" data-d="-1">−</button>
+          <input id="rSlider" type="range" min="1" max="20" step="1">
+          <button class="mini" data-stepper="rSlider" data-d="1">＋</button>
+          <input id="rInput" type="number" min="1" max="20" step="1">
+          <span id="rVal" class="pill"></span>
+        </div>
+      </div>
+
+      <div class="row">
+        <span>分子質量 m（amu）</span>
+        <div class="ctrl">
+          <button class="mini" data-stepper="mSlider" data-d="-1">−</button>
+          <input id="mSlider" type="range" min="2" max="131" step="1">
+          <button class="mini" data-stepper="mSlider" data-d="1">＋</button>
+          <input id="mInput" type="number" min="2" max="131" step="1">
+          <span id="mVal" class="pill"></span>
+        </div>
+      </div>
+
+      <div class="row">
+        <span>速度倍率</span>
+        <div class="ctrl">
+          <button class="mini" data-stepper="speedSlider" data-d="-1">−</button>
+          <input id="speedSlider" type="range" min="0.1" max="5" step="0.1">
+          <button class="mini" data-stepper="speedSlider" data-d="1">＋</button>
+          <input id="speedInput" type="number" min="0.1" max="5" step="0.1">
+          <span id="speedVal" class="pill"></span>
+        </div>
+      </div>
+
+      <div class="row">
+        <label><input id="collisionsChk" type="checkbox" checked> 分子同士の弾性衝突を有効化</label>
+      </div>
+      <div class="row">
+        <label><input id="thermostatChk" type="checkbox"> 温度制御（等温）</label>
+      </div>
+
+      <div class="row" style="gap:6px;">
+        <div class="btn" id="resetBtn">初期化</div>
+        <div class="btn" id="pauseBtn">一時停止</div>
+        <span class="hint">※ 視点は保持されます</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>圧力の直接指定</h3>
+      <div class="row" style="align-items:center;">
+        <span>P目標（Pa）</span>
+        <div class="ctrl">
+          <button class="mini" id="pMinus">−</button>
+          <input id="pInput" type="number" step="0.1" min="0" value="0">
+          <button class="mini" id="pPlus">＋</button>
+          <button class="btn" id="applyPBtn">P→T反映</button>
+        </div>
+      </div>
+      <div class="hint">理想気体式 T = P·V / (N·k)。必要なら T の上限を自動拡張します。</div>
+    </div>
+
+    <div class="card">
+      <h3>観測値（0.5 s 移動平均）</h3>
+      <div class="stat">
+        <span>温度 T_meas</span><span id="statT"></span>
+        <span>圧力 P_meas</span><span id="statP"></span>
+        <span>理想 P_id = NkT/V</span><span id="statPid"></span>
+        <span>平均速度 ⟨v⟩</span><span id="statVmean"></span>
+        <span>二乗平均 v_rms</span><span id="statVrms"></span>
+        <span>体積 V</span><span id="statV"></span>
+        <span>密度 n=N/V</span><span id="statDensity"></span>
+      </div>
+    </div>
+  </div>
+
+  <div id="view">
+    <div id="renderer"></div>
+
+    <div id="hud">
+      <div class="btn hudbtn" id="toggleHist">速度分布 ▶</div>
+      <div id="histWin" class="hudcard" style="display:none;">
+        <canvas id="spdHist" width="300" height="140"></canvas>
+        <div id="histStat">
+          <span>v_min</span><span id="vMin"></span>
+          <span>v_mean</span><span id="vMean"></span>
+          <span>v_max</span><span id="vMax"></span>
+          <span>v_cut</span><span id="vCut"></span>
+        </div>
+      </div>
+    </div>
+
+    <div id="zoomHud">
+      <div id="zoomLabel">視点ズーム <span id="zoomVal">1.00×</span></div>
+      <input id="zoomSlider" class="v" type="range" min="0.05" max="3.0" step="0.01" value="1.00">
+    </div>
+
+    <div class="legend">速度色分布：青（遅）→ 赤（速）</div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.149.0/build/three.min.js"></script>
+
+<script>
+// OrbitControls最小実装（視点固定・ダンピング無）＋同期メソッド
+(function(){
+  function OrbitControls(camera, domElement){
+    this.object=camera; this.domElement=domElement||document;
+    this.enabled=true; this.enableDamping=false; this.dampingFactor=0.12;
+    this.rotateSpeed=0.9; this.zoomSpeed=1.0; this.panSpeed=0.5;
+    this.target=new THREE.Vector3(0,0,0); this._minDist=0.01; this._maxDist=1e9;
+    const scope=this; let state=null, start=new THREE.Vector2(), end=new THREE.Vector2();
+    let spherical=new THREE.Spherical().setFromVector3(scope.object.position.clone().sub(scope.target));
+    const minPhi=1e-3, maxPhi=Math.PI-1e-3;
+    function rect(){ return scope.domElement.getBoundingClientRect(); }
+    function down(e){ if(!scope.enabled)return; scope.domElement.setPointerCapture(e.pointerId); start.set(e.clientX,e.clientY); state=(e.button===0?'rotate':'pan'); }
+    function move(e){ if(!scope.enabled||!state)return; end.set(e.clientX,e.clientY); const dx=end.x-start.x, dy=end.y-start.y;
+      if(state==='rotate'){ const r=rect(); spherical.theta-=dx/r.width*scope.rotateSpeed*Math.PI; spherical.phi-=dy/r.height*scope.rotateSpeed*Math.PI; spherical.phi=Math.max(minPhi,Math.min(maxPhi,spherical.phi)); }
+      else { const pan=new THREE.Vector3(-dx,dy,0).multiplyScalar(scope.panSpeed*0.002); pan.applyQuaternion(scope.object.quaternion); scope.target.add(pan); }
+      start.copy(end);
+    }
+    function up(e){ if(!scope.enabled)return; state=null; try{scope.domElement.releasePointerCapture(e.pointerId);}catch(_){}};
+    function wheel(e){ if(!scope.enabled)return; e.preventDefault(); const s=e.deltaY>0?1:-1; spherical.radius*=1+s*scope.zoomSpeed*0.1; spherical.radius=Math.max(scope._minDist,Math.min(scope._maxDist,spherical.radius)); }
+    this.setDistanceLimits=function(a,b){ this._minDist=Math.max(1e-9,a); this._maxDist=Math.max(this._minDist+1e-6,b); };
+    this.update=function(){ const pos=new THREE.Vector3().setFromSpherical(spherical).add(scope.target); if(scope.enableDamping){ scope.object.position.lerp(pos,scope.dampingFactor);}else{ scope.object.position.copy(pos);} scope.object.lookAt(scope.target); };
+    this.syncFromCamera=function(){ spherical.setFromVector3(scope.object.position.clone().sub(scope.target)); };
+    this.getRadius=function(){ return spherical.radius; };
+    this.setRadius=function(r){ spherical.radius=Math.max(this._minDist, Math.min(this._maxDist, r)); };
+    this.domElement.addEventListener('pointerdown',down); this.domElement.addEventListener('pointermove',move); this.domElement.addEventListener('pointerup',up); this.domElement.addEventListener('wheel',wheel,{passive:false});
+  }
+  THREE.OrbitControls=OrbitControls;
+})();
+</script>
+
+<script>
+// ===== 物理定数・スケール =====
+const kB=1.380649e-23, amu=1.66053906660e-27;
+const SCENE_SCALE=1e6;
+const BASE_TIME_SCALE=2e-10;
+const RADIUS_CFL_FRACTION=0.2;
+const MAX_SUBSTEPS=30;
+const MAX_SPEED=20000;
+
+// 絶対色スケール（m/s）
+const COLOR_VMAX_ABS = 8000;
+
+// ===== DOM =====
+function g(id){ return document.getElementById(id); }
+const nSlider=g('nSlider'), tSlider=g('tSlider'), lSlider=g('lSlider'), rSlider=g('rSlider'), mSlider=g('mSlider'), speedSlider=g('speedSlider');
+const nInput=g('nInput'), tInput=g('tInput'), lInput=g('lInput'), rInput=g('rInput'), mInput=g('mInput'), speedInput=g('speedInput');
+const pInput=g('pInput'), pMinus=g('pMinus'), pPlus=g('pPlus'), applyPBtn=g('applyPBtn');
+const collisionsChk=g('collisionsChk'), thermostatChk=g('thermostatChk'), resetBtn=g('resetBtn'), pauseBtn=g('pauseBtn');
+const nVal=g('nVal'), tVal=g('tVal'), lVal=g('lVal'), rVal=g('rVal'), mVal=g('mVal'), speedVal=g('speedVal');
+const statT=g('statT'), statP=g('statP'), statPid=g('statPid'), statVmean=g('statVmean'), statVrms=g('statVrms'), statV=g('statV'), statDensity=g('statDensity');
+const toggleHist=g('toggleHist'), histWin=g('histWin'), spdCanvas=g('spdHist'), vMinEl=g('vMin'), vMeanEl=g('vMean'), vMaxEl=g('vMax'), vCutEl=g('vCut');
+const spdCtx = spdCanvas.getContext('2d');
+const zoomSlider=g('zoomSlider'), zoomVal=g('zoomVal');
+
+// helper
+function on(el, ev, fn){ if(el && el.addEventListener){ el.addEventListener(ev, fn); } }
+function clampToStep(val, min, max, step){ const x=Math.round((val-min)/step)*step+min; return Math.max(min, Math.min(max, Number(x.toFixed(5)))); }
+
+// ===== 既定値 =====
+nSlider.value=120; tSlider.value=300; lSlider.value=1.0; rSlider.value=10; mSlider.value=2; speedSlider.value=1.0;
+nInput.value=120; tInput.value=300; lInput.value=1.0; rInput.value=10; mInput.value=2; speedInput.value=1.0;
+
+// ===== Three.js =====
+const container=g('renderer');
+const renderer=new THREE.WebGLRenderer({antialias:true}); renderer.setPixelRatio(Math.min(devicePixelRatio,2)); renderer.setSize(container.clientWidth,container.clientHeight); container.appendChild(renderer.domElement);
+const scene=new THREE.Scene(); scene.background=new THREE.Color(0x0b0e12);
+const camera=new THREE.PerspectiveCamera(50,container.clientWidth/container.clientHeight,1e-4,1e9); scene.add(camera);
+const controls=new THREE.OrbitControls(camera,renderer.domElement);
+scene.add(new THREE.HemisphereLight(0xeaf2ff,0x0a0d12,0.8)); const dir=new THREE.DirectionalLight(0xffffff,0.4); dir.position.set(1,1,1); scene.add(dir);
+
+// ===== 状態 =====
+let boxMesh, particles=[], N=0, Ttarget=300, mass=2*amu, radius=10e-9, L=1.0e-6;
+let paused=false, timeScale=BASE_TIME_SCALE*Number(speedSlider.value), lastTime=performance.now(), impulseQueue=[], simTime=0, sphereGeo=null;
+let collisionsEnabled=true, thermostatOn=false;
+let baseRadius=1;
+
+// ===== カメラ =====
+function placeCameraInitial(){
+  const Ls=L*SCENE_SCALE;
+  const d=Ls*1.2;
+  camera.position.set(d,d*0.85,d*1.1);
+  camera.lookAt(0,0,0);
+  controls.setDistanceLimits(Ls*0.05, Ls*50);
+  if(controls.syncFromCamera) controls.syncFromCamera();
+  if(controls.getRadius) baseRadius = controls.getRadius();
+  if(zoomSlider){ zoomSlider.value="1.00"; if(zoomVal) zoomVal.textContent="1.00×"; }
+}
+function updateViewLimits(){ const Ls=L*SCENE_SCALE; controls.setDistanceLimits(Ls*0.05, Ls*50); }
+
+function applyZoomFromSlider(){
+  if(!controls.getRadius || !controls.setRadius) return;
+  const z = Number(zoomSlider.value);
+  const target = baseRadius * z;
+  controls.setRadius(target);
+  controls.update();
+  if(controls.syncFromCamera) controls.syncFromCamera();
+  if(zoomVal) zoomVal.textContent = z.toFixed(2)+"×";
+}
+
+// ===== 箱 =====
+function buildBox(){
+  if(boxMesh)scene.remove(boxMesh);
+  const Ls=L*SCENE_SCALE;
+  const geo=new THREE.BoxGeometry(Ls,Ls,Ls);
+  const edges=new THREE.EdgesGeometry(geo);
+  const mat=new THREE.LineBasicMaterial({color:0xffffff});
+  boxMesh=new THREE.LineSegments(edges,mat);
+  scene.add(boxMesh);
+}
+
+// ===== 粒子生成・追加削除 =====
+function makeParticle(){
+  const mesh=new THREE.Mesh(sphereGeo, new THREE.MeshStandardMaterial({color:0x66ccff, metalness:0.0, roughness:0.3}));
+  const pos=randomPosNonOverlap();
+  const vel=sampleMBVelocity(Ttarget, mass);
+  mesh.position.set(pos.x*SCENE_SCALE,pos.y*SCENE_SCALE,pos.z*SCENE_SCALE);
+  scene.add(mesh);
+  return {pos, vel, mesh, coolx:0, cooly:0, coolz:0};
+}
+function allocParticles(count){ for(const p of particles) scene.remove(p.mesh); particles=[]; N=count; sphereGeo=new THREE.SphereGeometry(radius*SCENE_SCALE,16,12); for(let i=0;i<N;i++){ particles.push(makeParticle()); } removeCOMDrift(); }
+function addParticles(k){ for(let i=0;i<k;i++){ particles.push(makeParticle()); } N=particles.length; }
+function removeParticles(k){ for(let i=0;i<k;i++){ const p=particles.pop(); if(!p) break; scene.remove(p.mesh);} N=particles.length; }
+
+// ===== 補助 =====
+function randomPosNonOverlap(){ const maxTries=5000, half=L/2 - radius*1.01; for(let t=0;t<maxTries;t++){ const pos=new THREE.Vector3(rand(-half,half),rand(-half,half),rand(-half,half)); let ok=true; for(let j=0;j<particles.length;j++){ if(pos.distanceToSquared(particles[j].pos) < (4*radius*radius)*1.001){ ok=false; break; } } if(ok) return pos; } return new THREE.Vector3(rand(-half,half),rand(-half,half),rand(-half,half)); }
+function removeCOMDrift(){ const vcom=new THREE.Vector3(); for(const p of particles) vcom.add(p.vel); vcom.multiplyScalar(1/Math.max(1,N)); for(const p of particles) p.vel.sub(vcom); }
+function rand(a,b){ return a+(b-a)*Math.random(); }
+function gauss(){ let u=0,v=0; while(u===0)u=Math.random(); while(v===0)v=Math.random(); return Math.sqrt(-2*Math.log(u))*Math.cos(2*Math.PI*v); }
+function sampleMBVelocity(T,m){ if(T<=0) return new THREE.Vector3(0,0,0); const std=Math.sqrt(kB*T/m); return new THREE.Vector3(gauss()*std,gauss()*std,gauss()*std); }
+function speedToColorABS(v){ const x = Math.min(v/8000, 1); const y = Math.pow(x, 0.75); const hue=(1-y)*240; const c=new THREE.Color(); c.setHSL(hue/360,1.0,0.55); return c; }
+function speedToCSSABS(v){ const c=speedToColorABS(v); return "#"+c.getHexString(); }
+function kinetic(){ let K=0; for(const p of particles) K+=0.5*mass*p.vel.lengthSq(); return K; }
+function T_meas(){ return (2/3)*kinetic()/(Math.max(1,N)*kB); }
+function meanVrms(){ let s=0,s2=0; let vmax=0; for(const p of particles){ const v=p.vel.length(); s+=v; s2+=v*v; if(v>vmax) vmax=v; } const n=Math.max(1,N); return {mean:s/n, vrms:Math.sqrt(s2/n), vmax}; }
+function P_ideal(){ const V=L*L*L; return (N*kB*Ttarget)/V; }
+function P_rolling(){ const area=6*L*L, now=simTime; while(impulseQueue.length && (now-impulseQueue[0].t)>0.5) impulseQueue.shift(); if(!impulseQueue.length) return 0; const J=impulseQueue.reduce((a,e)=>a+e.J,0); const dt=Math.max(impulseQueue[impulseQueue.length-1].t-impulseQueue[0].t,1e-9); return J/(area*dt); }
+function pushImpulse(J){ impulseQueue.push({t:simTime,J}); }
+function thermostat(alpha=0.02){ const Tm=T_meas(); let s=1; if(Ttarget<=0){ s=0; } else { s=Math.sqrt((1-alpha)+alpha*(Ttarget/(Tm+1e-12))); } for(const p of particles) p.vel.multiplyScalar(s); }
+function SI(x){ if(!isFinite(x))return "-"; const abs=Math.abs(x); if(abs===0)return "0"; const u=[{k:1e-24,s:"y"},{k:1e-21,s:"z"},{k:1e-18,s:"a"},{k:1e-15,s:"f"},{k:1e-12,s:"p"},{k:1e-9,s:"n"},{k:1e-6,s:"µ"},{k:1e-3,s:"m"},{k:1,s:""},{k:1e3,s:"k"},{k:1e6,s:"M"},{k:1e9,s:"G"},{k:1e12,s:"T"},{k:1e15,s:"P"},{k:1e18,s:"E"},{k:1e21,s:"Z"},{k:1e24,s:"Y"}]; let best=u[8]; for(const e of u){ if(abs>=e.k) best=e; } return (x/best.k).toFixed(3)+" "+best.s; }
+function clampVelocity(p){ const vlen=p.vel.length(); if(!isFinite(vlen) || vlen>MAX_SPEED*10){ p.vel.copy(sampleMBVelocity(Ttarget, mass)); } else if(vlen>MAX_SPEED){ p.vel.multiplyScalar(MAX_SPEED/vlen); } }
+function sanitize(p){ if(!isFinite(p.pos.x)||!isFinite(p.pos.y)||!isFinite(p.pos.z)){ const pos=randomPosNonOverlap(); p.pos.copy(pos); } if(!isFinite(p.vel.x)||!isFinite(p.vel.y)||!isFinite(p.vel.z)){ p.vel.copy(sampleMBVelocity(Ttarget, mass)); } clampVelocity(p); }
+function wallEps(){ return Math.max(1e-12, 1e-3*radius); }
+
+// ===== 衝突（法線成分スワップ） =====
+function collidePair(pi,pj){
+  const delta = pj.pos.clone().sub(pi.pos);
+  let d2 = delta.lengthSq();
+  const minD = 2*radius;
+  if (d2 === 0){
+    delta.set(Math.random()-0.5, Math.random()-0.5, Math.random()-0.5).normalize().multiplyScalar(minD);
+    d2 = delta.lengthSq();
+  }
+  const d = Math.sqrt(d2);
+  if (d >= minD) return;
+  const n = delta.multiplyScalar(1/(d+1e-12));
+  const overlap = (minD - d);
+  if (overlap > 0){
+    const corr = n.clone().multiplyScalar(overlap*0.5 + 1e-12);
+    pi.pos.addScaledVector(corr, -1);
+    pj.pos.add(corr);
+  }
+  const viN = pi.vel.dot(n);
+  const vjN = pj.vel.dot(n);
+  pi.vel.addScaledVector(n, (vjN - viN));
+  pj.vel.addScaledVector(n, (viN - vjN));
+  sanitize(pi); sanitize(pj);
+}
+
+// ===== サブステップ =====
+function stepWithSubsteps(dtSim){
+  let vmax=0; for(const p of particles){ const v=p.vel.length(); if(v>vmax) vmax=v; }
+  const dtMax = (vmax>0) ? RADIUS_CFL_FRACTION*radius / vmax : dtSim;
+  let steps = Math.max(1, Math.ceil(dtSim / Math.max(1e-18, dtMax)));
+  steps = Math.min(steps, MAX_SUBSTEPS);
+  const h = dtSim / steps;
+
+  for(let s=0;s<steps;s++){
+    for(const p of particles){ p.coolx=Math.max(0,p.coolx-h); p.cooly=Math.max(0,p.cooly-h); p.coolz=Math.max(0,p.coolz-h); }
+    for(const p of particles){ p.pos.addScaledVector(p.vel, h); }
+    const half=L/2 - radius; const eps=wallEps();
+    let Jwall=0;
+    for(const p of particles){
+      if(p.pos.x>half){ p.pos.x=half-eps; if(p.vel.x>0 && p.coolx<=0){ Jwall+=2*mass*Math.abs(p.vel.x); p.vel.x*=-1; p.coolx=3*h; } else { p.vel.x=-Math.abs(p.vel.x); } }
+      else if(p.pos.x<-half){ p.pos.x=-half+eps; if(p.vel.x<0 && p.coolx<=0){ Jwall+=2*mass*Math.abs(p.vel.x); p.vel.x*=-1; p.coolx=3*h; } else { p.vel.x=Math.abs(p.vel.x); } }
+      if(p.pos.y>half){ p.pos.y=half-eps; if(p.vel.y>0 && p.cooly<=0){ Jwall+=2*mass*Math.abs(p.vel.y); p.vel.y*=-1; p.cooly=3*h; } else { p.vel.y=-Math.abs(p.vel.y); } }
+      else if(p.pos.y<-half){ p.pos.y=-half+eps; if(p.vel.y<0 && p.cooly<=0){ Jwall+=2*mass*Math.abs(p.vel.y); p.vel.y*=-1; p.cooly=3*h; } else { p.vel.y=Math.abs(p.vel.y); } }
+      if(p.pos.z>half){ p.pos.z=half-eps; if(p.vel.z>0 && p.coolz<=0){ Jwall+=2*mass*Math.abs(p.vel.z); p.vel.z*=-1; p.coolz=3*h; } else { p.vel.z=-Math.abs(p.vel.z); } }
+      else if(p.pos.z<-half){ p.pos.z=-half+eps; if(p.vel.z<0 && p.coolz<=0){ Jwall+=2*mass*Math.abs(p.vel.z); p.vel.z*=-1; p.coolz=3*h; } else { p.vel.z=Math.abs(p.vel.z); } }
+      sanitize(p);
+    }
+    if(Jwall>0) pushImpulse(Jwall);
+    if(collisionsEnabled){
+      const rr=(2*radius)*(2*radius);
+      for(let i=0;i<N;i++){
+        const pi=particles[i];
+        for(let j=i+1;j<N;j++){
+          const pj=particles[j];
+          if (pi.pos.distanceToSquared(pj.pos) < rr){ collidePair(pi,pj); }
+        }
+      }
+    }
+    if(thermostatOn) thermostat(0.02);
+  }
+}
+
+// ===== レンダ＆統計 =====
+function updateColors(){ for(const p of particles){ const spd=p.vel.length(); p.mesh.material.color.copy( speedToColorABS(spd) ); } }
+function renderStats(){
+  const Tm=T_meas(), Pm=P_rolling(), Pid=P_ideal(); const {mean,vrms}=meanVrms(); const V=L*L*L; const density=N/V;
+  statT.textContent=Tm.toFixed(1)+" K"; statP.textContent=SI(Pm)+"Pa"; statPid.textContent=SI(Pid)+"Pa";
+  statVmean.textContent=SI(mean)+"m/s"; statVrms.textContent=SI(vrms)+"m/s"; statV.textContent=SI(V)+"m³"; statDensity.textContent=SI(density)+"m⁻³";
+  updateSpeedHistogram(mean, vrms);
+}
+
+// ===== 速度ヒストグラム（絶対色＋⟨v⟩数値） =====
+let histCooldown=0;
+function updateSpeedHistogram(meanVal, vrms){
+  if(!histWin || histWin.style.display==='none') return;
+  histCooldown -= 1;
+  if(histCooldown>0) return;
+  histCooldown = 2;
+
+  const w=spdCanvas.width, h=spdCanvas.height;
+  spdCtx.clearRect(0,0,w,h);
+  if(N<=0){ return; }
+
+  const speeds = new Array(N);
+  let min=Infinity, max=0, sum=0;
+  for(let i=0;i<N;i++){ const v=particles[i].vel.length(); speeds[i]=v; if(v<min)min=v; if(v>max)max=v; sum+=v; }
+  const mean = (meanVal!==undefined)?meanVal:(sum/N);
+  const vCut = Math.max(3.0*vrms, max*1.02, 0.4*COLOR_VMAX_ABS);
+  const bins = Math.min(100, Math.max(40, Math.floor(Math.sqrt(N))*6));
+  const counts = new Array(bins).fill(0);
+  for(const v of speeds){ const x = Math.min(bins-1, Math.floor((v/vCut)*bins)); counts[x]++; }
+  const maxC = Math.max(1, ...counts);
+
+  // 軸
+  spdCtx.strokeStyle = "#2a3850"; spdCtx.lineWidth=1;
+  spdCtx.beginPath(); spdCtx.moveTo(28,h-18); spdCtx.lineTo(w-6,h-18); spdCtx.moveTo(28,h-18); spdCtx.lineTo(28,6); spdCtx.stroke();
+
+  // 棒（絶対色）
+  const plotW = (w-40), plotH=(h-28);
+  const bw = plotW/bins;
+  for(let i=0;i<bins;i++){
+    const c=counts[i], bh = (c/maxC)*plotH;
+    const x = 28 + i*bw + 1;
+    const y = h-18 - bh;
+    const vMid = ((i+0.5)/bins)*vCut;
+    spdCtx.fillStyle = speedToCSSABS(vMid);
+    spdCtx.fillRect(x, y, Math.max(1,bw-2), bh);
+  }
+
+  // 平均線＋軸ラベル（値つき）
+  spdCtx.strokeStyle="#ffcf66";
+  const xm = 28 + Math.min(1, mean/vCut)*plotW;
+  spdCtx.beginPath(); spdCtx.moveTo(xm, h-18); spdCtx.lineTo(xm, h-18-plotH); spdCtx.stroke();
+  spdCtx.fillStyle="#ffcf66"; spdCtx.font="10px ui-monospace, Menlo, Consolas, monospace";
+  spdCtx.textAlign="center"; spdCtx.fillText("⟨v⟩="+Math.round(mean)+" m/s", xm, h-4);
+
+  // 目盛り（0, vCut）
+  spdCtx.fillStyle="#b9c6d8"; spdCtx.textAlign="left"; spdCtx.fillText("0", 22, h-6);
+  spdCtx.textAlign="right"; spdCtx.fillText((vCut).toFixed(0), w-8, h-6);
+
+  // 数値表示
+  vMinEl.textContent = SI(min)+"m/s";
+  vMeanEl.textContent = SI(mean)+"m/s";
+  vMaxEl.textContent = SI(max)+"m/s";
+  vCutEl.textContent  = SI(vCut)+"m/s";
+}
+
+// ===== UI同期 =====
+function syncLabels(){
+  if(nVal) nVal.textContent=nSlider.value;
+  if(tVal) tVal.textContent=tSlider.value+" K";
+  if(lVal) lVal.textContent=Number(lSlider.value).toFixed(1)+" μm";
+  if(rVal) rVal.textContent=rSlider.value+" nm";
+  if(mVal) mVal.textContent=mSlider.value+" amu";
+  if(speedVal) speedVal.textContent=speedSlider.value+"×";
+}
+syncLabels();
+
+function applyParams(){
+  const prevL=L, prevN=N, prevMass=mass, prevT=Ttarget;
+  const newN=Number(nSlider.value);
+  Ttarget=Number(tSlider.value);
+  L=Number(lSlider.value)*1e-6;
+  radius=Number(rSlider.value)*1e-9;
+  const newMass=Number(mSlider.value)*amu;
+  timeScale=BASE_TIME_SCALE*Number(speedSlider.value);
+  collisionsEnabled=collisionsChk && collisionsChk.checked; thermostatOn=thermostatChk && thermostatChk.checked;
+
+  buildBox();
+  sphereGeo=new THREE.SphereGeometry(radius*SCENE_SCALE,16,12);
+
+  if(newN>prevN){ addParticles(newN-prevN); }
+  else if(newN<prevN){ removeParticles(prevN-newN); }
+
+  if(newMass!==prevMass){
+    const s=(prevT<=0)?1:Math.sqrt(prevMass/newMass);
+    for(const p of particles){ p.vel.multiplyScalar(s); p.mesh.geometry=sphereGeo; }
+  } else {
+    for(const p of particles){ p.mesh.geometry=sphereGeo; }
+  }
+  mass=newMass;
+
+  if(L!==prevL){
+    const s=L/prevL;
+    for(const p of particles){
+      p.pos.multiplyScalar(s);
+      p.mesh.position.set(p.pos.x*SCENE_SCALE,p.pos.y*SCENE_SCALE,p.pos.z*SCENE_SCALE);
+      p.coolx=0; p.cooly=0; p.coolz=0;
+    }
+    impulseQueue=[];
+    updateViewLimits(); // 視点は保持
+  }
+
+  if(Ttarget!==prevT){
+    const Tm = T_meas();
+    if(Ttarget<=0){
+      for(const p of particles){ p.vel.set(0,0,0); }
+    }else if(Tm>0){
+      const s=Math.sqrt(Ttarget/Tm);
+      for(const p of particles){ p.vel.multiplyScalar(s); }
+    } else {
+      for(const p of particles){ p.vel.copy(sampleMBVelocity(Ttarget, mass)); }
+    }
+  }
+  renderStats();
+}
+
+// 双方向バインド：number→slider
+function bindNumToSlider(num, slider){
+  on(num, 'input', ()=>{
+    const v = clampToStep(Number(num.value), parseFloat(slider.min), parseFloat(slider.max), parseFloat(slider.step||"1"));
+    slider.value = (slider.step && slider.step.indexOf('.')>=0) ? v.toFixed((slider.step.split('.')[1]||'').length) : String(v);
+    syncLabels(); applyParams();
+  });
+}
+// キー操作（上下矢印）
+function bindArrowKeys(num){
+  on(num, 'keydown', (e)=>{
+    const step = parseFloat(num.step||"1");
+    if(e.key==="ArrowUp"){ e.preventDefault(); num.value = String((Number(num.value)||0)+step); num.dispatchEvent(new Event('input',{bubbles:true})); }
+    if(e.key==="ArrowDown"){ e.preventDefault(); num.value = String((Number(num.value)||0)-step); num.dispatchEvent(new Event('input',{bubbles:true})); }
+  });
+}
+
+// Slider→反映（input/change の両方）
+function bindSlider(sl){
+  ['input','change'].forEach(ev=> on(sl, ev, ()=>{ syncLabels(); applyParams(); }));
+}
+
+bindNumToSlider(nInput, nSlider);
+bindNumToSlider(tInput, tSlider);
+bindNumToSlider(lInput, lSlider);
+bindNumToSlider(rInput, rSlider);
+bindNumToSlider(mInput, mSlider);
+bindNumToSlider(speedInput, speedSlider);
+bindArrowKeys(tInput);
+
+bindSlider(nSlider);
+bindSlider(tSlider);
+bindSlider(lSlider);
+bindSlider(rSlider);
+bindSlider(mSlider);
+bindSlider(speedSlider);
+on(collisionsChk, 'change', applyParams);
+on(thermostatChk, 'change', applyParams);
+
+// ステッパー（−／＋）
+Array.from(document.querySelectorAll('[data-stepper]')).forEach(btn=>{
+  if(!(btn && btn.addEventListener)) return;
+  btn.addEventListener('click', ()=>{
+    const id=btn.getAttribute('data-stepper');
+    const d=parseFloat(btn.getAttribute('data-d')||"0");
+    const el=g(id);
+    if(!el) return;
+    const step=parseFloat(el.step||"1");
+    let val=parseFloat(el.value);
+    val += d*step;
+    const min=parseFloat(el.min); const max=parseFloat(el.max);
+    val = Math.max(min, Math.min(max, val));
+    el.value = (el.step && el.step.indexOf('.')>=0) ? val.toFixed((el.step.split('.')[1]||'').length) : String(Math.round(val));
+    el.dispatchEvent(new Event('input', {bubbles:true}));
+  });
+});
+
+// 温度プリセット群
+Array.from(document.querySelectorAll('[data-tpreset]')).forEach(btn=>{
+  on(btn,'click', ()=>{
+    const T = Number(btn.getAttribute('data-tpreset'));
+    tSlider.value = T; tInput.value = T; syncLabels(); applyParams();
+  });
+});
+
+// 圧力→温度（自動でTレンジ拡張）
+function applyPressureTarget(){
+  const P = Math.max(0, Number(pInput && pInput.value)||0);
+  const V = L*L*L;
+  const Tnew = (N>0 && V>0) ? (P*V)/(N*kB) : Ttarget;
+  if(Tnew > parseFloat(tSlider.max)){
+    const newMax = Math.min(20000, Math.ceil(Tnew/100)*100);
+    tSlider.max = String(newMax);
+    tInput.max = String(newMax);
+  }
+  const Tmin=parseFloat(tSlider.min);
+  const Tclip=Math.max(Tmin, Math.min(parseFloat(tSlider.max), Tnew));
+  tSlider.value = Tclip; tInput.value = Math.round(Tclip);
+  syncLabels(); applyParams();
+}
+on(applyPBtn,'click', applyPressureTarget);
+on(pMinus,'click', ()=>{ const step=parseFloat(pInput.step||"0.1"); const v=Math.max(0,(Number(pInput.value)||0)-step); pInput.value=v.toFixed(1); });
+on(pPlus,'click', ()=>{ const step=parseFloat(pInput.step||"0.1"); const v=(Number(pInput.value)||0)+step; pInput.value=v.toFixed(1); });
+
+// ヒストグラム表示切替
+on(toggleHist,'click', ()=>{
+  const show = (histWin.style.display==='none');
+  histWin.style.display = show ? 'block' : 'none';
+  toggleHist.textContent = show ? '速度分布 ▼' : '速度分布 ▶';
+  if(show){ renderStats(); }
+});
+
+function resetSimulation(){
+  Ttarget=Number(tSlider.value);
+  L=Number(lSlider.value)*1e-6;
+  radius=Number(rSlider.value)*1e-9;
+  mass=Number(mSlider.value)*amu;
+  timeScale=BASE_TIME_SCALE*Number(speedSlider.value);
+  collisionsEnabled=collisionsChk && collisionsChk.checked;
+  thermostatOn=thermostatChk && thermostatChk.checked;
+  simTime=0;
+  impulseQueue=[];
+  lastTime=performance.now();
+  buildBox();
+  allocParticles(Number(nSlider.value));
+  updateViewLimits();
+  renderStats();
+}
+on(resetBtn, 'click', resetSimulation);
+on(pauseBtn, 'click', ()=>{
+  paused = !paused;
+  pauseBtn.textContent = paused ? '再開' : '一時停止';
+  lastTime = performance.now();
+});
+
+// ===== リサイズ =====
+function onResize(){ const w=container.clientWidth, h=container.clientHeight; renderer.setSize(w,h); camera.aspect=w/h; camera.updateProjectionMatrix(); }
+window.addEventListener('resize', onResize);
+
+// ===== ループ =====
+const clock = new PhysicsSimClock.FixedStepClock({
+  step: 1 / 60,
+  onStep(dtReal){
+  if(!paused){
+    const dtSim=dtReal*timeScale;
+    simTime+=dtSim;
+    stepWithSubsteps(dtSim);
+    updateColors();
+    for(const p of particles){ p.mesh.position.set(p.pos.x*SCENE_SCALE,p.pos.y*SCENE_SCALE,p.pos.z*SCENE_SCALE); }
+    renderStats();
+  }
+  },
+  onRender(){
+  controls.update();
+  renderer.render(scene,camera);
+  }
+});
+
+// ===== 初期化 =====
+function initDefaults(){
+  Ttarget=Number(tSlider.value);
+  L=Number(lSlider.value)*1e-6;
+  radius=Number(rSlider.value)*1e-9;
+  mass=Number(mSlider.value)*amu;
+  timeScale=BASE_TIME_SCALE*Number(speedSlider.value);
+  sphereGeo=new THREE.SphereGeometry(radius*SCENE_SCALE,16,12);
+  allocParticles(Number(nSlider.value));
+  buildBox(); placeCameraInitial(); onResize(); renderStats();
+  ['input','change'].forEach(ev=> on(zoomSlider, ev, applyZoomFromSlider)); // ズーム
+  if(pauseBtn) pauseBtn.textContent = paused ? '再開' : '一時停止';
+}
+initDefaults();
+clock.start();
+</script>
+
+</body>
+</html>

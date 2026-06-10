@@ -1,0 +1,1214 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>気柱の共鳴シミュレータ</title>
+  <link rel="stylesheet" href="../../assets/common-sim.css">
+  <script src="../../assets/sim-shell.js"></script>
+  <script src="../../assets/sim-clock.js"></script>
+  <style>
+    :root {
+      --bg: #08111f;
+      --surface: #0f1c2f;
+      --panel: #12233b;
+      --line: #284260;
+      --text: #eef6ff;
+      --muted: #9fb5c9;
+      --accent: #56d1ff;
+      --accent-2: #ffc857;
+      --dense: #ff6b4a;
+      --sparse: #64c8ff;
+      --ok: #6ee7a8;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      min-height: 100%;
+      margin: 0;
+      background:
+        radial-gradient(circle at 16% 8%, rgba(86, 209, 255, 0.13), transparent 30%),
+        linear-gradient(180deg, #08111f 0%, #0a1524 48%, #07101c 100%);
+      color: var(--text);
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Sans", "Yu Gothic", Meiryo, sans-serif;
+    }
+
+    button,
+    input,
+    select {
+      font: inherit;
+    }
+
+    .app {
+      width: min(1220px, calc(100% - 28px));
+      margin: 0 auto;
+      padding: 18px 0 24px;
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: minmax(300px, 360px) minmax(0, 1fr);
+      gap: 14px;
+      align-items: start;
+    }
+
+    .panel,
+    .stage {
+      border: 1px solid rgba(159, 181, 201, 0.24);
+      border-radius: 8px;
+      background: rgba(15, 28, 47, 0.88);
+      box-shadow: 0 18px 42px rgba(0, 0, 0, 0.22);
+    }
+
+    .panel {
+      padding: 14px;
+    }
+
+    .stage {
+      overflow: hidden;
+    }
+
+    .title-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 15px 16px 12px;
+      border-bottom: 1px solid rgba(159, 181, 201, 0.18);
+    }
+
+    h1,
+    h2,
+    h3,
+    p {
+      margin: 0;
+    }
+
+    h1 {
+      font-size: 18px;
+      line-height: 1.35;
+    }
+
+    h2 {
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+      line-height: 1.35;
+    }
+
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      min-height: 28px;
+      padding: 0 10px;
+      border: 1px solid rgba(86, 209, 255, 0.35);
+      border-radius: 999px;
+      color: #b7eeff;
+      background: rgba(86, 209, 255, 0.12);
+      font-size: 12px;
+      font-variant-numeric: tabular-nums;
+      white-space: nowrap;
+    }
+
+    .controls {
+      display: grid;
+      gap: 12px;
+    }
+
+    .control {
+      display: grid;
+      gap: 6px;
+    }
+
+    .control-label {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+      line-height: 1.35;
+    }
+
+    .value {
+      color: var(--text);
+      font-variant-numeric: tabular-nums;
+      font-weight: 700;
+    }
+
+    input[type="range"] {
+      width: 100%;
+      accent-color: var(--accent);
+    }
+
+    select,
+    input[type="number"] {
+      width: 100%;
+      min-height: 36px;
+      border: 1px solid rgba(159, 181, 201, 0.32);
+      border-radius: 7px;
+      padding: 0 10px;
+      color: var(--text);
+      background: #0a1728;
+    }
+
+    .segmented {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+      padding: 3px;
+      border: 1px solid rgba(159, 181, 201, 0.24);
+      border-radius: 8px;
+      background: #0a1728;
+    }
+
+    .segmented button,
+    .actions button,
+    .stage-actions button {
+      min-height: 36px;
+      border: 1px solid transparent;
+      border-radius: 7px;
+      color: var(--text);
+      background: transparent;
+      cursor: pointer;
+    }
+
+    .segmented button.is-active {
+      border-color: rgba(86, 209, 255, 0.45);
+      background: rgba(86, 209, 255, 0.16);
+      color: #dff8ff;
+    }
+
+    .actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+
+    .actions button,
+    .stage-actions button {
+      border-color: rgba(159, 181, 201, 0.28);
+      background: #132640;
+      font-weight: 700;
+    }
+
+    .actions button:hover,
+    .actions button:focus-visible,
+    .stage-actions button:hover,
+    .stage-actions button:focus-visible {
+      border-color: rgba(86, 209, 255, 0.65);
+      outline: none;
+    }
+
+    .stage-header-actions {
+      display: flex;
+      align-items: center;
+      flex-shrink: 0;
+      gap: 8px;
+    }
+
+    .stage-actions {
+      display: grid;
+      grid-template-columns: repeat(3, auto);
+      gap: 6px;
+    }
+
+    .stage-actions button {
+      min-width: 92px;
+      padding: 0 10px;
+      font-size: 13px;
+      line-height: 1;
+      white-space: nowrap;
+    }
+
+    .checks {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 7px;
+      padding-top: 2px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .checks label {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      min-height: 26px;
+    }
+
+    .readouts {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .readout {
+      border: 1px solid rgba(159, 181, 201, 0.2);
+      border-radius: 8px;
+      padding: 9px;
+      background: rgba(8, 17, 31, 0.56);
+    }
+
+    .readout .k {
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1.35;
+    }
+
+    .readout .v {
+      margin-top: 2px;
+      color: var(--text);
+      font-size: 15px;
+      font-variant-numeric: tabular-nums;
+      font-weight: 800;
+      line-height: 1.35;
+    }
+
+    .formula {
+      margin-top: 12px;
+      border-left: 3px solid rgba(86, 209, 255, 0.65);
+      padding: 9px 10px;
+      color: var(--muted);
+      background: rgba(86, 209, 255, 0.08);
+      font-size: 12px;
+      line-height: 1.65;
+    }
+
+    .canvas-wrap {
+      position: relative;
+      min-height: 560px;
+      background:
+        linear-gradient(180deg, rgba(86, 209, 255, 0.08), transparent 44%),
+        #07101c;
+    }
+
+    canvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      min-height: 560px;
+    }
+
+    .legend {
+      display: grid;
+      grid-template-columns: repeat(4, auto);
+      gap: 10px;
+      align-items: center;
+      justify-content: start;
+      padding: 10px 16px 14px;
+      border-top: 1px solid rgba(159, 181, 201, 0.18);
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .legend-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      white-space: nowrap;
+    }
+
+    .swatch {
+      width: 12px;
+      height: 12px;
+      border-radius: 999px;
+    }
+
+    .swatch.dense {
+      background: var(--dense);
+    }
+
+    .swatch.sparse {
+      background: var(--sparse);
+    }
+
+    .swatch.node {
+      background: var(--ok);
+    }
+
+    .swatch.antinode {
+      background: var(--accent-2);
+    }
+
+    @media (max-width: 940px) {
+      .layout {
+        grid-template-columns: 1fr;
+      }
+
+      .stage {
+        order: -1;
+      }
+
+      .canvas-wrap,
+      canvas {
+        min-height: 500px;
+      }
+    }
+
+    @media (max-width: 560px) {
+      .app {
+        width: min(100% - 18px, 1220px);
+        padding-top: 10px;
+      }
+
+      .title-row {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+
+      .stage-header-actions {
+        align-items: stretch;
+        flex-direction: column;
+        width: 100%;
+      }
+
+      .stage-actions {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        width: 100%;
+      }
+
+      .stage-actions button {
+        min-width: 0;
+        padding: 0 6px;
+        font-size: 12px;
+      }
+
+      .readouts {
+        grid-template-columns: 1fr;
+      }
+
+      .legend {
+        grid-template-columns: 1fr 1fr;
+      }
+
+      .canvas-wrap,
+      canvas {
+        min-height: 460px;
+      }
+    }
+  </style>
+  <link rel="stylesheet" href="../../assets/remake.css">
+</head>
+<body class="remake-ui">
+  <div class="remake-badge-host"><span class="remake-ribbon">リメイク版</span></div>
+<script>
+  PhysicsSimShell.create({
+    title: "気柱の共鳴",
+    subtitle: "縦波・分子の疎密・変位の節と圧力の腹",
+    basePath: "../../"
+  });
+</script>
+
+<main class="app">
+  <div class="layout">
+    <section class="panel" aria-label="操作パネル">
+      <div class="controls">
+        <div>
+          <h1>気柱の共鳴</h1>
+          <h2>分子球が管の軸方向に動き、密な場所と疎な場所が交互に現れます。</h2>
+        </div>
+
+        <div class="control">
+          <div class="control-label">管の条件</div>
+          <div class="segmented" role="group" aria-label="管の条件">
+            <button type="button" data-tube="closed-open" class="is-active">片端閉管</button>
+            <button type="button" data-tube="open-open">両端開管</button>
+          </div>
+        </div>
+
+        <div class="control">
+          <label class="control-label" for="mode">
+            共鳴モード
+            <span class="value" id="modeText">基本振動</span>
+          </label>
+          <input id="mode" type="range" min="1" max="5" step="1" value="1">
+        </div>
+
+        <div class="control">
+          <label class="control-label" for="length">
+            管の長さ L
+            <span class="value" id="lengthText">0.85 m</span>
+          </label>
+          <input id="length" type="range" min="0.30" max="1.60" step="0.01" value="0.85">
+        </div>
+
+        <div class="control">
+          <label class="control-label" for="soundSpeed">
+            音速 v
+            <span class="value" id="soundSpeedText">340 m/s</span>
+          </label>
+          <input id="soundSpeed" type="range" min="300" max="380" step="1" value="340">
+        </div>
+
+        <div class="control">
+          <label class="control-label" for="amplitude">
+            分子の変位
+            <span class="value" id="amplitudeText">95%</span>
+          </label>
+          <input id="amplitude" type="range" min="0" max="1.4" step="0.01" value="0.95">
+        </div>
+
+        <div class="control">
+          <label class="control-label" for="density">
+            疎密の強調
+            <span class="value" id="densityText">100%</span>
+          </label>
+          <input id="density" type="range" min="0" max="1.4" step="0.01" value="1.00">
+        </div>
+
+        <div class="control">
+          <label class="control-label" for="molecules">
+            分子数
+            <span class="value" id="moleculeText">140 個</span>
+          </label>
+          <input id="molecules" type="range" min="60" max="320" step="20" value="140">
+        </div>
+
+        <div class="control">
+          <label class="control-label" for="speed">
+            再生速度
+            <span class="value" id="speedText">1.60x</span>
+          </label>
+          <input id="speed" type="range" min="0" max="3.5" step="0.05" value="1.6">
+        </div>
+
+        <div class="checks">
+          <label><input id="showDensity" type="checkbox" checked> 密・疎の帯を表示</label>
+          <label><input id="showMarkers" type="checkbox" checked> 変位の節と圧力の腹を表示</label>
+          <label><input id="showCurves" type="checkbox" checked> 横波変位グラフを表示</label>
+        </div>
+
+      </div>
+
+      <div class="readouts" aria-label="数値表示">
+        <div class="readout">
+          <div class="k">共鳴周波数 f</div>
+          <div class="v" id="frequencyReadout">100.0 Hz</div>
+        </div>
+        <div class="readout">
+          <div class="k">波長 λ</div>
+          <div class="v" id="wavelengthReadout">3.40 m</div>
+        </div>
+        <div class="readout">
+          <div class="k">表示位相</div>
+          <div class="v" id="phaseReadout">0.00 T</div>
+        </div>
+        <div class="readout">
+          <div class="k">端の条件</div>
+          <div class="v" id="boundaryReadout">左: 閉 / 右: 開</div>
+        </div>
+      </div>
+
+      <p class="formula" id="formulaText">
+        片端閉管では、閉じた端が変位の節・圧力の腹、開いた端が変位の腹・圧力の節になります。
+      </p>
+    </section>
+
+    <section class="stage" aria-label="シミュレーション表示">
+      <div class="title-row">
+        <div>
+          <h1>筒内の空気分子</h1>
+          <h2>上は縦波の分子移動、下は同じ変位を横波グラフとして表示します。</h2>
+        </div>
+        <div class="stage-header-actions">
+          <span class="status-pill" id="statusText">再生中</span>
+          <div class="stage-actions" aria-label="再生操作">
+            <button type="button" id="playPause">⏸ 一時停止</button>
+            <button type="button" id="stepForward">⏭ コマ送り</button>
+            <button type="button" id="reset">↺ リセット</button>
+          </div>
+        </div>
+      </div>
+      <div class="canvas-wrap">
+        <canvas id="scene" width="960" height="620"></canvas>
+      </div>
+      <div class="legend" aria-label="凡例">
+        <span class="legend-item"><span class="swatch dense"></span>密</span>
+        <span class="legend-item"><span class="swatch sparse"></span>疎</span>
+        <span class="legend-item"><span class="swatch node"></span>変位の節 / 圧力の腹</span>
+        <span class="legend-item"><span class="swatch antinode"></span>変位の腹 / 圧力の節</span>
+      </div>
+    </section>
+  </div>
+</main>
+
+<script>
+(function () {
+  const canvas = document.getElementById("scene");
+  const ctx = canvas.getContext("2d");
+
+  const els = {
+    mode: document.getElementById("mode"),
+    length: document.getElementById("length"),
+    soundSpeed: document.getElementById("soundSpeed"),
+    amplitude: document.getElementById("amplitude"),
+    density: document.getElementById("density"),
+    molecules: document.getElementById("molecules"),
+    speed: document.getElementById("speed"),
+    modeText: document.getElementById("modeText"),
+    lengthText: document.getElementById("lengthText"),
+    soundSpeedText: document.getElementById("soundSpeedText"),
+    amplitudeText: document.getElementById("amplitudeText"),
+    densityText: document.getElementById("densityText"),
+    moleculeText: document.getElementById("moleculeText"),
+    speedText: document.getElementById("speedText"),
+    frequencyReadout: document.getElementById("frequencyReadout"),
+    wavelengthReadout: document.getElementById("wavelengthReadout"),
+    phaseReadout: document.getElementById("phaseReadout"),
+    boundaryReadout: document.getElementById("boundaryReadout"),
+    formulaText: document.getElementById("formulaText"),
+    statusText: document.getElementById("statusText"),
+    showDensity: document.getElementById("showDensity"),
+    showMarkers: document.getElementById("showMarkers"),
+    showCurves: document.getElementById("showCurves"),
+    playPause: document.getElementById("playPause"),
+    stepForward: document.getElementById("stepForward"),
+    reset: document.getElementById("reset"),
+    tubeButtons: [...document.querySelectorAll("[data-tube]")]
+  };
+
+  const state = {
+    tube: "closed-open",
+    time: 0,
+    playing: true,
+    molecules: []
+  };
+
+  const colors = {
+    text: "#eef6ff",
+    muted: "#9fb5c9",
+    accent: "#56d1ff",
+    line: "#284260",
+    dense: "#ff6b4a",
+    sparse: "#64c8ff",
+    node: "#6ee7a8",
+    antinode: "#ffc857",
+    tube: "#d7e6f2"
+  };
+
+  function seededNoise(seed) {
+    const x = Math.sin(seed * 127.1) * 43758.5453;
+    return x - Math.floor(x);
+  }
+
+  function regenerateMolecules() {
+    const count = Number(els.molecules.value);
+    const rows = Math.max(4, Math.round(Math.sqrt(count / 3.0)));
+    const cols = Math.ceil(count / rows);
+    const particles = [];
+    let id = 0;
+    for (let c = 0; c < cols && id < count; c += 1) {
+      for (let r = 0; r < rows && id < count; r += 1) {
+        const jx = (seededNoise(id + 1) - 0.5) * 0.58;
+        const jy = (seededNoise(id + 101) - 0.5) * 0.52;
+        particles.push({
+          x0: (c + 0.5 + jx) / cols,
+          y0: (r + 0.5 + jy) / rows,
+          seed: seededNoise(id + 77)
+        });
+        id += 1;
+      }
+    }
+    state.molecules = particles;
+  }
+
+  function getParams() {
+    const mode = Number(els.mode.value);
+    const length = Number(els.length.value);
+    const soundSpeed = Number(els.soundSpeed.value);
+    let harmonic;
+    let wavelength;
+    let frequency;
+
+    if (state.tube === "closed-open") {
+      harmonic = 2 * mode - 1;
+      wavelength = 4 * length / harmonic;
+      frequency = soundSpeed / wavelength;
+    } else {
+      harmonic = mode;
+      wavelength = 2 * length / harmonic;
+      frequency = soundSpeed / wavelength;
+    }
+
+    return {
+      mode,
+      harmonic,
+      length,
+      soundSpeed,
+      amplitude: Number(els.amplitude.value),
+      density: Number(els.density.value),
+      speed: Number(els.speed.value),
+      wavelength,
+      frequency
+    };
+  }
+
+  function profile(x, params) {
+    if (state.tube === "closed-open") {
+      const k = params.harmonic * Math.PI / 2;
+      const shape = Math.sin(k * x);
+      const derivative = k * Math.cos(k * x);
+      return {
+        displacement: shape,
+        density: -derivative / k
+      };
+    }
+
+    const k = params.harmonic * Math.PI;
+    const shape = Math.cos(k * x);
+    const derivative = -k * Math.sin(k * x);
+    return {
+      displacement: shape,
+      density: -derivative / k
+    };
+  }
+
+  function displacementNodes(params) {
+    const nodes = [];
+    if (state.tube === "closed-open") {
+      for (let j = 0; j <= params.harmonic; j += 1) {
+        const x = (2 * j) / params.harmonic;
+        if (x >= -0.0001 && x <= 1.0001) nodes.push(Math.max(0, Math.min(1, x)));
+      }
+    } else {
+      for (let j = 0; j < params.harmonic; j += 1) {
+        nodes.push((j + 0.5) / params.harmonic);
+      }
+    }
+    return [...new Set(nodes.map((x) => x.toFixed(4)))].map(Number);
+  }
+
+  function displacementAntinodes(params) {
+    const points = [];
+    if (state.tube === "closed-open") {
+      for (let j = 0; j <= params.harmonic; j += 1) {
+        const x = (2 * j + 1) / params.harmonic;
+        if (x >= -0.0001 && x <= 1.0001) points.push(Math.max(0, Math.min(1, x)));
+      }
+    } else {
+      for (let j = 0; j <= params.harmonic; j += 1) {
+        points.push(j / params.harmonic);
+      }
+    }
+    return [...new Set(points.map((x) => x.toFixed(4)))].map(Number);
+  }
+
+  function resizeCanvas() {
+    const rect = canvas.getBoundingClientRect();
+    const dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
+    const width = Math.max(360, Math.round(rect.width * dpr));
+    const height = Math.max(420, Math.round(rect.height * dpr));
+    if (canvas.width !== width || canvas.height !== height) {
+      canvas.width = width;
+      canvas.height = height;
+    }
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    return { width: rect.width, height: rect.height, dpr };
+  }
+
+  function tubeBox(size) {
+    const marginX = Math.max(28, size.width * 0.055);
+    const top = Math.max(68, size.height * 0.14);
+    const height = Math.min(220, Math.max(132, size.height * 0.34));
+    const graphTop = top + height + 92;
+    return {
+      x: marginX,
+      y: top,
+      w: size.width - marginX * 2,
+      h: height,
+      graphTop,
+      graphH: Math.max(110, size.height - graphTop - 54)
+    };
+  }
+
+  function clear(size) {
+    const grad = ctx.createLinearGradient(0, 0, 0, size.height);
+    grad.addColorStop(0, "#071421");
+    grad.addColorStop(1, "#07101c");
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, size.width, size.height);
+  }
+
+  function drawTube(box) {
+    ctx.save();
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = "rgba(215, 230, 242, 0.78)";
+    ctx.fillStyle = "rgba(215, 230, 242, 0.035)";
+    roundRect(box.x, box.y, box.w, box.h, 18);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.strokeStyle = "rgba(215, 230, 242, 0.28)";
+    ctx.lineWidth = 1;
+    for (let i = 1; i <= 5; i += 1) {
+      const y = box.y + (box.h * i) / 6;
+      ctx.beginPath();
+      ctx.moveTo(box.x + 8, y);
+      ctx.lineTo(box.x + box.w - 8, y);
+      ctx.stroke();
+    }
+
+    if (state.tube === "closed-open") {
+      ctx.fillStyle = "#d7e6f2";
+      ctx.fillRect(box.x - 7, box.y + 4, 11, box.h - 8);
+      drawOpenEnd(box.x + box.w, box.y, box.h, "right");
+      drawClosedEndLabel(box.x, box.y, box.h);
+      drawOpenEndLabel(box.x + box.w, box.y, box.h, "right");
+    } else {
+      drawOpenEnd(box.x, box.y, box.h, "left");
+      drawOpenEnd(box.x + box.w, box.y, box.h, "right");
+      drawOpenEndLabel(box.x, box.y, box.h, "left");
+      drawOpenEndLabel(box.x + box.w, box.y, box.h, "right");
+    }
+    ctx.restore();
+  }
+
+  function drawOpenEnd(x, y, h, side) {
+    ctx.save();
+    ctx.strokeStyle = "rgba(215, 230, 242, 0.8)";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    if (side === "right") {
+      ctx.arc(x + 2, y + h / 2, h / 2 - 8, -Math.PI / 2, Math.PI / 2);
+    } else {
+      ctx.arc(x - 2, y + h / 2, h / 2 - 8, Math.PI / 2, Math.PI * 1.5);
+    }
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawClosedEndLabel(x, y, h) {
+    ctx.save();
+    ctx.fillStyle = "rgba(255, 200, 87, 0.16)";
+    ctx.strokeStyle = "rgba(255, 200, 87, 0.9)";
+    ctx.lineWidth = 1.5;
+    roundRect(x - 24, y + h / 2 - 20, 44, 40, 8);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = "#ffd98a";
+    ctx.font = "700 12px system-ui, sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText("閉端", x - 2, y + h / 2);
+    ctx.restore();
+  }
+
+  function drawOpenEndLabel(x, y, h, side) {
+    ctx.save();
+    const labelX = side === "right" ? x - 18 : x + 18;
+    ctx.fillStyle = "rgba(100, 200, 255, 0.13)";
+    ctx.strokeStyle = "rgba(100, 200, 255, 0.88)";
+    ctx.lineWidth = 1.5;
+    roundRect(labelX - 22, y + h / 2 - 20, 44, 40, 8);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = "#bdefff";
+    ctx.font = "700 12px system-ui, sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText("開端", labelX, y + h / 2);
+    ctx.restore();
+  }
+
+  function drawDensityBands(box, params, osc) {
+    if (!els.showDensity.checked) return;
+    const slices = 220;
+    for (let i = 0; i < slices; i += 1) {
+      const x0 = (i + 0.5) / slices;
+      const density = profile(x0, params).density * osc;
+      const strength = Math.min(1, Math.abs(density) * params.density);
+      if (strength < 0.015) continue;
+      ctx.fillStyle = density >= 0
+        ? `rgba(255, 107, 74, ${0.07 + 0.34 * strength})`
+        : `rgba(100, 200, 255, ${0.07 + 0.30 * strength})`;
+      ctx.fillRect(box.x + (i / slices) * box.w, box.y + 3, box.w / slices + 1, box.h - 6);
+    }
+  }
+
+  function drawMarkers(box, params) {
+    if (!els.showMarkers.checked) return;
+    const nodes = displacementNodes(params);
+    const antinodes = displacementAntinodes(params);
+
+    drawMarkerSet(box, antinodes, colors.antinode, "圧力の節", box.y - 26, true);
+    drawMarkerSet(box, nodes, colors.node, "変位の節 / 圧力の腹", box.y + box.h + 26, false);
+  }
+
+  function drawMarkerSet(box, points, color, label, labelY, above) {
+    ctx.save();
+    ctx.strokeStyle = color;
+    ctx.fillStyle = color;
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([5, 6]);
+    for (const point of points) {
+      const x = box.x + point * box.w;
+      ctx.beginPath();
+      ctx.moveTo(x, box.y - 18);
+      ctx.lineTo(x, box.y + box.h + 18);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      ctx.beginPath();
+      ctx.arc(x, above ? box.y - 22 : box.y + box.h + 22, 4, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.setLineDash([5, 6]);
+    }
+    if (points.length) {
+      ctx.setLineDash([]);
+      ctx.fillStyle = "rgba(238, 246, 255, 0.88)";
+      ctx.font = "12px system-ui, sans-serif";
+      ctx.textAlign = "left";
+      ctx.textBaseline = "middle";
+      ctx.fillText(label, box.x + 8, labelY);
+    }
+    ctx.restore();
+  }
+
+  function drawMolecules(box, params, osc) {
+    const maxShift = displacementScale(box, params);
+    const radiusBase = Math.max(4.1, Math.min(7.2, box.h / 25));
+
+    for (const particle of state.molecules) {
+      const p = profile(particle.x0, params);
+      const density = p.density * osc;
+      const shift = maxShift * p.displacement * osc;
+      const x = Math.max(
+        box.x + radiusBase + 7,
+        Math.min(box.x + box.w - radiusBase - 7, box.x + particle.x0 * box.w + shift)
+      );
+      const y = box.y + 15 + particle.y0 * (box.h - 30);
+      const densityStrength = Math.min(1, Math.abs(density) * params.density);
+      const r = radiusBase * (0.92 + 0.24 * densityStrength);
+      const fill = density >= 0
+        ? mixColor("#d9f4ff", colors.dense, densityStrength)
+        : mixColor("#d9f4ff", colors.sparse, densityStrength);
+
+      const radial = ctx.createRadialGradient(x - r * 0.35, y - r * 0.4, r * 0.2, x, y, r);
+      radial.addColorStop(0, "#ffffff");
+      radial.addColorStop(0.28, fill);
+      radial.addColorStop(1, "rgba(42, 66, 92, 0.95)");
+      ctx.fillStyle = radial;
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, Math.PI * 2);
+      ctx.fill();
+    }
+  }
+
+  function drawDensityLabels(box, params, osc) {
+    if (!els.showDensity.checked || Math.abs(osc) < 0.12) return;
+    const extrema = pressureExtrema(params)
+      .map((x0) => ({ x: x0, density: profile(x0, params).density * osc }))
+      .filter((point) => Math.abs(point.density) > 0.16);
+    extrema.forEach((point, index) => {
+      const y = point.density >= 0
+        ? box.y + 18 + (index % 2) * 26
+        : box.y + box.h - 18 - (index % 2) * 26;
+      const x = Math.max(box.x + 28, Math.min(box.x + box.w - 28, box.x + point.x * box.w));
+      drawTag(x, y, point.density >= 0 ? "密" : "疎", point.density >= 0 ? colors.dense : colors.sparse);
+    });
+  }
+
+  function drawTag(x, y, text, color) {
+    ctx.save();
+    ctx.font = "700 15px system-ui, sans-serif";
+    const w = ctx.measureText(text).width + 18;
+    ctx.fillStyle = "rgba(7, 16, 28, 0.78)";
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1.5;
+    roundRect(x - w / 2, y - 14, w, 28, 7);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = color;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(text, x, y);
+    ctx.restore();
+  }
+
+  function drawArrows(box, params, osc) {
+    const samples = Math.max(9, Math.min(15, params.harmonic * 3));
+    const maxShift = displacementScale(box, params);
+    ctx.save();
+    ctx.strokeStyle = "rgba(238, 246, 255, 0.86)";
+    ctx.fillStyle = "rgba(238, 246, 255, 0.86)";
+    ctx.lineWidth = 2;
+    for (let i = 0; i < samples; i += 1) {
+      const x0 = (i + 0.5) / samples;
+      const p = profile(x0, params);
+      const cx = box.x + x0 * box.w;
+      const cy = box.y + box.h / 2;
+      const len = maxShift * p.displacement * osc;
+      ctx.save();
+      ctx.strokeStyle = "rgba(238, 246, 255, 0.18)";
+      ctx.setLineDash([3, 5]);
+      ctx.beginPath();
+      ctx.moveTo(cx, box.y + 10);
+      ctx.lineTo(cx, box.y + box.h - 10);
+      ctx.stroke();
+      ctx.restore();
+      ctx.beginPath();
+      ctx.arc(cx, cy, 2.3, 0, Math.PI * 2);
+      ctx.fill();
+      if (Math.abs(len) < 3) continue;
+      arrow(cx, cy, cx + len, cy);
+    }
+    ctx.restore();
+  }
+
+  function drawGraphs(box, params, osc, size) {
+    if (!els.showCurves.checked) return;
+    const top = box.graphTop;
+    const height = box.graphH;
+    const left = box.x;
+    const width = box.w;
+    const mid = top + height / 2;
+
+    ctx.save();
+    ctx.strokeStyle = "rgba(159, 181, 201, 0.22)";
+    ctx.lineWidth = 1;
+    ctx.strokeRect(left, top, width, height);
+    ctx.beginPath();
+    ctx.moveTo(left, mid);
+    ctx.lineTo(left + width, mid);
+    ctx.stroke();
+
+    const nodes = displacementNodes(params);
+    ctx.save();
+    ctx.setLineDash([3, 6]);
+    ctx.strokeStyle = "rgba(110, 231, 168, 0.32)";
+    for (const node of nodes) {
+      const x = left + node * width;
+      ctx.beginPath();
+      ctx.moveTo(x, top);
+      ctx.lineTo(x, top + height);
+      ctx.stroke();
+    }
+    ctx.restore();
+
+    drawCurve(left, top, width, height, (x) => profile(x, params).displacement * osc, colors.accent, 2.5);
+
+    ctx.fillStyle = "rgba(238, 246, 255, 0.9)";
+    ctx.font = "12px system-ui, sans-serif";
+    ctx.textAlign = "left";
+    ctx.textBaseline = "top";
+    ctx.fillText("横波表示: 分子の変位を上下方向に描いた同じ波", left + 10, top + 9);
+
+    ctx.fillStyle = "rgba(159, 181, 201, 0.9)";
+    ctx.textAlign = "right";
+    ctx.fillText("x = L", left + width - 8, top + height - 20);
+    ctx.textAlign = "left";
+    ctx.fillText("x = 0", left + 8, top + height - 20);
+    ctx.restore();
+  }
+
+  function displacementScale(box, params) {
+    return Math.max(18, Math.min(88, box.w * 0.105)) * params.amplitude;
+  }
+
+  function pressureExtrema(params) {
+    return displacementNodes(params).filter((x) => x >= -0.0001 && x <= 1.0001);
+  }
+
+  function drawCurve(left, top, width, height, fn, color, lineWidth) {
+    ctx.save();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = lineWidth;
+    ctx.beginPath();
+    for (let i = 0; i <= 240; i += 1) {
+      const x0 = i / 240;
+      const value = fn(x0);
+      const x = left + x0 * width;
+      const y = top + height / 2 - value * height * 0.36;
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function render() {
+    const size = resizeCanvas();
+    const box = tubeBox(size);
+    const params = getParams();
+    const phase = state.time * Math.PI * 2;
+    const osc = Math.cos(phase);
+
+    clear(size);
+    drawTitle(size, params);
+    drawDensityBands(box, params, osc);
+    drawTube(box);
+    drawMarkers(box, params);
+    drawMolecules(box, params, osc);
+    drawArrows(box, params, osc);
+    drawDensityLabels(box, params, osc);
+    drawGraphs(box, params, osc, size);
+  }
+
+  function drawTitle(size, params) {
+    ctx.save();
+    ctx.fillStyle = "rgba(238, 246, 255, 0.92)";
+    ctx.font = "700 14px system-ui, sans-serif";
+    ctx.textAlign = "left";
+    ctx.textBaseline = "top";
+    const modeLabel = state.tube === "closed-open"
+      ? `片端閉管 ${params.harmonic}倍振動`
+      : `両端開管 ${params.mode}次振動`;
+    ctx.fillText(modeLabel, Math.max(28, size.width * 0.055), 22);
+    ctx.fillStyle = "rgba(159, 181, 201, 0.95)";
+    ctx.font = "12px system-ui, sans-serif";
+    if (size.width >= 560) {
+      ctx.fillText("上段は縦波の分子移動、下段は同じ変位を横波として描いた比較表示です。", Math.max(28, size.width * 0.055), 43);
+    }
+    ctx.restore();
+  }
+
+  function updateReadouts() {
+    const params = getParams();
+    const modeName = state.tube === "closed-open"
+      ? (params.mode === 1 ? "基本振動" : `${params.harmonic}倍振動`)
+      : `${params.mode}次振動`;
+    els.modeText.textContent = modeName;
+    els.lengthText.textContent = `${params.length.toFixed(2)} m`;
+    els.soundSpeedText.textContent = `${params.soundSpeed.toFixed(0)} m/s`;
+    els.amplitudeText.textContent = `${Math.round(params.amplitude * 100)}%`;
+    els.densityText.textContent = `${Math.round(params.density * 100)}%`;
+    els.moleculeText.textContent = `${Number(els.molecules.value)} 個`;
+    els.speedText.textContent = `${params.speed.toFixed(2)}x`;
+    els.frequencyReadout.textContent = `${params.frequency.toFixed(1)} Hz`;
+    els.wavelengthReadout.textContent = `${params.wavelength.toFixed(2)} m`;
+    els.phaseReadout.textContent = `${(state.time % 1).toFixed(2)} T`;
+    els.boundaryReadout.textContent = state.tube === "closed-open" ? "左: 閉 / 右: 開" : "左: 開 / 右: 開";
+    els.statusText.textContent = state.playing ? "再生中" : "一時停止中";
+    els.playPause.textContent = state.playing ? "⏸ 一時停止" : "▶ 再生";
+
+    if (state.tube === "closed-open") {
+      els.formulaText.textContent = `片端閉管: λ = 4L/${params.harmonic}, f = ${params.harmonic}v/(4L)。閉じた端は変位の節・圧力の腹、開いた端は変位の腹・圧力の節です。`;
+    } else {
+      els.formulaText.textContent = `両端開管: λ = 2L/${params.mode}, f = ${params.mode}v/(2L)。開いた端は変位の腹・圧力の節で、管内に変位の節ができます。`;
+    }
+  }
+
+  function setTube(tube) {
+    state.tube = tube;
+    els.tubeButtons.forEach((button) => {
+      button.classList.toggle("is-active", button.dataset.tube === tube);
+    });
+    state.time = 0;
+    updateReadouts();
+    render();
+  }
+
+  function mixColor(a, b, t) {
+    const ca = hexToRgb(a);
+    const cb = hexToRgb(b);
+    const r = Math.round(ca.r + (cb.r - ca.r) * t);
+    const g = Math.round(ca.g + (cb.g - ca.g) * t);
+    const bl = Math.round(ca.b + (cb.b - ca.b) * t);
+    return `rgb(${r}, ${g}, ${bl})`;
+  }
+
+  function hexToRgb(hex) {
+    const raw = hex.replace("#", "");
+    return {
+      r: parseInt(raw.slice(0, 2), 16),
+      g: parseInt(raw.slice(2, 4), 16),
+      b: parseInt(raw.slice(4, 6), 16)
+    };
+  }
+
+  function roundRect(x, y, w, h, r) {
+    const radius = Math.min(r, w / 2, h / 2);
+    ctx.beginPath();
+    ctx.moveTo(x + radius, y);
+    ctx.arcTo(x + w, y, x + w, y + h, radius);
+    ctx.arcTo(x + w, y + h, x, y + h, radius);
+    ctx.arcTo(x, y + h, x, y, radius);
+    ctx.arcTo(x, y, x + w, y, radius);
+    ctx.closePath();
+  }
+
+  function arrow(x1, y1, x2, y2) {
+    const angle = Math.atan2(y2 - y1, x2 - x1);
+    const head = 7;
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(x2, y2);
+    ctx.lineTo(x2 - head * Math.cos(angle - Math.PI / 6), y2 - head * Math.sin(angle - Math.PI / 6));
+    ctx.lineTo(x2 - head * Math.cos(angle + Math.PI / 6), y2 - head * Math.sin(angle + Math.PI / 6));
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  function onInput(event) {
+    if (event.target === els.molecules) regenerateMolecules();
+    updateReadouts();
+    render();
+  }
+
+  [
+    els.mode,
+    els.length,
+    els.soundSpeed,
+    els.amplitude,
+    els.density,
+    els.molecules,
+    els.speed,
+    els.showDensity,
+    els.showMarkers,
+    els.showCurves
+  ].forEach((input) => input.addEventListener("input", onInput));
+
+  els.tubeButtons.forEach((button) => {
+    button.addEventListener("click", () => setTube(button.dataset.tube));
+  });
+
+  els.playPause.addEventListener("click", () => {
+    state.playing = !state.playing;
+    updateReadouts();
+    render();
+  });
+
+  els.stepForward.addEventListener("click", () => {
+    state.playing = false;
+    state.time = (state.time + 1 / 32) % 1;
+    updateReadouts();
+    render();
+  });
+
+  els.reset.addEventListener("click", () => {
+    state.time = 0;
+    updateReadouts();
+    render();
+  });
+
+  window.addEventListener("resize", render);
+
+  const clock = new PhysicsSimClock.FixedStepClock({
+    step: 1 / 120,
+    maxFrameTime: 0.08,
+    maxStepsPerFrame: 10,
+    onStep(dt) {
+      if (!state.playing) return;
+      state.time = (state.time + dt * Number(els.speed.value) * 0.68) % 1;
+      updateReadouts();
+    },
+    onRender: render
+  });
+
+  regenerateMolecules();
+  updateReadouts();
+  render();
+  clock.start();
+})();
+</script>
+</body>
+</html>
