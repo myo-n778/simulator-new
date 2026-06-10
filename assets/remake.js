@@ -1,7 +1,7 @@
 (() => {
   const THEME_KEY = 'physics-remake-theme';
   const ZOOM_KEY = 'physics-remake-page-zoom';
-  const ZOOM_VALUES = ['auto', 80, 90, 100, 110, 125];
+  const ZOOM_VALUES = ['auto', 50, 60, 70, 80, 90, 100, 110, 125, 150, 175, 200];
   const state = {
     theme: localStorage.getItem(THEME_KEY) || 'light',
     zoom: localStorage.getItem(ZOOM_KEY) || 'auto',
@@ -20,7 +20,7 @@
     if (value === 'auto') return 'auto';
     const next = Number(value);
     if (!Number.isFinite(next)) return 100;
-    return Math.min(125, Math.max(70, next));
+    return Math.min(200, Math.max(50, next));
   }
 
   function activeCanvasViewports() {
@@ -97,7 +97,7 @@
     const viewportWidth = doc.clientWidth || window.innerWidth;
     const scrollWidth = Math.max(doc.scrollWidth, document.body.scrollWidth);
     const raw = scrollWidth > viewportWidth ? ((viewportWidth - 8) / scrollWidth) * 100 : 100;
-    const computed = Math.floor(Math.min(100, Math.max(70, raw)));
+    const computed = Math.floor(Math.min(100, Math.max(50, raw)));
     document.body.style.zoom = String(computed / 100);
     document.body.dataset.remakeComputedZoom = String(computed);
   }
