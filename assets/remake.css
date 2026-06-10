@@ -13,6 +13,8 @@
   --remake-red: #c85050;
   --remake-shadow: 0 18px 44px rgba(34, 52, 68, 0.11);
   --remake-soft-shadow: 0 8px 22px rgba(34, 52, 68, 0.08);
+  --remake-control-height: 38px;
+  --remake-canvas-zoom: 1;
 }
 
 body.remake-ui {
@@ -25,6 +27,28 @@ body.remake-ui {
   letter-spacing: 0;
 }
 
+body.remake-ui.remake-dark,
+body.remake-ui.theme-dark {
+  color-scheme: dark;
+  --remake-bg: #0b1118;
+  --remake-paper: #121b25;
+  --remake-panel: #0f1721;
+  --remake-ink: #e7eef6;
+  --remake-muted: #9fb0bf;
+  --remake-line: #263544;
+  --remake-line-strong: #3c5268;
+  --remake-blue: #5fb2dd;
+  --remake-teal: #49b6a9;
+  --remake-amber: #d9a441;
+  --remake-red: #ff746d;
+  --remake-shadow: 0 18px 46px rgba(0, 0, 0, 0.32);
+  --remake-soft-shadow: 0 8px 22px rgba(0, 0, 0, 0.24);
+  background:
+    linear-gradient(180deg, rgba(13, 20, 30, 0.96), rgba(7, 12, 18, 0.98)),
+    repeating-linear-gradient(0deg, rgba(95, 178, 221, 0.06) 0 1px, transparent 1px 36px),
+    repeating-linear-gradient(90deg, rgba(95, 178, 221, 0.05) 0 1px, transparent 1px 36px);
+}
+
 body.remake-ui .sim-shell-header {
   border-bottom: 1px solid rgba(174, 189, 200, 0.62);
   background: rgba(248, 251, 252, 0.92);
@@ -35,6 +59,7 @@ body.remake-ui .sim-shell-header {
 body.remake-ui .sim-shell-inner {
   width: min(1240px, calc(100% - 32px));
   min-height: 62px;
+  gap: 16px;
 }
 
 body.remake-ui .sim-shell-back,
@@ -109,6 +134,7 @@ body.remake-ui .card,
 body.remake-ui .controls,
 body.remake-ui .control-panel,
 body.remake-ui .info-panel {
+  min-width: 0;
   background: rgba(255, 255, 255, 0.88);
   box-shadow: var(--remake-shadow);
 }
@@ -185,7 +211,40 @@ body.remake-ui [data-theme] {
 }
 
 body.remake-ui input[type="range"] {
+  max-width: 100%;
   accent-color: var(--remake-blue);
+}
+
+body.remake-ui .row,
+body.remake-ui .layout,
+body.remake-ui .controls,
+body.remake-ui .control-grid,
+body.remake-ui .graph-grid,
+body.remake-ui .readout-grid {
+  min-width: 0;
+}
+
+body.remake-ui .row {
+  grid-template-columns: minmax(0, 1.1fr) minmax(280px, 0.7fr);
+}
+
+body.remake-ui .controls {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+body.remake-ui label {
+  min-width: 0;
+}
+
+body.remake-ui label span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+body.remake-ui input[type="number"],
+body.remake-ui input[type="text"],
+body.remake-ui select {
+  max-width: 100%;
 }
 
 body.remake-ui .metric .v,
@@ -209,12 +268,312 @@ body.remake-ui .remake-ribbon {
   font-weight: 800;
 }
 
+body.remake-ui .remake-global-tools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-left: auto;
+}
+
+body.remake-ui .remake-tool-button,
+body.remake-ui .remake-tool-select {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: var(--remake-control-height);
+  padding: 0 12px;
+  border: 1px solid var(--remake-line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.9);
+  color: var(--remake-ink);
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.84) inset;
+  font-size: 13px;
+  font-weight: 800;
+  line-height: 1;
+}
+
+body.remake-ui .remake-tool-button[data-active="true"],
+body.remake-ui .remake-tool-button.is-active {
+  border-color: var(--remake-teal);
+  background: linear-gradient(180deg, #2f8f83, #24786f);
+  color: #ffffff;
+}
+
+body.remake-ui .remake-tool-select {
+  padding-right: 28px;
+}
+
+body.remake-ui .remake-viewport {
+  position: relative;
+  max-width: 100%;
+  border: 1px solid var(--remake-line);
+  border-radius: 8px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.9), rgba(239, 246, 249, 0.9)),
+    repeating-linear-gradient(0deg, rgba(39, 111, 159, 0.055) 0 1px, transparent 1px 32px),
+    repeating-linear-gradient(90deg, rgba(39, 111, 159, 0.055) 0 1px, transparent 1px 32px);
+  overflow: auto;
+  overscroll-behavior: contain;
+  touch-action: pan-x pan-y;
+}
+
+body.remake-ui .remake-viewport.is-large {
+  min-height: 220px;
+}
+
+body.remake-ui .remake-viewport.is-panning {
+  cursor: grab;
+}
+
+body.remake-ui .remake-viewport.is-dragging {
+  cursor: grabbing;
+  user-select: none;
+}
+
+body.remake-ui .remake-canvas-inner {
+  display: inline-block;
+  min-width: 100%;
+  min-height: 100%;
+  vertical-align: top;
+}
+
+body.remake-ui .remake-canvas-inner > canvas {
+  display: block;
+  transform-origin: 0 0;
+}
+
+body.remake-ui .remake-canvas-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  margin: 0 0 8px;
+}
+
+body.remake-ui .remake-canvas-toolbar .remake-tool-button,
+body.remake-ui .remake-canvas-toolbar .remake-tool-select {
+  min-height: 34px;
+  padding-inline: 10px;
+  font-size: 12px;
+}
+
+body.remake-ui .remake-status-footer {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  width: min(1240px, calc(100% - 28px));
+  min-height: 46px;
+  margin: 18px auto 10px;
+  padding: 10px 14px;
+  border: 1px solid var(--remake-line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.8);
+  color: var(--remake-muted);
+  box-shadow: var(--remake-soft-shadow);
+  font-size: 12px;
+}
+
+body.remake-ui .remake-status-footer strong {
+  color: var(--remake-ink);
+}
+
+body.remake-ui .remake-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: none;
+  place-items: center;
+  padding: 20px;
+  background: rgba(10, 16, 22, 0.42);
+}
+
+body.remake-ui .remake-modal.is-open {
+  display: grid;
+}
+
+body.remake-ui .remake-modal-card {
+  width: min(520px, 100%);
+  padding: 20px;
+  border: 1px solid var(--remake-line);
+  border-radius: 8px;
+  background: var(--remake-paper);
+  color: var(--remake-ink);
+  box-shadow: var(--remake-shadow);
+}
+
+body.remake-ui .remake-modal-card h2 {
+  margin: 0 0 10px;
+  font-size: 18px;
+}
+
+body.remake-ui .remake-modal-card p {
+  margin: 0 0 10px;
+  line-height: 1.7;
+}
+
+body.remake-ui .remake-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 14px;
+}
+
 body.remake-ui .remake-badge-host {
   position: fixed;
-  top: 12px;
+  top: auto;
   right: 16px;
+  bottom: 14px;
   z-index: 40;
   pointer-events: none;
+}
+
+body.remake-ui.remake-dark .sim-shell-header,
+body.remake-ui.theme-dark .sim-shell-header {
+  border-color: rgba(60, 82, 104, 0.78);
+  background: rgba(10, 16, 24, 0.9);
+}
+
+body.remake-ui.remake-dark .sim-shell-back,
+body.remake-ui.remake-dark a.sim-shell-back,
+body.remake-ui.theme-dark .sim-shell-back,
+body.remake-ui.theme-dark a.sim-shell-back,
+body.remake-ui.remake-dark button,
+body.remake-ui.remake-dark select,
+body.remake-ui.remake-dark input[type="number"],
+body.remake-ui.remake-dark input[type="text"],
+body.remake-ui.theme-dark button,
+body.remake-ui.theme-dark select,
+body.remake-ui.theme-dark input[type="number"],
+body.remake-ui.theme-dark input[type="text"],
+body.remake-ui.remake-dark .remake-tool-button,
+body.remake-ui.remake-dark .remake-tool-select,
+body.remake-ui.theme-dark .remake-tool-button,
+body.remake-ui.theme-dark .remake-tool-select {
+  background: rgba(16, 25, 36, 0.95);
+  color: var(--remake-ink);
+  box-shadow: none;
+}
+
+body.remake-ui.remake-dark .stage,
+body.remake-ui.remake-dark .panel,
+body.remake-ui.remake-dark .card,
+body.remake-ui.remake-dark .controls,
+body.remake-ui.remake-dark .control-panel,
+body.remake-ui.remake-dark .info-panel,
+body.remake-ui.theme-dark .stage,
+body.remake-ui.theme-dark .panel,
+body.remake-ui.theme-dark .card,
+body.remake-ui.theme-dark .controls,
+body.remake-ui.theme-dark .control-panel,
+body.remake-ui.theme-dark .info-panel {
+  background: rgba(18, 27, 37, 0.92);
+}
+
+body.remake-ui.remake-dark .graph-panel,
+body.remake-ui.remake-dark .readout,
+body.remake-ui.remake-dark .metric,
+body.remake-ui.remake-dark .formula,
+body.remake-ui.remake-dark .graph-box,
+body.remake-ui.theme-dark .graph-panel,
+body.remake-ui.theme-dark .readout,
+body.remake-ui.theme-dark .metric,
+body.remake-ui.theme-dark .formula,
+body.remake-ui.theme-dark .graph-box {
+  background: rgba(15, 23, 33, 0.92);
+}
+
+body.remake-ui.remake-dark .canvas-shell,
+body.remake-ui.remake-dark canvas,
+body.remake-ui.remake-dark .remake-viewport,
+body.remake-ui.theme-dark .canvas-shell,
+body.remake-ui.theme-dark canvas,
+body.remake-ui.theme-dark .remake-viewport {
+  background:
+    linear-gradient(180deg, #0e1722, #09111a),
+    repeating-linear-gradient(0deg, rgba(95, 178, 221, 0.08) 0 1px, transparent 1px 40px),
+    repeating-linear-gradient(90deg, rgba(95, 178, 221, 0.07) 0 1px, transparent 1px 40px);
+}
+
+body.remake-ui.remake-dark .remake-status-footer,
+body.remake-ui.theme-dark .remake-status-footer {
+  background: rgba(15, 23, 33, 0.82);
+}
+
+body.remake-ui.remake-spring-dashboard .topbar {
+  align-items: flex-start;
+  gap: 18px;
+  margin-top: 18px;
+}
+
+body.remake-ui.remake-spring-dashboard h1 {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: clamp(26px, 2.4vw, 34px);
+}
+
+body.remake-ui.remake-spring-dashboard h1::before {
+  content: "∿";
+  display: inline-grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #2f8f83, #1f6f67);
+  color: #ffffff;
+  font-size: 30px;
+  line-height: 1;
+  box-shadow: 0 10px 24px rgba(47, 143, 131, 0.28);
+}
+
+body.remake-ui.remake-spring-dashboard .layout {
+  grid-template-columns: minmax(0, 1fr) minmax(300px, 380px);
+  align-items: start;
+}
+
+body.remake-ui.remake-spring-dashboard .stage-toolbar,
+body.remake-ui.remake-spring-dashboard .mode-strip {
+  border: 1px solid var(--remake-line);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.78);
+  box-shadow: var(--remake-soft-shadow);
+}
+
+body.remake-ui.remake-spring-dashboard .canvas-shell {
+  padding: 14px;
+  border: 1px solid var(--remake-line);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.5);
+}
+
+body.remake-ui.remake-spring-dashboard .overlay-status {
+  right: 22px;
+  left: 22px;
+  top: auto;
+  bottom: 22px;
+  border: 1px solid rgba(174, 189, 200, 0.68);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: var(--remake-soft-shadow);
+  backdrop-filter: blur(10px);
+}
+
+body.remake-ui.remake-spring-dashboard.remake-dark .stage-toolbar,
+body.remake-ui.remake-spring-dashboard.remake-dark .mode-strip,
+body.remake-ui.remake-spring-dashboard.theme-dark .stage-toolbar,
+body.remake-ui.remake-spring-dashboard.theme-dark .mode-strip,
+body.remake-ui.remake-spring-dashboard.remake-dark .overlay-status,
+body.remake-ui.remake-spring-dashboard.theme-dark .overlay-status {
+  background: rgba(15, 23, 33, 0.88);
+}
+
+@media (max-width: 980px) {
+  body.remake-ui.remake-spring-dashboard .layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 @media (max-width: 720px) {
@@ -230,5 +589,16 @@ body.remake-ui .remake-badge-host {
     top: auto;
     right: 10px;
     bottom: 10px;
+  }
+
+  body.remake-ui .sim-shell-inner,
+  body.remake-ui .remake-global-tools {
+    justify-content: flex-start;
+  }
+
+  body.remake-ui .remake-tool-button,
+  body.remake-ui .remake-tool-select {
+    min-height: 34px;
+    padding-inline: 10px;
   }
 }
