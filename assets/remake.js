@@ -1,10 +1,10 @@
 (() => {
   const THEME_KEY = 'physics-remake-theme';
-  const ZOOM_KEY = 'physics-remake-zoom';
-  const ZOOM_VALUES = [75, 100, 125, 150, 200];
+  const ZOOM_KEY = 'physics-remake-page-zoom';
+  const ZOOM_VALUES = ['auto', 80, 90, 100, 110, 125];
   const state = {
     theme: localStorage.getItem(THEME_KEY) || 'light',
-    zoom: Number(localStorage.getItem(ZOOM_KEY) || 100),
+    zoom: localStorage.getItem(ZOOM_KEY) || 'auto',
     pan: false
   };
 
@@ -17,9 +17,10 @@
   }
 
   function clampZoom(value) {
+    if (value === 'auto') return 'auto';
     const next = Number(value);
     if (!Number.isFinite(next)) return 100;
-    return Math.min(200, Math.max(75, next));
+    return Math.min(125, Math.max(70, next));
   }
 
   function activeCanvasViewports() {
@@ -57,10 +58,9 @@
     viewport.dataset.baseWidth = String(baseW);
     viewport.dataset.baseHeight = String(baseH);
 
-    const scale = zoom / 100;
-    inner.style.width = `${Math.ceil(baseW * scale)}px`;
-    inner.style.height = `${Math.ceil(baseH * scale)}px`;
-    canvas.style.transform = `scale(${scale})`;
+    inner.style.width = `${Math.ceil(baseW)}px`;
+    inner.style.height = `${Math.ceil(baseH)}px`;
+    canvas.style.transform = '';
     viewport.dataset.zoom = String(zoom);
   }
 
@@ -70,31 +70,41 @@
     document.querySelectorAll('[data-remake-zoom-select]').forEach((select) => {
       select.value = String(state.zoom);
     });
+    applyPageZoom(state.zoom);
     activeCanvasViewports().forEach((viewport) => applyZoomToViewport(viewport, state.zoom));
-    syncNativeZoom(state.zoom);
   }
 
-  function syncNativeZoom(zoom) {
-    const nativeSelect = document.getElementById('zoomSelect');
-    if (!(nativeSelect instanceof HTMLSelectElement)) return;
+  function currentNumericZoom() {
+    const zoom = state.zoom === 'auto' ? Number(document.body.dataset.remakeComputedZoom || 100) : Number(state.zoom);
+    return Number.isFinite(zoom) ? zoom : 100;
+  }
 
-    const valueMap = {
-      75: '90',
-      100: 'fit',
-      125: '120',
-      150: '160',
-      200: '220'
-    };
-    const mapped = valueMap[zoom] || String(zoom);
-    if (!Array.from(nativeSelect.options).some((option) => option.value === mapped)) return;
-    if (nativeSelect.value === mapped) return;
+  function applyPageZoom(zoom) {
+    const normalized = clampZoom(zoom);
+    if (normalized === 'auto') {
+      window.requestAnimationFrame(() => computeAutoPageZoom());
+      return;
+    }
 
-    nativeSelect.value = mapped;
-    nativeSelect.dispatchEvent(new Event('change', { bubbles: true }));
+    const scale = normalized / 100;
+    document.body.style.zoom = String(scale);
+    document.body.dataset.remakeComputedZoom = String(normalized);
+  }
+
+  function computeAutoPageZoom() {
+    document.body.style.zoom = '1';
+    const doc = document.documentElement;
+    const viewportWidth = doc.clientWidth || window.innerWidth;
+    const scrollWidth = Math.max(doc.scrollWidth, document.body.scrollWidth);
+    const raw = scrollWidth > viewportWidth ? ((viewportWidth - 8) / scrollWidth) * 100 : 100;
+    const computed = Math.floor(Math.min(100, Math.max(70, raw)));
+    document.body.style.zoom = String(computed / 100);
+    document.body.dataset.remakeComputedZoom = String(computed);
   }
 
   function resetView() {
-    applyZoom(100);
+    applyZoom('auto');
+    window.scrollTo({ left: 0, top: 0, behavior: 'instant' });
     activeCanvasViewports().forEach((viewport) => {
       viewport.scrollLeft = 0;
       viewport.scrollTop = 0;
@@ -110,6 +120,7 @@
     activeCanvasViewports().forEach((viewport) => {
       viewport.classList.toggle('is-panning', state.pan);
     });
+    document.body.classList.toggle('remake-page-panning', state.pan);
   }
 
   function makeButton(text, attrs = {}) {
@@ -129,7 +140,7 @@
     ZOOM_VALUES.forEach((value) => {
       const option = document.createElement('option');
       option.value = String(value);
-      option.textContent = `${value}%`;
+      option.textContent = value === 'auto' ? '自動' : `${value}%`;
       select.appendChild(option);
     });
     select.value = String(state.zoom);
@@ -149,7 +160,8 @@
       <div class="remake-modal-card" role="dialog" aria-modal="true" aria-label="リメイク版の使い方">
         <h2>リメイク版の使い方</h2>
         <p>再生、停止、リセット、モード切替、スライダー操作で物理量の変化を確認できます。</p>
-        <p>ズームは大きな図の表示倍率を変えます。パンを有効にすると、拡大した図をドラッグで動かせます。</p>
+        <p>ズームはページ全体の表示倍率を変えます。自動ではブラウザ幅に収まる倍率を計算します。</p>
+        <p>パンを有効にすると、画面内をドラッグして横方向や縦方向へ見渡せます。</p>
         <div class="remake-modal-actions"><button type="button" class="remake-tool-button" data-remake-close>閉じる</button></div>
       </div>`;
     modal.addEventListener('click', (event) => {
@@ -207,8 +219,8 @@
     const pan = makeButton('パン', { 'data-remake-pan': 'true', 'aria-pressed': 'false' });
     const reset = makeButton('リセット');
 
-    zoomDown.addEventListener('click', () => applyZoom(state.zoom - 25));
-    zoomUp.addEventListener('click', () => applyZoom(state.zoom + 25));
+    zoomDown.addEventListener('click', () => applyZoom(currentNumericZoom() - 10));
+    zoomUp.addEventListener('click', () => applyZoom(currentNumericZoom() + 10));
     pan.addEventListener('click', () => setPan(!state.pan));
     reset.addEventListener('click', resetView);
 
@@ -255,6 +267,41 @@
     });
   }
 
+  function enablePageDrag() {
+    let dragging = false;
+    let startX = 0;
+    let startY = 0;
+    let scrollLeft = 0;
+    let scrollTop = 0;
+
+    document.addEventListener('pointerdown', (event) => {
+      if (!state.pan || event.button !== 0) return;
+      if (event.target.closest('button, select, input, textarea, a, canvas, .remake-viewport')) return;
+      dragging = true;
+      startX = event.clientX;
+      startY = event.clientY;
+      scrollLeft = window.scrollX;
+      scrollTop = window.scrollY;
+      document.body.classList.add('remake-page-dragging');
+      event.preventDefault();
+    });
+
+    document.addEventListener('pointermove', (event) => {
+      if (!dragging) return;
+      window.scrollTo(scrollLeft - (event.clientX - startX), scrollTop - (event.clientY - startY));
+    });
+
+    document.addEventListener('pointerup', () => {
+      dragging = false;
+      document.body.classList.remove('remake-page-dragging');
+    });
+
+    document.addEventListener('pointercancel', () => {
+      dragging = false;
+      document.body.classList.remove('remake-page-dragging');
+    });
+  }
+
   function wrapCanvas(canvas) {
     if (canvas.closest('.remake-viewport') || canvas.dataset.remakeViewer === 'skip') return;
     if (document.body.classList.contains('remake-spring-dashboard') && canvas.id === 'scene') return;
@@ -290,6 +337,15 @@
     window.setTimeout(enhance, 1000);
   }
 
+  function installAutoFit() {
+    window.addEventListener('resize', () => {
+      if (state.zoom === 'auto') computeAutoPageZoom();
+    });
+    window.setTimeout(() => {
+      if (state.zoom === 'auto') computeAutoPageZoom();
+    }, 1200);
+  }
+
   function installFooter() {
     if (document.querySelector('.remake-status-footer')) return;
     const footer = document.createElement('div');
@@ -301,7 +357,9 @@
   ready(() => {
     document.body.classList.add('remake-ui');
     installGlobalTools();
+    enablePageDrag();
     installCanvasViewers();
+    installAutoFit();
     installFooter();
     applyTheme();
   });

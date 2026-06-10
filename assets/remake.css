@@ -332,6 +332,15 @@ body.remake-ui .remake-viewport.is-dragging {
   user-select: none;
 }
 
+body.remake-ui.remake-page-panning {
+  cursor: grab;
+}
+
+body.remake-ui.remake-page-dragging {
+  cursor: grabbing;
+  user-select: none;
+}
+
 body.remake-ui .remake-canvas-inner {
   display: inline-block;
   min-width: 100%;
