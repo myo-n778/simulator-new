@@ -524,12 +524,12 @@
 
   const clock = new PhysicsSimClock.FixedStepClock({
     step: 1 / 120,
-    maxSubSteps: 8,
+    maxStepsPerFrame: 8,
     onStep(dt) {
       if (!state.running) return;
       state.time += dt * Number(controls.timeScale.value);
     },
-    onFrame() {
+    onRender() {
       render();
     }
   });
