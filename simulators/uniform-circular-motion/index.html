@@ -943,9 +943,43 @@
       arrow(px, py, px - radialX * fLen, py - radialY * fLen, "#d97914", "F");
     }
 
-    function projectionArrow(axisX, fromY, value, scaleFactor, color, label) {
-      if (Math.abs(value) < 0.01) return;
-      const len = Math.max(26, Math.min(94, Math.abs(value) * scaleFactor));
+    function drawBadge(x, y, text, color) {
+      ctx.save();
+      ctx.font = "800 12px system-ui, sans-serif";
+      const width = Math.ceil(ctx.measureText(text).width) + 16;
+      ctx.fillStyle = "rgba(255, 255, 255, .9)";
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.roundRect(x, y, width, 24, 6);
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = color;
+      ctx.fillText(text, x + 8, y + 16);
+      ctx.restore();
+    }
+
+    function projectionArrow(axisX, fromY, value, maxValue, color, label, zeroText) {
+      const zeroThreshold = Math.max(maxValue * 0.035, 0.015);
+      if (Math.abs(value) < zeroThreshold) {
+        ctx.save();
+        ctx.fillStyle = "#ffffff";
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(axisX, fromY, 9, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+        ctx.fillStyle = color;
+        ctx.font = "900 11px system-ui, sans-serif";
+        ctx.fillText("0", axisX - 3, fromY + 4);
+        ctx.font = "800 12px system-ui, sans-serif";
+        ctx.fillText(zeroText, axisX + 13, fromY + 4);
+        ctx.restore();
+        return;
+      }
+      const maxLen = Math.min(88, Math.max(42, radiusPx * 0.38));
+      const len = Math.max(18, maxLen * Math.min(1, Math.abs(value) / maxValue));
       const endY = fromY - Math.sign(value) * len;
       arrow(axisX, fromY, axisX, endY, color, label);
     }
@@ -971,10 +1005,12 @@
       ctx.fillText("単振動", axisX - 24, cy + radiusPx + 22);
       ctx.restore();
       if (controls.showShmVelocity.checked) {
-        projectionArrow(axisX + 26, py, v.vy, 16, "#7c3aed", "v_y");
+        drawBadge(axisX + 14, cy + 18, "vᵧ = rω cosθ", "#7c3aed");
+        projectionArrow(axisX + 28, py, v.vy, v.speed, "#7c3aed", "vᵧ", "vᵧ=0");
       }
       if (controls.showShmAccel.checked) {
-        projectionArrow(axisX + 60, py, v.ay, 6, "#059669", "a_y");
+        drawBadge(axisX + 14, cy + 46, "aᵧ = -rω² sinθ", "#059669");
+        projectionArrow(axisX + 64, py, v.ay, v.accel, "#059669", "aᵧ", "aᵧ=0");
       }
       ctx.save();
       ctx.fillStyle = "#627184";

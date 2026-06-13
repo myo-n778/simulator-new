@@ -16,6 +16,9 @@
 - The right side of the scene includes a vertical projection axis for connecting circular motion to simple harmonic motion.
 - The projection axis can show simple-harmonic-motion velocity and acceleration arrows.
 - Simple-harmonic-motion velocity and acceleration arrows can be toggled independently.
+- Projection velocity and acceleration arrows are scaled against their own maximum values.
+- When a projected velocity or acceleration is near zero, the projection axis shows a zero marker instead of a misleading tiny arrow.
+- Projection vector labels use `vᵧ` and `aᵧ` plus formula badges beside the projection axis.
 - Readouts include decimal values and pi-form companion values for speed, angular velocity, and centripetal force.
 - The side panel shows the current y coordinate, displacement from the center, projected velocity, and projected acceleration.
 - Physics:
