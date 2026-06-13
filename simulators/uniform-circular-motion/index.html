@@ -145,7 +145,7 @@
 
   .scene-actions {
     display: grid;
-    grid-template-columns: repeat(5, minmax(0, 1fr));
+    grid-template-columns: repeat(6, minmax(0, 1fr));
     gap: 8px;
     padding: 0 12px 12px;
   }
@@ -629,6 +629,7 @@
         <button class="action-button" id="step" type="button">1/12周期進める</button>
         <button class="action-button" id="reset" type="button">初期位置</button>
         <button class="action-button" id="reverse" type="button">回転方向を反転</button>
+        <button class="action-button" id="releaseForce" type="button">向心力をなくす</button>
         <button class="action-button" id="fitView" type="button">画面フィット</button>
       </div>
       <div class="readout-grid">
@@ -821,7 +822,8 @@
     time: 0,
     running: true,
     direction: 1,
-    meterScale: null
+    meterScale: null,
+    freeMotion: null
   };
 
   const shiromoImage = new Image();
@@ -845,13 +847,32 @@
     const T = Number(controls.period.value);
     const omega = 2 * Math.PI / T;
     const speed = r * omega;
+    const theta = state.direction * omega * state.time;
+    if (state.freeMotion) {
+      const elapsed = Math.max(0, state.time - state.freeMotion.time);
+      const x = state.freeMotion.x + state.freeMotion.vx * elapsed;
+      const y = state.freeMotion.y + state.freeMotion.vy * elapsed;
+      return {
+        r, m, T, omega, speed,
+        accel: 0,
+        force: 0,
+        theta: state.freeMotion.theta,
+        x,
+        y,
+        vx: state.freeMotion.vx,
+        vy: state.freeMotion.vy,
+        ay: 0,
+        freeElapsed: elapsed
+      };
+    }
+    const x = r * Math.cos(theta);
+    const y = r * Math.sin(theta);
+    const vx = -state.direction * speed * Math.sin(theta);
+    const vy = state.direction * speed * Math.cos(theta);
     const accel = speed * speed / r;
     const force = m * accel;
-    const theta = state.direction * omega * state.time;
-    const y = r * Math.sin(theta);
-    const vy = state.direction * r * omega * Math.cos(theta);
     const ay = -r * omega * omega * Math.sin(theta);
-    return { r, m, T, omega, speed, accel, force, theta, y, vy, ay };
+    return { r, m, T, omega, speed, accel, force, theta, x, y, vx, vy, ay, freeElapsed: 0 };
   }
 
   function fmt(value, digits = 2) {
@@ -875,7 +896,7 @@
     return {
       speed: `${fmtPiCoefficient(2 * v.r / v.T)}π m/s`,
       omega: `${fmtPiCoefficient(2 / v.T)}π rad/s`,
-      force: `${fmtPiCoefficient(4 * v.m * v.r / (v.T * v.T))}π² N`
+      force: v.force === 0 ? "0 N" : `${fmtPiCoefficient(4 * v.m * v.r / (v.T * v.T))}π² N`
     };
   }
 
@@ -927,6 +948,7 @@
     output.time.textContent = `t = ${fmt(state.time)} s`;
     output.status.textContent = state.running ? "再生中" : "停止中";
     document.getElementById("toggleRun").textContent = state.running ? "一時停止" : "再生";
+    document.getElementById("releaseForce").textContent = state.freeMotion ? "リセット" : "向心力をなくす";
   }
 
   function resizeCanvas() {
@@ -1124,12 +1146,12 @@
     const cy = h * 0.5;
     const scale = state.meterScale;
     const radiusPx = v.r * scale;
-    const px = cx + Math.cos(v.theta) * radiusPx;
-    const py = cy - Math.sin(v.theta) * radiusPx;
+    const px = cx + v.x * scale;
+    const py = cy - v.y * scale;
     const radialX = Math.cos(v.theta);
     const radialY = -Math.sin(v.theta);
-    const tangentX = -state.direction * Math.sin(v.theta);
-    const tangentY = -state.direction * Math.cos(v.theta);
+    const tangentX = v.speed > 0 ? v.vx / v.speed : 0;
+    const tangentY = v.speed > 0 ? -v.vy / v.speed : 0;
 
     ctx.clearRect(0, 0, w, h);
     drawGrid(cx, cy, scale, radiusPx);
@@ -1148,8 +1170,15 @@
       ctx.lineWidth = 6;
       ctx.lineCap = "round";
       ctx.beginPath();
-      const end = -v.theta;
-      ctx.arc(cx, cy, radiusPx, end + Math.PI * 1.55 * state.direction, end, state.direction < 0);
+      if (state.freeMotion) {
+        const rx = cx + state.freeMotion.x * scale;
+        const ry = cy - state.freeMotion.y * scale;
+        ctx.moveTo(rx, ry);
+        ctx.lineTo(px, py);
+      } else {
+        const end = -v.theta;
+        ctx.arc(cx, cy, radiusPx, end + Math.PI * 1.55 * state.direction, end, state.direction < 0);
+      }
       ctx.stroke();
       ctx.restore();
     }
@@ -1171,10 +1200,14 @@
       arrow(px, py, px + tangentX * vLen, py + tangentY * vLen, "#0f9fb5", "v");
     }
     if (controls.showAccel.checked) {
-      arrow(px, py, px - radialX * aLen, py - radialY * aLen, "#d83f45", "a");
+      if (!state.freeMotion) {
+        arrow(px, py, px - radialX * aLen, py - radialY * aLen, "#d83f45", "a");
+      }
     }
     if (controls.showForce.checked) {
-      arrow(px, py, px - radialX * fLen, py - radialY * fLen, "#d97914", "F");
+      if (!state.freeMotion) {
+        arrow(px, py, px - radialX * fLen, py - radialY * fLen, "#d97914", "F");
+      }
     }
 
     function projectionArrow(axisX, fromY, value, maxValue, color, label, zeroText) {
@@ -1234,7 +1267,7 @@
       ctx.fillText(`r = ${fmt(v.r, 1)} m`, (cx + px) / 2 + 8, (cy + py) / 2 - 8);
       ctx.fillText(`T = ${fmt(v.T, 1)} s`, 16, 26);
       ctx.fillText(`表示: 1 m = ${fmt(scale, 0)} px`, 16, 66);
-      ctx.fillText(state.direction > 0 ? "反時計回り" : "時計回り", 16, 46);
+      ctx.fillText(state.freeMotion ? "向心力なし: 接線方向へ等速直線運動" : state.direction > 0 ? "反時計回り" : "時計回り", 16, 46);
       ctx.restore();
     }
 
@@ -1253,11 +1286,32 @@
 
   document.getElementById("reset").addEventListener("click", () => {
     state.time = 0;
+    state.freeMotion = null;
     render();
   });
 
   document.getElementById("reverse").addEventListener("click", () => {
     state.direction *= -1;
+    state.freeMotion = null;
+    render();
+  });
+
+  document.getElementById("releaseForce").addEventListener("click", () => {
+    if (state.freeMotion) {
+      state.time = 0;
+      state.freeMotion = null;
+      render();
+      return;
+    }
+    const v = values();
+    state.freeMotion = {
+      time: state.time,
+      theta: v.theta,
+      x: v.x,
+      y: v.y,
+      vx: v.vx,
+      vy: v.vy
+    };
     render();
   });
 

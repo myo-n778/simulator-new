@@ -10,12 +10,16 @@
   - period `T`
   - playback speed
   - view fit button
+  - remove-centripetal-force button
   - trail, component guides, velocity vector, acceleration vector, centripetal force vector, and grid display
   - moving object type, object size, and object color
 - Radius changes keep the current meter-to-pixel scale so different radii look different for comparison.
 - The view fit button recalculates the meter-to-pixel scale for the current radius and canvas size.
 - The right side of the scene includes a vertical projection axis for connecting circular motion to simple harmonic motion.
 - Circular-motion velocity and acceleration vectors can be toggled independently.
+- The remove-centripetal-force button releases the object from circular motion into tangential uniform linear motion.
+- After release, the remove-centripetal-force button changes to a reset button and restores normal circular motion when pressed.
+- During tangential uniform linear motion, centripetal acceleration and centripetal force readouts show zero.
 - The projection axis can show simple-harmonic-motion velocity and acceleration arrows.
 - Simple-harmonic-motion velocity and acceleration arrows can be toggled independently.
 - Projection velocity and acceleration arrows are scaled against their own maximum values.
