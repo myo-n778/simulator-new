@@ -393,6 +393,129 @@
   .swatch.velocity { background: var(--cyan); }
   .swatch.accel { background: var(--red); }
   .swatch.force { background: var(--orange); }
+  .swatch.shm-velocity { background: #7c3aed; }
+  .swatch.shm-accel { background: #059669; }
+
+  @media (min-width: 981px) {
+    html,
+    body {
+      overflow: hidden;
+    }
+
+    .app {
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr);
+      height: calc(100dvh - 84px);
+      min-height: 0;
+      margin-top: 8px;
+      margin-bottom: 8px;
+    }
+
+    .topbar {
+      padding: 8px 12px;
+      margin-bottom: 8px;
+    }
+
+    h1 {
+      font-size: 20px;
+    }
+
+    .layout,
+    .stage,
+    .side {
+      min-height: 0;
+    }
+
+    .stage-head,
+    .controls-head {
+      min-height: 42px;
+      padding: 8px 12px;
+    }
+
+    .canvas-wrap {
+      padding: 10px 12px;
+    }
+
+    canvas {
+      height: clamp(286px, calc(100dvh - 400px), 430px);
+      min-height: 300px;
+    }
+
+    .scene-actions,
+    .readout-grid {
+      padding-bottom: 10px;
+    }
+
+    .legend {
+      display: none;
+    }
+
+    .action-button {
+      min-height: 34px;
+    }
+
+    .control-body {
+      gap: 6px;
+      padding: 8px 12px;
+    }
+
+    .control {
+      gap: 3px;
+    }
+
+    .control label {
+      font-size: 12px;
+    }
+
+    input[type="range"] {
+      height: 14px;
+    }
+
+    .toggle {
+      min-height: 28px;
+      padding: 4px 8px;
+      font-size: 12px;
+    }
+
+    .formula-box {
+      padding: 8px 12px;
+    }
+
+    .formula-box[aria-label="計算式"] {
+      display: none;
+    }
+
+    .formula-box h2 {
+      margin-bottom: 5px;
+      font-size: 13px;
+    }
+
+    .formula-list {
+      gap: 3px;
+    }
+
+    .formula-list li {
+      padding-bottom: 3px;
+      font-size: 12px;
+    }
+
+    .projection-grid {
+      gap: 6px;
+    }
+
+    .projection-value {
+      padding: 5px 8px;
+    }
+
+    .projection-label,
+    .projection-unit {
+      font-size: 11px;
+    }
+
+    .projection-number {
+      font-size: 15px;
+    }
+  }
 
   @media (max-width: 980px) {
     .layout {
@@ -514,6 +637,8 @@
             <label class="toggle"><input id="showComponents" type="checkbox" checked>成分表示</label>
             <label class="toggle"><input id="showForce" type="checkbox" checked>向心力</label>
             <label class="toggle"><input id="showGrid" type="checkbox" checked>目盛り</label>
+            <label class="toggle"><input id="showShmVelocity" type="checkbox" checked>単振動速度</label>
+            <label class="toggle"><input id="showShmAccel" type="checkbox" checked>単振動加速度</label>
           </div>
         </div>
       </section>
@@ -541,6 +666,16 @@
             <div class="projection-number" id="yDisplacementValue">0.00</div>
             <div class="projection-unit">m</div>
           </div>
+          <div class="projection-value">
+            <div class="projection-label">単振動の速度</div>
+            <div class="projection-number" id="yVelocityValue">0.00</div>
+            <div class="projection-unit">m/s</div>
+          </div>
+          <div class="projection-value">
+            <div class="projection-label">単振動の加速度</div>
+            <div class="projection-number" id="yAccelValue">0.00</div>
+            <div class="projection-unit">m/s²</div>
+          </div>
         </div>
       </section>
     </aside>
@@ -566,7 +701,9 @@
     showTrail: document.getElementById("showTrail"),
     showComponents: document.getElementById("showComponents"),
     showForce: document.getElementById("showForce"),
-    showGrid: document.getElementById("showGrid")
+    showGrid: document.getElementById("showGrid"),
+    showShmVelocity: document.getElementById("showShmVelocity"),
+    showShmAccel: document.getElementById("showShmAccel")
   };
   const output = {
     radius: document.getElementById("radiusOut"),
@@ -582,6 +719,8 @@
     forceExact: document.getElementById("forceExact"),
     yCoord: document.getElementById("yCoordValue"),
     yDisplacement: document.getElementById("yDisplacementValue"),
+    yVelocity: document.getElementById("yVelocityValue"),
+    yAccel: document.getElementById("yAccelValue"),
     time: document.getElementById("timeLabel"),
     status: document.getElementById("status")
   };
@@ -615,7 +754,9 @@
     const force = m * accel;
     const theta = state.direction * omega * state.time;
     const y = r * Math.sin(theta);
-    return { r, m, T, omega, speed, accel, force, theta, y };
+    const vy = state.direction * r * omega * Math.cos(theta);
+    const ay = -r * omega * omega * Math.sin(theta);
+    return { r, m, T, omega, speed, accel, force, theta, y, vy, ay };
   }
 
   function fmt(value, digits = 2) {
@@ -667,6 +808,8 @@
     output.forceExact.textContent = `= ${exact.force}`;
     output.yCoord.textContent = fmtSigned(v.y);
     output.yDisplacement.textContent = fmtSigned(v.y);
+    output.yVelocity.textContent = fmtSigned(v.vy);
+    output.yAccel.textContent = fmtSigned(v.ay);
     output.time.textContent = `t = ${fmt(state.time)} s`;
     output.status.textContent = state.running ? "再生中" : "停止中";
     document.getElementById("toggleRun").textContent = state.running ? "一時停止" : "再生";
@@ -800,6 +943,13 @@
       arrow(px, py, px - radialX * fLen, py - radialY * fLen, "#d97914", "F");
     }
 
+    function projectionArrow(axisX, fromY, value, scaleFactor, color, label) {
+      if (Math.abs(value) < 0.01) return;
+      const len = Math.max(26, Math.min(94, Math.abs(value) * scaleFactor));
+      const endY = fromY - Math.sign(value) * len;
+      arrow(axisX, fromY, axisX, endY, color, label);
+    }
+
     if (controls.showComponents.checked) {
       line(px, py, px, cy, "rgba(15, 159, 181, .45)", 1, [4, 4]);
       line(px, py, cx, py, "rgba(15, 159, 181, .45)", 1, [4, 4]);
@@ -820,6 +970,12 @@
       ctx.fillText("y", axisX + 12, py + 4);
       ctx.fillText("単振動", axisX - 24, cy + radiusPx + 22);
       ctx.restore();
+      if (controls.showShmVelocity.checked) {
+        projectionArrow(axisX + 26, py, v.vy, 16, "#7c3aed", "v_y");
+      }
+      if (controls.showShmAccel.checked) {
+        projectionArrow(axisX + 60, py, v.ay, 6, "#059669", "a_y");
+      }
       ctx.save();
       ctx.fillStyle = "#627184";
       ctx.font = "800 12px system-ui, sans-serif";

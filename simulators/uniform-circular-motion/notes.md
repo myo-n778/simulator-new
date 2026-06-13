@@ -14,8 +14,10 @@
 - Radius changes keep the current meter-to-pixel scale so different radii look different for comparison.
 - The view fit button recalculates the meter-to-pixel scale for the current radius and canvas size.
 - The right side of the scene includes a vertical projection axis for connecting circular motion to simple harmonic motion.
+- The projection axis can show simple-harmonic-motion velocity and acceleration arrows.
+- Simple-harmonic-motion velocity and acceleration arrows can be toggled independently.
 - Readouts include decimal values and pi-form companion values for speed, angular velocity, and centripetal force.
-- The side panel shows the current y coordinate and displacement from the center.
+- The side panel shows the current y coordinate, displacement from the center, projected velocity, and projected acceleration.
 - Physics:
   - `omega = 2 pi / T`
   - `v = r omega`
