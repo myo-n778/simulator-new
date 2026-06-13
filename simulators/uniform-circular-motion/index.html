@@ -263,6 +263,34 @@
     accent-color: var(--blue);
   }
 
+  select {
+    min-width: 0;
+    min-height: 32px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--surface);
+    color: var(--ink);
+    padding: 4px 8px;
+    font-weight: 800;
+  }
+
+  .select-row {
+    display: grid;
+    grid-template-columns: 1.2fr .9fr .9fr;
+    gap: 8px;
+  }
+
+  .select-control {
+    display: grid;
+    gap: 4px;
+  }
+
+  .select-control label {
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 850;
+  }
+
   .toggle-row {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -310,6 +338,15 @@
     color: var(--muted);
     font-size: 12px;
     font-weight: 850;
+  }
+
+  .projection-formula {
+    margin-top: 2px;
+    color: var(--blue);
+    font-size: 11px;
+    font-weight: 850;
+    line-height: 1.2;
+    overflow-wrap: anywhere;
   }
 
   .projection-number {
@@ -455,8 +492,14 @@
     }
 
     .control-body {
-      gap: 6px;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 6px 10px;
       padding: 8px 12px;
+    }
+
+    .select-row,
+    .toggle-row {
+      grid-column: 1 / -1;
     }
 
     .control {
@@ -469,6 +512,16 @@
 
     input[type="range"] {
       height: 14px;
+    }
+
+    .select-row {
+      gap: 6px;
+    }
+
+    select {
+      min-height: 28px;
+      padding: 3px 7px;
+      font-size: 12px;
     }
 
     .toggle {
@@ -508,6 +561,7 @@
     }
 
     .projection-label,
+    .projection-formula,
     .projection-unit {
       font-size: 11px;
     }
@@ -632,6 +686,35 @@
             <label for="timeScale">再生倍率 <output id="timeScaleOut">1.0x</output></label>
             <input id="timeScale" type="range" min="0.1" max="2.5" step="0.1" value="1">
           </div>
+          <div class="select-row" aria-label="表示物体の設定">
+            <div class="select-control">
+              <label for="objectType">物体</label>
+              <select id="objectType">
+                <option value="sphere">金属球</option>
+                <option value="shiromo">シロモ</option>
+                <option value="car">車</option>
+              </select>
+            </div>
+            <div class="select-control">
+              <label for="objectSize">大きさ</label>
+              <select id="objectSize">
+                <option value="small">小</option>
+                <option value="medium" selected>中</option>
+                <option value="large">大</option>
+              </select>
+            </div>
+            <div class="select-control">
+              <label for="objectColor">色</label>
+              <select id="objectColor">
+                <option value="silver" selected>銀</option>
+                <option value="blue">青</option>
+                <option value="red">赤</option>
+                <option value="green">緑</option>
+                <option value="gold">金</option>
+                <option value="black">黒</option>
+              </select>
+            </div>
+          </div>
           <div class="toggle-row">
             <label class="toggle"><input id="showTrail" type="checkbox" checked>軌跡</label>
             <label class="toggle"><input id="showComponents" type="checkbox" checked>成分表示</label>
@@ -668,11 +751,13 @@
           </div>
           <div class="projection-value">
             <div class="projection-label">単振動の速度</div>
+            <div class="projection-formula">vᵧ = rω cosθ</div>
             <div class="projection-number" id="yVelocityValue">0.00</div>
             <div class="projection-unit">m/s</div>
           </div>
           <div class="projection-value">
             <div class="projection-label">単振動の加速度</div>
+            <div class="projection-formula">aᵧ = -rω² sinθ</div>
             <div class="projection-number" id="yAccelValue">0.00</div>
             <div class="projection-unit">m/s²</div>
           </div>
@@ -698,6 +783,9 @@
     mass: document.getElementById("mass"),
     period: document.getElementById("period"),
     timeScale: document.getElementById("timeScale"),
+    objectType: document.getElementById("objectType"),
+    objectSize: document.getElementById("objectSize"),
+    objectColor: document.getElementById("objectColor"),
     showTrail: document.getElementById("showTrail"),
     showComponents: document.getElementById("showComponents"),
     showForce: document.getElementById("showForce"),
@@ -731,6 +819,9 @@
     direction: 1,
     meterScale: null
   };
+
+  const shiromoImage = new Image();
+  shiromoImage.src = "../pulley-work/assets/shiromo.png";
 
   const clock = new PhysicsSimClock.FixedStepClock({
     step: 1 / 120,
@@ -782,6 +873,25 @@
       omega: `${fmtPiCoefficient(2 / v.T)}π rad/s`,
       force: `${fmtPiCoefficient(4 * v.m * v.r / (v.T * v.T))}π² N`
     };
+  }
+
+  function objectRadius() {
+    const size = controls.objectSize.value;
+    if (size === "small") return 12;
+    if (size === "large") return 20;
+    return 15;
+  }
+
+  function objectPalette() {
+    const palettes = {
+      silver: ["#ffffff", "#cfd7df", "#6c7884", "#f7fbff"],
+      blue: ["#ffffff", "#5eb6ff", "#1d6fd1", "#d7ecff"],
+      red: ["#ffffff", "#ff817d", "#c83f45", "#ffe0dc"],
+      green: ["#ffffff", "#64d89b", "#16884f", "#d9f8e7"],
+      gold: ["#ffffff", "#ffd66e", "#b7791f", "#fff3c4"],
+      black: ["#d9e2ec", "#56616d", "#111827", "#f7fbff"]
+    };
+    return palettes[controls.objectColor.value] ?? palettes.silver;
   }
 
   function fitMeterScale(width = canvas.clientWidth, height = canvas.clientHeight) {
@@ -879,6 +989,119 @@
     ctx.restore();
   }
 
+  function drawMetalSphere(x, y, r) {
+    const [highlight, mid, dark, glint] = objectPalette();
+    ctx.save();
+    ctx.shadowColor = "rgba(31, 41, 55, .28)";
+    ctx.shadowBlur = 10;
+    ctx.shadowOffsetY = 4;
+    const grad = ctx.createRadialGradient(x - r * 0.42, y - r * 0.5, r * 0.12, x, y, r);
+    grad.addColorStop(0, highlight);
+    grad.addColorStop(0.28, glint);
+    grad.addColorStop(0.58, mid);
+    grad.addColorStop(1, dark);
+    ctx.fillStyle = grad;
+    ctx.strokeStyle = "rgba(17, 24, 39, .48)";
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.shadowColor = "transparent";
+    ctx.fillStyle = "rgba(255, 255, 255, .75)";
+    ctx.beginPath();
+    ctx.ellipse(x - r * 0.34, y - r * 0.42, r * 0.24, r * 0.14, -0.4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function drawShiromo(x, y, size) {
+    const w = size * 2.5;
+    const h = size * 1.55;
+    ctx.save();
+    ctx.translate(x, y);
+    if (shiromoImage.complete && shiromoImage.naturalWidth > 0) {
+      ctx.drawImage(shiromoImage, -w / 2, -h / 2, w, h);
+    } else {
+      ctx.fillStyle = "#f4ead8";
+      ctx.strokeStyle = "#8e7b61";
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.roundRect(-w / 2, -h / 2, w, h, size * 0.35);
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = "#caa46f";
+      ctx.beginPath();
+      ctx.ellipse(-w * 0.15, -h * 0.34, w * 0.2, h * 0.18, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#111827";
+      ctx.beginPath();
+      ctx.arc(-w * 0.18, -h * 0.06, size * 0.09, 0, Math.PI * 2);
+      ctx.arc(w * 0.18, -h * 0.06, size * 0.09, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#65a30d";
+      for (const wx of [-w * 0.3, w * 0.3]) {
+        ctx.beginPath();
+        ctx.arc(wx, h * 0.42, size * 0.16, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+    ctx.restore();
+  }
+
+  function drawCar(x, y, size) {
+    const [highlight, mid, dark] = objectPalette();
+    const w = size * 2.65;
+    const h = size * 1.28;
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.fillStyle = "rgba(17, 24, 39, .22)";
+    ctx.beginPath();
+    ctx.ellipse(0, h * 0.48, w * 0.42, h * 0.12, 0, 0, Math.PI * 2);
+    ctx.fill();
+    const body = ctx.createLinearGradient(0, -h / 2, 0, h / 2);
+    body.addColorStop(0, highlight);
+    body.addColorStop(0.34, mid);
+    body.addColorStop(1, dark);
+    ctx.fillStyle = body;
+    ctx.strokeStyle = "rgba(17, 24, 39, .45)";
+    ctx.lineWidth = 1.4;
+    ctx.beginPath();
+    ctx.roundRect(-w / 2, -h * 0.18, w, h * 0.52, size * 0.16);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = "rgba(222, 241, 255, .9)";
+    ctx.beginPath();
+    ctx.roundRect(-w * 0.22, -h * 0.48, w * 0.44, h * 0.32, size * 0.12);
+    ctx.fill();
+    ctx.strokeStyle = "rgba(17, 24, 39, .25)";
+    ctx.stroke();
+    ctx.fillStyle = "#111827";
+    for (const wx of [-w * 0.32, w * 0.32]) {
+      ctx.beginPath();
+      ctx.arc(wx, h * 0.28, size * 0.16, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#e5e7eb";
+      ctx.beginPath();
+      ctx.arc(wx, h * 0.28, size * 0.07, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.fillStyle = "#111827";
+    }
+    ctx.restore();
+  }
+
+  function drawMovingObject(x, y) {
+    const r = objectRadius();
+    const type = controls.objectType.value;
+    if (type === "shiromo") {
+      drawShiromo(x, y, r);
+    } else if (type === "car") {
+      drawCar(x, y, r);
+    } else {
+      drawMetalSphere(x, y, r);
+    }
+  }
+
   function render() {
     resizeCanvas();
     updateText();
@@ -943,22 +1166,6 @@
       arrow(px, py, px - radialX * fLen, py - radialY * fLen, "#d97914", "F");
     }
 
-    function drawBadge(x, y, text, color) {
-      ctx.save();
-      ctx.font = "800 12px system-ui, sans-serif";
-      const width = Math.ceil(ctx.measureText(text).width) + 16;
-      ctx.fillStyle = "rgba(255, 255, 255, .9)";
-      ctx.strokeStyle = color;
-      ctx.lineWidth = 1.5;
-      ctx.beginPath();
-      ctx.roundRect(x, y, width, 24, 6);
-      ctx.fill();
-      ctx.stroke();
-      ctx.fillStyle = color;
-      ctx.fillText(text, x + 8, y + 16);
-      ctx.restore();
-    }
-
     function projectionArrow(axisX, fromY, value, maxValue, color, label, zeroText) {
       const zeroThreshold = Math.max(maxValue * 0.035, 0.015);
       if (Math.abs(value) < zeroThreshold) {
@@ -1005,11 +1212,9 @@
       ctx.fillText("単振動", axisX - 24, cy + radiusPx + 22);
       ctx.restore();
       if (controls.showShmVelocity.checked) {
-        drawBadge(axisX + 14, cy + 18, "vᵧ = rω cosθ", "#7c3aed");
         projectionArrow(axisX + 28, py, v.vy, v.speed, "#7c3aed", "vᵧ", "vᵧ=0");
       }
       if (controls.showShmAccel.checked) {
-        drawBadge(axisX + 14, cy + 46, "aᵧ = -rω² sinθ", "#059669");
         projectionArrow(axisX + 64, py, v.ay, v.accel, "#059669", "aᵧ", "aᵧ=0");
       }
       ctx.save();
@@ -1022,19 +1227,7 @@
       ctx.restore();
     }
 
-    ctx.save();
-    const grad = ctx.createRadialGradient(px - 8, py - 10, 5, px, py, 24);
-    grad.addColorStop(0, "#ffffff");
-    grad.addColorStop(.28, "#5eb6ff");
-    grad.addColorStop(1, "#1d6fd1");
-    ctx.fillStyle = grad;
-    ctx.strokeStyle = "#0f4f9c";
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.arc(px, py, 20, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
-    ctx.restore();
+    drawMovingObject(px, py);
   }
 
   document.getElementById("toggleRun").addEventListener("click", () => {

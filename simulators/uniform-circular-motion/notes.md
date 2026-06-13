@@ -11,6 +11,7 @@
   - playback speed
   - view fit button
   - trail, component guides, centripetal force vector, and grid display
+  - moving object type, object size, and object color
 - Radius changes keep the current meter-to-pixel scale so different radii look different for comparison.
 - The view fit button recalculates the meter-to-pixel scale for the current radius and canvas size.
 - The right side of the scene includes a vertical projection axis for connecting circular motion to simple harmonic motion.
@@ -18,9 +19,13 @@
 - Simple-harmonic-motion velocity and acceleration arrows can be toggled independently.
 - Projection velocity and acceleration arrows are scaled against their own maximum values.
 - When a projected velocity or acceleration is near zero, the projection axis shows a zero marker instead of a misleading tiny arrow.
-- Projection vector labels use `vᵧ` and `aᵧ` plus formula badges beside the projection axis.
+- Projection vector labels use `vᵧ` and `aᵧ`; the formulas are shown in the right-side simple-harmonic-motion panel to avoid canvas overlap.
 - Readouts include decimal values and pi-form companion values for speed, angular velocity, and centripetal force.
 - The side panel shows the current y coordinate, displacement from the center, projected velocity, and projected acceleration.
+- The moving object defaults to a smaller silver metal sphere.
+- The moving object can be changed among metal sphere, Shiromo, and car.
+- Metal sphere and car display support size choices and color choices.
+- Shiromo uses the existing `pulley-work` Shiromo asset as the visual reference.
 - Physics:
   - `omega = 2 pi / T`
   - `v = r omega`
