@@ -145,7 +145,7 @@
 
   .scene-actions {
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    grid-template-columns: repeat(5, minmax(0, 1fr));
     gap: 8px;
     padding: 0 12px 12px;
   }
@@ -203,6 +203,17 @@
     font-weight: 900;
     font-variant-numeric: tabular-nums;
     line-height: 1.15;
+  }
+
+  .readout-exact {
+    min-height: 17px;
+    margin-top: 2px;
+    color: var(--blue);
+    font-size: 12px;
+    font-weight: 850;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.25;
+    overflow-wrap: anywhere;
   }
 
   .readout-unit {
@@ -280,6 +291,40 @@
   .formula-box {
     padding: 12px;
     box-shadow: none;
+  }
+
+  .projection-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+
+  .projection-value {
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--surface-2);
+    padding: 9px 10px;
+  }
+
+  .projection-label {
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 850;
+  }
+
+  .projection-number {
+    margin-top: 2px;
+    color: var(--ink);
+    font-size: 18px;
+    font-weight: 950;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.15;
+  }
+
+  .projection-unit {
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 750;
   }
 
   .formula-box h2 {
@@ -407,16 +452,19 @@
         <button class="action-button" id="step" type="button">1/12周期進める</button>
         <button class="action-button" id="reset" type="button">初期位置</button>
         <button class="action-button" id="reverse" type="button">回転方向を反転</button>
+        <button class="action-button" id="fitView" type="button">画面フィット</button>
       </div>
       <div class="readout-grid">
         <div class="readout">
           <div class="readout-label">速さ v</div>
           <div class="readout-value" id="speedValue">0.00</div>
+          <div class="readout-exact" id="speedExact">= 0π</div>
           <div class="readout-unit">m/s</div>
         </div>
         <div class="readout">
           <div class="readout-label">角速度 ω</div>
           <div class="readout-value" id="omegaValue">0.00</div>
+          <div class="readout-exact" id="omegaExact">= 0π</div>
           <div class="readout-unit">rad/s</div>
         </div>
         <div class="readout">
@@ -427,6 +475,7 @@
         <div class="readout">
           <div class="readout-label">向心力 F</div>
           <div class="readout-value" id="forceValue">0.00</div>
+          <div class="readout-exact" id="forceExact">= 0π²</div>
           <div class="readout-unit">N</div>
         </div>
       </div>
@@ -478,6 +527,22 @@
           <li><span>向心力</span><strong>F = ma</strong></li>
         </ul>
       </section>
+
+      <section class="formula-box" aria-label="単振動への対応">
+        <h2>単振動への対応</h2>
+        <div class="projection-grid">
+          <div class="projection-value">
+            <div class="projection-label">y方向の座標</div>
+            <div class="projection-number" id="yCoordValue">0.00</div>
+            <div class="projection-unit">m</div>
+          </div>
+          <div class="projection-value">
+            <div class="projection-label">中心からの変位</div>
+            <div class="projection-number" id="yDisplacementValue">0.00</div>
+            <div class="projection-unit">m</div>
+          </div>
+        </div>
+      </section>
     </aside>
   </section>
 </main>
@@ -509,9 +574,14 @@
     period: document.getElementById("periodOut"),
     timeScale: document.getElementById("timeScaleOut"),
     speed: document.getElementById("speedValue"),
+    speedExact: document.getElementById("speedExact"),
     omega: document.getElementById("omegaValue"),
+    omegaExact: document.getElementById("omegaExact"),
     accel: document.getElementById("accelValue"),
     force: document.getElementById("forceValue"),
+    forceExact: document.getElementById("forceExact"),
+    yCoord: document.getElementById("yCoordValue"),
+    yDisplacement: document.getElementById("yDisplacementValue"),
     time: document.getElementById("timeLabel"),
     status: document.getElementById("status")
   };
@@ -519,7 +589,8 @@
   const state = {
     time: 0,
     running: true,
-    direction: 1
+    direction: 1,
+    meterScale: null
   };
 
   const clock = new PhysicsSimClock.FixedStepClock({
@@ -543,23 +614,59 @@
     const accel = speed * speed / r;
     const force = m * accel;
     const theta = state.direction * omega * state.time;
-    return { r, m, T, omega, speed, accel, force, theta };
+    const y = r * Math.sin(theta);
+    return { r, m, T, omega, speed, accel, force, theta, y };
   }
 
   function fmt(value, digits = 2) {
     return value.toFixed(digits);
   }
 
+  function fmtSigned(value, digits = 2) {
+    const text = Math.abs(value).toFixed(digits);
+    return `${value >= 0 ? "+" : "-"}${text}`;
+  }
+
+  function fmtPiCoefficient(value, digits = 3) {
+    const rounded = Number(value.toFixed(digits));
+    if (Math.abs(rounded) < 0.0005) return "0";
+    if (Math.abs(rounded - 1) < 0.0005) return "";
+    if (Math.abs(rounded + 1) < 0.0005) return "-";
+    return String(rounded).replace(/\.?0+$/, "");
+  }
+
+  function exactForms(v) {
+    return {
+      speed: `${fmtPiCoefficient(2 * v.r / v.T)}π m/s`,
+      omega: `${fmtPiCoefficient(2 / v.T)}π rad/s`,
+      force: `${fmtPiCoefficient(4 * v.m * v.r / (v.T * v.T))}π² N`
+    };
+  }
+
+  function fitMeterScale(width = canvas.clientWidth, height = canvas.clientHeight) {
+    const r = Number(controls.radius.value);
+    const projectionSpace = Math.min(210, Math.max(128, width * 0.2));
+    const horizontalFit = (width - projectionSpace - 140) / (2 * r);
+    const verticalFit = (height - 170) / (2 * r);
+    return Math.max(18, Math.min(horizontalFit, verticalFit));
+  }
+
   function updateText() {
     const v = values();
+    const exact = exactForms(v);
     output.radius.textContent = `${fmt(v.r, 1)} m`;
     output.mass.textContent = `${fmt(v.m, 1)} kg`;
     output.period.textContent = `${fmt(v.T, 1)} s`;
     output.timeScale.textContent = `${fmt(Number(controls.timeScale.value), 1)}x`;
     output.speed.textContent = fmt(v.speed);
+    output.speedExact.textContent = `= ${exact.speed}`;
     output.omega.textContent = fmt(v.omega);
+    output.omegaExact.textContent = `= ${exact.omega}`;
     output.accel.textContent = fmt(v.accel);
     output.force.textContent = fmt(v.force);
+    output.forceExact.textContent = `= ${exact.force}`;
+    output.yCoord.textContent = fmtSigned(v.y);
+    output.yDisplacement.textContent = fmtSigned(v.y);
     output.time.textContent = `t = ${fmt(state.time)} s`;
     output.status.textContent = state.running ? "再生中" : "停止中";
     document.getElementById("toggleRun").textContent = state.running ? "一時停止" : "再生";
@@ -636,9 +743,13 @@
     const v = values();
     const w = canvas.clientWidth;
     const h = canvas.clientHeight;
-    const cx = w * 0.5;
+    if (state.meterScale === null) {
+      state.meterScale = fitMeterScale(w, h);
+    }
+    const projectionSpace = Math.min(210, Math.max(128, w * 0.2));
+    const cx = (w - projectionSpace) * 0.5;
     const cy = h * 0.5;
-    const scale = Math.min(w, h) * 0.36 / v.r;
+    const scale = state.meterScale;
     const radiusPx = v.r * scale;
     const px = cx + Math.cos(v.theta) * radiusPx;
     const py = cy - Math.sin(v.theta) * radiusPx;
@@ -692,11 +803,29 @@
     if (controls.showComponents.checked) {
       line(px, py, px, cy, "rgba(15, 159, 181, .45)", 1, [4, 4]);
       line(px, py, cx, py, "rgba(15, 159, 181, .45)", 1, [4, 4]);
+      const axisX = Math.min(w - 46, cx + radiusPx + Math.max(70, projectionSpace * 0.58));
+      line(px, py, axisX, py, "rgba(29, 111, 209, .42)", 2, [6, 6]);
+      line(axisX, cy - radiusPx, axisX, cy + radiusPx, "rgba(23, 33, 47, .35)", 2);
+      line(axisX - 9, cy, axisX + 9, cy, "rgba(23, 33, 47, .35)", 2);
+      ctx.save();
+      ctx.fillStyle = "#1d6fd1";
+      ctx.strokeStyle = "#ffffff";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(axisX, py, 8, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = "#17212f";
+      ctx.font = "800 12px system-ui, sans-serif";
+      ctx.fillText("y", axisX + 12, py + 4);
+      ctx.fillText("単振動", axisX - 24, cy + radiusPx + 22);
+      ctx.restore();
       ctx.save();
       ctx.fillStyle = "#627184";
       ctx.font = "800 12px system-ui, sans-serif";
       ctx.fillText(`r = ${fmt(v.r, 1)} m`, (cx + px) / 2 + 8, (cy + py) / 2 - 8);
       ctx.fillText(`T = ${fmt(v.T, 1)} s`, 16, 26);
+      ctx.fillText(`表示: 1 m = ${fmt(scale, 0)} px`, 16, 66);
       ctx.fillText(state.direction > 0 ? "反時計回り" : "時計回り", 16, 46);
       ctx.restore();
     }
@@ -736,12 +865,22 @@
     render();
   });
 
+  document.getElementById("fitView").addEventListener("click", () => {
+    state.meterScale = fitMeterScale();
+    render();
+  });
+
   Object.values(controls).forEach((control) => {
     control.addEventListener("input", render);
     control.addEventListener("change", render);
   });
 
-  window.addEventListener("resize", render);
+  window.addEventListener("resize", () => {
+    if (state.meterScale === null) {
+      state.meterScale = fitMeterScale();
+    }
+    render();
+  });
   render();
   clock.start();
 })();

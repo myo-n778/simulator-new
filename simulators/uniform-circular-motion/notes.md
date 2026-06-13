@@ -9,7 +9,13 @@
   - mass `m`
   - period `T`
   - playback speed
+  - view fit button
   - trail, component guides, centripetal force vector, and grid display
+- Radius changes keep the current meter-to-pixel scale so different radii look different for comparison.
+- The view fit button recalculates the meter-to-pixel scale for the current radius and canvas size.
+- The right side of the scene includes a vertical projection axis for connecting circular motion to simple harmonic motion.
+- Readouts include decimal values and pi-form companion values for speed, angular velocity, and centripetal force.
+- The side panel shows the current y coordinate and displacement from the center.
 - Physics:
   - `omega = 2 pi / T`
   - `v = r omega`
