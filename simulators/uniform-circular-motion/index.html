@@ -1016,8 +1016,11 @@
   }
 
   function drawShiromo(x, y, size) {
-    const w = size * 2.5;
-    const h = size * 1.55;
+    const w = size * 2.25;
+    const imageRatio = shiromoImage.naturalWidth && shiromoImage.naturalHeight
+      ? shiromoImage.naturalWidth / shiromoImage.naturalHeight
+      : 192 / 176;
+    const h = w / imageRatio;
     ctx.save();
     ctx.translate(x, y);
     if (shiromoImage.complete && shiromoImage.naturalWidth > 0) {

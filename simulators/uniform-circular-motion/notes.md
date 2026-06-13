@@ -25,7 +25,7 @@
 - The moving object defaults to a smaller silver metal sphere.
 - The moving object can be changed among metal sphere, Shiromo, and car.
 - Metal sphere and car display support size choices and color choices.
-- Shiromo uses the existing `pulley-work` Shiromo asset as the visual reference.
+- Shiromo uses the existing `pulley-work` Shiromo asset as the visual reference and preserves the asset aspect ratio.
 - Physics:
   - `omega = 2 pi / T`
   - `v = r omega`
