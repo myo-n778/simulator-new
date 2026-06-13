@@ -47,6 +47,19 @@
     "reStatus": "リメイク版"
   },
   {
+    "id": "uniform-circular-motion",
+    "title": "等速円運動",
+    "category": "力学",
+    "route": "./simulators/uniform-circular-motion/",
+    "originalSource": "new-simulator-2026-06-12",
+    "alternateSources": [],
+    "status": "初版作成",
+    "dependencies": [],
+    "physicsModel": "等速円運動、速さ、角速度、向心加速度、向心力",
+    "purpose": "半径、質量、周期を変え、速度ベクトル、向心加速度ベクトル、向心力ベクトルと数値の関係を確認する。",
+    "lastReviewed": "2026-06-12"
+  },
+  {
     "id": "car-vertical-throw",
     "title": "車上鉛直投げ上げ",
     "category": "力学",
