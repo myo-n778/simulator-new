@@ -829,6 +829,12 @@
   const shiromoImage = new Image();
   shiromoImage.src = "../pulley-work/assets/shiromo.png";
 
+  function resetToInitialStopped() {
+    state.time = 0;
+    state.running = false;
+    state.freeMotion = null;
+  }
+
   const clock = new PhysicsSimClock.FixedStepClock({
     step: 1 / 120,
     maxStepsPerFrame: 8,
@@ -1285,8 +1291,7 @@
   });
 
   document.getElementById("reset").addEventListener("click", () => {
-    state.time = 0;
-    state.freeMotion = null;
+    resetToInitialStopped();
     render();
   });
 
@@ -1298,8 +1303,7 @@
 
   document.getElementById("releaseForce").addEventListener("click", () => {
     if (state.freeMotion) {
-      state.time = 0;
-      state.freeMotion = null;
+      resetToInitialStopped();
       render();
       return;
     }
