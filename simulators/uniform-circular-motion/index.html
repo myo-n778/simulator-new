@@ -718,6 +718,8 @@
           <div class="toggle-row">
             <label class="toggle"><input id="showTrail" type="checkbox" checked>軌跡</label>
             <label class="toggle"><input id="showComponents" type="checkbox" checked>成分表示</label>
+            <label class="toggle"><input id="showVelocity" type="checkbox" checked>速度</label>
+            <label class="toggle"><input id="showAccel" type="checkbox" checked>加速度</label>
             <label class="toggle"><input id="showForce" type="checkbox" checked>向心力</label>
             <label class="toggle"><input id="showGrid" type="checkbox" checked>目盛り</label>
             <label class="toggle"><input id="showShmVelocity" type="checkbox" checked>単振動速度</label>
@@ -788,6 +790,8 @@
     objectColor: document.getElementById("objectColor"),
     showTrail: document.getElementById("showTrail"),
     showComponents: document.getElementById("showComponents"),
+    showVelocity: document.getElementById("showVelocity"),
+    showAccel: document.getElementById("showAccel"),
     showForce: document.getElementById("showForce"),
     showGrid: document.getElementById("showGrid"),
     showShmVelocity: document.getElementById("showShmVelocity"),
@@ -1163,8 +1167,12 @@
     const vLen = Math.min(140, 56 + v.speed * 26);
     const aLen = Math.min(150, 56 + v.accel * 7);
     const fLen = Math.min(150, 50 + v.force * 4);
-    arrow(px, py, px + tangentX * vLen, py + tangentY * vLen, "#0f9fb5", "v");
-    arrow(px, py, px - radialX * aLen, py - radialY * aLen, "#d83f45", "a");
+    if (controls.showVelocity.checked) {
+      arrow(px, py, px + tangentX * vLen, py + tangentY * vLen, "#0f9fb5", "v");
+    }
+    if (controls.showAccel.checked) {
+      arrow(px, py, px - radialX * aLen, py - radialY * aLen, "#d83f45", "a");
+    }
     if (controls.showForce.checked) {
       arrow(px, py, px - radialX * fLen, py - radialY * fLen, "#d97914", "F");
     }

@@ -10,11 +10,12 @@
   - period `T`
   - playback speed
   - view fit button
-  - trail, component guides, centripetal force vector, and grid display
+  - trail, component guides, velocity vector, acceleration vector, centripetal force vector, and grid display
   - moving object type, object size, and object color
 - Radius changes keep the current meter-to-pixel scale so different radii look different for comparison.
 - The view fit button recalculates the meter-to-pixel scale for the current radius and canvas size.
 - The right side of the scene includes a vertical projection axis for connecting circular motion to simple harmonic motion.
+- Circular-motion velocity and acceleration vectors can be toggled independently.
 - The projection axis can show simple-harmonic-motion velocity and acceleration arrows.
 - Simple-harmonic-motion velocity and acceleration arrows can be toggled independently.
 - Projection velocity and acceleration arrows are scaled against their own maximum values.
