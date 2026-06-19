@@ -428,7 +428,7 @@
       <div class="stage-header">
         <div>
           <h2>同じ入射波で比較</h2>
-          <p class="lead">上段: 自由端、下段: 固定端。紫線は観測点、右端が反射端です。</p>
+          <p class="lead">上段: 自由端、下段: 固定端。紫線は観測点、中央の太線が壁です。右側は壁の奥の仮想領域です。</p>
         </div>
         <div class="legend" aria-label="凡例">
           <span class="key incident"><span class="swatch"></span>入射波</span>
@@ -440,8 +440,8 @@
         <canvas id="stage" width="1100" height="650"></canvas>
       </div>
       <div class="note">
-        初期表示は連続する正弦波です。入射波を y_i = A sin(kx - ωt)、反射波を y_r = R A sin(k(2L - x) - ωt) として描きます。
-        自由端は R = +1、固定端は R = -1 です。
+        初期表示は連続する正弦波です。x=0から入射波が進み、壁までの距離をLとします。
+        反射波は壁に到達するまでは壁の奥の仮想領域から負の向きに進む波として描きます。自由端は R = +1、固定端は R = -1 です。
       </div>
     </section>
   </div>
@@ -517,6 +517,8 @@
 
   function incidentValue(x, t, p) {
     if (p.mode === "continuous") {
+      const front = p.v * t;
+      if (x < 0 || x > Math.min(front, L)) return null;
       return p.A * Math.sin((2 * Math.PI / p.lambda) * x - (2 * Math.PI / p.period) * t);
     }
     const start = -3.2;
@@ -526,6 +528,8 @@
 
   function reflectedValue(x, t, p, R) {
     if (p.mode === "continuous") {
+      const front = 2 * L - p.v * t;
+      if (x < Math.max(0, front) || x > 2 * L) return null;
       return R * p.A * Math.sin((2 * Math.PI / p.lambda) * (2 * L - x) - (2 * Math.PI / p.period) * t);
     }
     const start = -3.2;
@@ -542,8 +546,8 @@
   }
 
   function componentValues(x, R, p) {
-    const yi = incidentValue(x, state.t, p);
-    const yr = reflectedValue(x, state.t, p, R);
+    const yi = incidentValue(x, state.t, p) ?? 0;
+    const yr = reflectedValue(x, state.t, p, R) ?? 0;
     return { yi, yr, y: yi + yr };
   }
 
@@ -624,7 +628,8 @@
     const right = x + w;
     const mid = y + h * 0.55;
     const ampScale = h * 0.19 / Math.max(1, p.A * 1.8);
-    const xScale = w / L;
+    const domainMax = p.mode === "continuous" ? 2 * L : L;
+    const xScale = w / domainMax;
     const yValue = (value) => mid - value * ampScale;
     const xValue = (value) => left + value * xScale;
 
@@ -643,23 +648,23 @@
     ctx.font = "12px system-ui, sans-serif";
     ctx.fillText(subtitle, left + 104, top + 4);
 
-    drawGrid(left, right, top + 20, bottom - 18, mid, xScale);
-    drawBoundary(right, top + 20, bottom - 18, R, color);
+    drawGrid(left, right, top + 20, bottom - 18, mid, xScale, domainMax, p.mode === "continuous");
+    drawBoundary(xValue(L), top + 20, bottom - 18, R, color);
     drawMarker(xValue(p.marker), top + 20, bottom - 18);
 
     if (els.showIncident.checked) {
-      drawWave(left, right, xScale, yValue, (xPos) => incidentValue(xPos, state.t, p), colors.incident, 2, false);
+      drawWave(left, xScale, yValue, domainMax, (xPos) => incidentValue(xPos, state.t, p), colors.incident, 2, false, { maxX: p.mode === "continuous" ? L : domainMax });
     }
     if (els.showReflected.checked) {
       const virtual = p.mode === "continuous" || els.showVirtual.checked;
-      drawWave(left, right, xScale, yValue, (xPos) => reflectedValue(xPos, state.t, p, R), colors.reflected, 2, !virtual);
+      drawWave(left, xScale, yValue, domainMax, (xPos) => reflectedValue(xPos, state.t, p, R), colors.reflected, 2, !virtual);
       if (p.mode === "pulse" && !virtual) {
-        drawWave(left, right, xScale, yValue, (xPos) => reflectedValue(xPos, state.t, p, R), colors.reflected, 1, true);
+        drawWave(left, xScale, yValue, domainMax, (xPos) => reflectedValue(xPos, state.t, p, R), colors.reflected, 1, true);
       }
     }
     if (els.showSum.checked) {
-      drawWave(left, right, xScale, yValue, (xPos) => {
-        return incidentValue(xPos, state.t, p) + reflectedValue(xPos, state.t, p, R);
+      drawWave(left, xScale, yValue, L, (xPos) => {
+        return (incidentValue(xPos, state.t, p) ?? 0) + (reflectedValue(xPos, state.t, p, R) ?? 0);
       }, colors.sum, 3, false);
     }
 
@@ -669,11 +674,19 @@
     drawPoint(xValue(p.marker), yValue(marker.y), colors.marker, `x=${p.marker.toFixed(1)}m`);
   }
 
-  function drawGrid(left, right, top, bottom, mid, xScale) {
+  function drawGrid(left, right, top, bottom, mid, xScale, domainMax, hasVirtualRegion) {
     ctx.save();
+    if (hasVirtualRegion) {
+      const wallX = left + L * xScale;
+      ctx.fillStyle = "rgba(148, 163, 184, 0.12)";
+      ctx.fillRect(wallX, top, right - wallX, bottom - top);
+      ctx.fillStyle = "#64748b";
+      ctx.font = "11px system-ui, sans-serif";
+      ctx.fillText("壁の奥（仮想領域）", wallX + 10, top + 16);
+    }
     ctx.strokeStyle = "#edf2f7";
     ctx.lineWidth = 1;
-    for (let m = 0; m <= L; m += 1) {
+    for (let m = 0; m <= domainMax; m += 1) {
       const x = left + m * xScale;
       line(x, top, x, bottom);
     }
@@ -682,7 +695,8 @@
     ctx.fillStyle = "#657083";
     ctx.font = "11px system-ui, sans-serif";
     ctx.fillText("x=0", left - 3, bottom + 13);
-    ctx.fillText("反射端 x=L", right - 66, bottom + 13);
+    ctx.fillText("壁 x=L", left + L * xScale - 24, bottom + 13);
+    if (hasVirtualRegion) ctx.fillText("x=2L", right - 28, bottom + 13);
     ctx.restore();
   }
 
@@ -718,7 +732,7 @@
     ctx.restore();
   }
 
-  function drawWave(left, right, xScale, yValue, fn, color, lineWidth, dashed) {
+  function drawWave(left, xScale, yValue, domainMax, fn, color, lineWidth, dashed, options = {}) {
     ctx.save();
     ctx.strokeStyle = color;
     ctx.globalAlpha = dashed ? 0.38 : 1;
@@ -728,11 +742,21 @@
     if (dashed) ctx.setLineDash([8, 7]);
     ctx.beginPath();
     const samples = 420;
+    const maxX = options.maxX ?? domainMax;
+    let drawing = false;
     for (let i = 0; i <= samples; i += 1) {
-      const x = (L * i) / samples;
+      const x = (maxX * i) / samples;
+      const value = fn(x);
+      if (!Number.isFinite(value)) {
+        drawing = false;
+        continue;
+      }
       const px = left + x * xScale;
-      const py = yValue(fn(x));
-      if (i === 0) ctx.moveTo(px, py);
+      const py = yValue(value);
+      if (!drawing) {
+        ctx.moveTo(px, py);
+        drawing = true;
+      }
       else ctx.lineTo(px, py);
     }
     ctx.stroke();
