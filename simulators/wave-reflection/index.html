@@ -354,8 +354,8 @@
         <div class="field">
           <label class="field-head" for="mode">波形モード</label>
           <select id="mode">
+            <option value="continuous">連続波（正弦波）</option>
             <option value="pulse">パルス波</option>
-            <option value="sine">正弦波</option>
           </select>
         </div>
 
@@ -365,7 +365,7 @@
         </div>
 
         <div class="field">
-          <div class="field-head"><label for="waveLength">波長 λ / パルス幅</label><output id="waveLengthOut">3.0 m</output></div>
+          <div class="field-head"><label id="waveLengthLabel" for="waveLength">波長 λ</label><output id="waveLengthOut">λ = 3.0 m</output></div>
           <input id="waveLength" type="range" min="1.2" max="8" step="0.1" value="3">
         </div>
 
@@ -381,7 +381,7 @@
 
         <div class="field">
           <div class="field-head"><label for="time">時刻 t</label><output id="timeOut">0.00 s</output></div>
-          <input id="time" type="range" min="0" max="16" step="0.01" value="0">
+          <input id="time" type="range" min="0" max="16" step="0.01" value="0.75">
         </div>
 
         <div class="field">
@@ -399,7 +399,7 @@
           <label><input id="showIncident" type="checkbox" checked>入射波</label>
           <label><input id="showReflected" type="checkbox" checked>反射波</label>
           <label><input id="showSum" type="checkbox" checked>合成波</label>
-          <label><input id="showVirtual" type="checkbox" checked>反射前の仮想波</label>
+          <label id="virtualToggle"><input id="showVirtual" type="checkbox" checked>パルスの仮想反射波</label>
         </div>
 
         <div class="readout-grid">
@@ -440,7 +440,7 @@
         <canvas id="stage" width="1100" height="650"></canvas>
       </div>
       <div class="note">
-        正弦波では、入射波を y_i = A sin(kx - ωt)、反射波を y_r = R A sin(k(2L - x) - ωt) として描きます。
+        初期表示は連続する正弦波です。入射波を y_i = A sin(kx - ωt)、反射波を y_r = R A sin(k(2L - x) - ωt) として描きます。
         自由端は R = +1、固定端は R = -1 です。
       </div>
     </section>
@@ -451,6 +451,7 @@
 (function () {
   const L = 12;
   const timeMax = 16;
+  const initialTime = 0.75;
   const canvas = document.querySelector("#stage");
   const ctx = canvas.getContext("2d");
 
@@ -469,7 +470,9 @@
     showReflected: document.querySelector("#showReflected"),
     showSum: document.querySelector("#showSum"),
     showVirtual: document.querySelector("#showVirtual"),
+    virtualToggle: document.querySelector("#virtualToggle"),
     amplitudeOut: document.querySelector("#amplitudeOut"),
+    waveLengthLabel: document.querySelector("#waveLengthLabel"),
     waveLengthOut: document.querySelector("#waveLengthOut"),
     periodOut: document.querySelector("#periodOut"),
     speedOut: document.querySelector("#speedOut"),
@@ -485,7 +488,7 @@
 
   const state = {
     playing: false,
-    t: 0
+    t: initialTime
   };
 
   const colors = {
@@ -513,7 +516,7 @@
   }
 
   function incidentValue(x, t, p) {
-    if (p.mode === "sine") {
+    if (p.mode === "continuous") {
       return p.A * Math.sin((2 * Math.PI / p.lambda) * x - (2 * Math.PI / p.period) * t);
     }
     const start = -3.2;
@@ -522,7 +525,7 @@
   }
 
   function reflectedValue(x, t, p, R) {
-    if (p.mode === "sine") {
+    if (p.mode === "continuous") {
       return R * p.A * Math.sin((2 * Math.PI / p.lambda) * (2 * L - x) - (2 * Math.PI / p.period) * t);
     }
     const start = -3.2;
@@ -546,8 +549,10 @@
 
   function updateLabels() {
     const p = params();
+    const isPulse = p.mode === "pulse";
     els.amplitudeOut.textContent = p.A.toFixed(2);
-    els.waveLengthOut.textContent = `${p.lambda.toFixed(1)} m`;
+    els.waveLengthLabel.textContent = isPulse ? "パルス幅" : "波長 λ";
+    els.waveLengthOut.textContent = isPulse ? `幅 = ${p.lambda.toFixed(1)} m` : `λ = ${p.lambda.toFixed(1)} m`;
     els.periodOut.textContent = `${p.period.toFixed(1)} s`;
     els.speedOut.textContent = `${p.speed.toFixed(1)}x`;
     els.timeOut.textContent = `${state.t.toFixed(2)} s`;
@@ -563,6 +568,7 @@
     els.fixedReflected.textContent = fixed.yr.toFixed(2);
     els.fixedSum.textContent = fixed.y.toFixed(2);
     els.play.textContent = state.playing ? "一時停止" : "再生";
+    els.virtualToggle.style.display = isPulse ? "inline-flex" : "none";
   }
 
   function resizeCanvas() {
@@ -645,7 +651,7 @@
       drawWave(left, right, xScale, yValue, (xPos) => incidentValue(xPos, state.t, p), colors.incident, 2, false);
     }
     if (els.showReflected.checked) {
-      const virtual = p.mode === "sine" || els.showVirtual.checked;
+      const virtual = p.mode === "continuous" || els.showVirtual.checked;
       drawWave(left, right, xScale, yValue, (xPos) => reflectedValue(xPos, state.t, p, R), colors.reflected, 2, !virtual);
       if (p.mode === "pulse" && !virtual) {
         drawWave(left, right, xScale, yValue, (xPos) => reflectedValue(xPos, state.t, p, R), colors.reflected, 1, true);
@@ -772,7 +778,7 @@
 
   function reset() {
     state.playing = false;
-    setTime(0);
+    setTime(initialTime);
   }
 
   [
