@@ -1,0 +1,831 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>自由端反射・固定端反射シミュレータ</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'/%3E">
+<link rel="stylesheet" href="../../assets/common-sim.css">
+<script src="../../assets/sim-shell.js"></script>
+<script src="../../assets/sim-clock.js"></script>
+<style>
+  :root {
+    --bg: #f4f7fb;
+    --surface: #ffffff;
+    --ink: #17202a;
+    --muted: #657083;
+    --line: #d8e0ec;
+    --panel: #eef3f9;
+    --incident: #2563eb;
+    --reflected: #d97706;
+    --sum: #111827;
+    --free: #0f9f6e;
+    --fixed: #dc2626;
+    --accent: #7c3aed;
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  html,
+  body {
+    min-height: 100%;
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  }
+
+  button,
+  input,
+  select {
+    font: inherit;
+  }
+
+  .app {
+    width: min(1240px, calc(100% - 28px));
+    margin: 0 auto;
+    padding: 18px 0 24px;
+  }
+
+  .layout {
+    display: grid;
+    grid-template-columns: minmax(280px, 340px) minmax(0, 1fr);
+    gap: 16px;
+    align-items: start;
+  }
+
+  .panel,
+  .stage-card {
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--surface);
+    box-shadow: 0 16px 42px rgba(35, 54, 86, 0.08);
+  }
+
+  .panel {
+    position: sticky;
+    top: 78px;
+    padding: 16px;
+  }
+
+  .panel h1,
+  .stage-card h2 {
+    margin: 0;
+    font-size: 16px;
+    line-height: 1.35;
+  }
+
+  .lead {
+    margin: 8px 0 0;
+    color: var(--muted);
+    font-size: 13px;
+    line-height: 1.6;
+  }
+
+  .controls {
+    display: grid;
+    gap: 14px;
+    margin-top: 16px;
+  }
+
+  .field {
+    display: grid;
+    gap: 7px;
+  }
+
+  .field-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 8px;
+    color: var(--muted);
+    font-size: 13px;
+    font-weight: 700;
+  }
+
+  .field output {
+    color: var(--ink);
+    font-variant-numeric: tabular-nums;
+  }
+
+  input[type="range"] {
+    width: 100%;
+    accent-color: var(--accent);
+  }
+
+  select {
+    width: 100%;
+    min-height: 36px;
+    padding: 6px 8px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: #fff;
+    color: var(--ink);
+  }
+
+  .actions,
+  .toggles {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .actions button {
+    min-height: 36px;
+    padding: 0 12px;
+    border: 1px solid #c8d3e4;
+    border-radius: 8px;
+    background: #fff;
+    color: var(--ink);
+    cursor: pointer;
+  }
+
+  .actions button.primary {
+    border-color: #1f5fbf;
+    background: #2364aa;
+    color: #fff;
+    font-weight: 700;
+  }
+
+  .toggles label {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 32px;
+    padding: 0 8px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: #fbfdff;
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 700;
+    user-select: none;
+  }
+
+  .readout-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 9px;
+  }
+
+  .readout {
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--panel);
+    padding: 10px;
+  }
+
+  .readout-title {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 8px;
+    font-size: 13px;
+    font-weight: 800;
+  }
+
+  .readout.free .readout-title {
+    color: var(--free);
+  }
+
+  .readout.fixed .readout-title {
+    color: var(--fixed);
+  }
+
+  .values {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px;
+  }
+
+  .value {
+    border-radius: 7px;
+    background: #fff;
+    padding: 7px;
+  }
+
+  .value span {
+    display: block;
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 700;
+  }
+
+  .value strong {
+    display: block;
+    margin-top: 3px;
+    font-size: 15px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .stage-card {
+    overflow: hidden;
+  }
+
+  .stage-header {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--line);
+    background: linear-gradient(180deg, #ffffff, #f8fbff);
+  }
+
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    align-items: center;
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 700;
+  }
+
+  .key {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+  }
+
+  .swatch {
+    width: 22px;
+    height: 3px;
+    border-radius: 999px;
+    background: currentColor;
+  }
+
+  .key.incident {
+    color: var(--incident);
+  }
+
+  .key.reflected {
+    color: var(--reflected);
+  }
+
+  .key.sum {
+    color: var(--sum);
+  }
+
+  .canvas-wrap {
+    position: relative;
+    padding: 12px;
+    background:
+      linear-gradient(rgba(35, 100, 170, 0.05) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(35, 100, 170, 0.05) 1px, transparent 1px),
+      #f8fbff;
+    background-size: 28px 28px;
+  }
+
+  canvas {
+    display: block;
+    width: 100%;
+    min-height: 480px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: #ffffff;
+  }
+
+  .note {
+    padding: 10px 16px 14px;
+    border-top: 1px solid var(--line);
+    color: var(--muted);
+    font-size: 12px;
+    line-height: 1.55;
+  }
+
+  @media (max-width: 920px) {
+    .layout {
+      grid-template-columns: 1fr;
+    }
+
+    .panel {
+      position: static;
+    }
+
+    canvas {
+      min-height: 520px;
+    }
+  }
+
+  @media (max-width: 560px) {
+    .app {
+      width: min(100% - 16px, 1240px);
+      padding-top: 10px;
+    }
+
+    .panel,
+    .stage-card {
+      border-radius: 8px;
+    }
+
+    .values {
+      grid-template-columns: 1fr;
+    }
+
+    .stage-header {
+      padding: 12px;
+    }
+
+    .canvas-wrap {
+      padding: 8px;
+    }
+  }
+</style>
+</head>
+<body>
+<script>
+  PhysicsSimShell.create({
+    title: "自由端反射・固定端反射",
+    subtitle: "入射波・反射波・合成波と境界条件の比較",
+    basePath: "../../"
+  });
+</script>
+
+<main class="app">
+  <div class="layout">
+    <section class="panel" aria-label="操作パネル">
+      <h1>波の反射</h1>
+      <p class="lead">右端で反射する波を、自由端と固定端で同じ条件のまま比較します。</p>
+
+      <div class="controls">
+        <div class="field">
+          <label class="field-head" for="mode">波形モード</label>
+          <select id="mode">
+            <option value="pulse">パルス波</option>
+            <option value="sine">正弦波</option>
+          </select>
+        </div>
+
+        <div class="field">
+          <div class="field-head"><label for="amplitude">振幅 A</label><output id="amplitudeOut">1.00</output></div>
+          <input id="amplitude" type="range" min="0.2" max="2.5" step="0.05" value="1">
+        </div>
+
+        <div class="field">
+          <div class="field-head"><label for="waveLength">波長 λ / パルス幅</label><output id="waveLengthOut">3.0 m</output></div>
+          <input id="waveLength" type="range" min="1.2" max="8" step="0.1" value="3">
+        </div>
+
+        <div class="field">
+          <div class="field-head"><label for="period">周期 T</label><output id="periodOut">3.0 s</output></div>
+          <input id="period" type="range" min="1" max="8" step="0.1" value="3">
+        </div>
+
+        <div class="field">
+          <div class="field-head"><label for="speed">再生速度</label><output id="speedOut">1.0x</output></div>
+          <input id="speed" type="range" min="0" max="3" step="0.1" value="1">
+        </div>
+
+        <div class="field">
+          <div class="field-head"><label for="time">時刻 t</label><output id="timeOut">0.00 s</output></div>
+          <input id="time" type="range" min="0" max="16" step="0.01" value="0">
+        </div>
+
+        <div class="field">
+          <div class="field-head"><label for="marker">観測点 x</label><output id="markerOut">6.0 m</output></div>
+          <input id="marker" type="range" min="0" max="12" step="0.05" value="6">
+        </div>
+
+        <div class="actions" aria-label="再生操作">
+          <button id="play" class="primary" type="button">再生</button>
+          <button id="step" type="button">1ステップ</button>
+          <button id="reset" type="button">リセット</button>
+        </div>
+
+        <div class="toggles" aria-label="表示切替">
+          <label><input id="showIncident" type="checkbox" checked>入射波</label>
+          <label><input id="showReflected" type="checkbox" checked>反射波</label>
+          <label><input id="showSum" type="checkbox" checked>合成波</label>
+          <label><input id="showVirtual" type="checkbox" checked>反射前の仮想波</label>
+        </div>
+
+        <div class="readout-grid">
+          <div class="readout free">
+            <div class="readout-title"><span>自由端</span><span>R = +1</span></div>
+            <div class="values">
+              <div class="value"><span>入射</span><strong id="freeIncident">0.00</strong></div>
+              <div class="value"><span>反射</span><strong id="freeReflected">0.00</strong></div>
+              <div class="value"><span>合成</span><strong id="freeSum">0.00</strong></div>
+            </div>
+          </div>
+
+          <div class="readout fixed">
+            <div class="readout-title"><span>固定端</span><span>R = -1</span></div>
+            <div class="values">
+              <div class="value"><span>入射</span><strong id="fixedIncident">0.00</strong></div>
+              <div class="value"><span>反射</span><strong id="fixedReflected">0.00</strong></div>
+              <div class="value"><span>合成</span><strong id="fixedSum">0.00</strong></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="stage-card" aria-label="波形表示">
+      <div class="stage-header">
+        <div>
+          <h2>同じ入射波で比較</h2>
+          <p class="lead">上段: 自由端、下段: 固定端。紫線は観測点、右端が反射端です。</p>
+        </div>
+        <div class="legend" aria-label="凡例">
+          <span class="key incident"><span class="swatch"></span>入射波</span>
+          <span class="key reflected"><span class="swatch"></span>反射波</span>
+          <span class="key sum"><span class="swatch"></span>合成波</span>
+        </div>
+      </div>
+      <div class="canvas-wrap">
+        <canvas id="stage" width="1100" height="650"></canvas>
+      </div>
+      <div class="note">
+        正弦波では、入射波を y_i = A sin(kx - ωt)、反射波を y_r = R A sin(k(2L - x) - ωt) として描きます。
+        自由端は R = +1、固定端は R = -1 です。
+      </div>
+    </section>
+  </div>
+</main>
+
+<script>
+(function () {
+  const L = 12;
+  const timeMax = 16;
+  const canvas = document.querySelector("#stage");
+  const ctx = canvas.getContext("2d");
+
+  const els = {
+    mode: document.querySelector("#mode"),
+    amplitude: document.querySelector("#amplitude"),
+    waveLength: document.querySelector("#waveLength"),
+    period: document.querySelector("#period"),
+    speed: document.querySelector("#speed"),
+    time: document.querySelector("#time"),
+    marker: document.querySelector("#marker"),
+    play: document.querySelector("#play"),
+    step: document.querySelector("#step"),
+    reset: document.querySelector("#reset"),
+    showIncident: document.querySelector("#showIncident"),
+    showReflected: document.querySelector("#showReflected"),
+    showSum: document.querySelector("#showSum"),
+    showVirtual: document.querySelector("#showVirtual"),
+    amplitudeOut: document.querySelector("#amplitudeOut"),
+    waveLengthOut: document.querySelector("#waveLengthOut"),
+    periodOut: document.querySelector("#periodOut"),
+    speedOut: document.querySelector("#speedOut"),
+    timeOut: document.querySelector("#timeOut"),
+    markerOut: document.querySelector("#markerOut"),
+    freeIncident: document.querySelector("#freeIncident"),
+    freeReflected: document.querySelector("#freeReflected"),
+    freeSum: document.querySelector("#freeSum"),
+    fixedIncident: document.querySelector("#fixedIncident"),
+    fixedReflected: document.querySelector("#fixedReflected"),
+    fixedSum: document.querySelector("#fixedSum")
+  };
+
+  const state = {
+    playing: false,
+    t: 0
+  };
+
+  const colors = {
+    incident: "#2563eb",
+    reflected: "#d97706",
+    sum: "#111827",
+    guide: "#94a3b8",
+    marker: "#7c3aed",
+    free: "#0f9f6e",
+    fixed: "#dc2626"
+  };
+
+  function params() {
+    const period = Number(els.period.value);
+    const lambda = Number(els.waveLength.value);
+    return {
+      mode: els.mode.value,
+      A: Number(els.amplitude.value),
+      lambda,
+      period,
+      speed: Number(els.speed.value),
+      marker: Number(els.marker.value),
+      v: lambda / period
+    };
+  }
+
+  function incidentValue(x, t, p) {
+    if (p.mode === "sine") {
+      return p.A * Math.sin((2 * Math.PI / p.lambda) * x - (2 * Math.PI / p.period) * t);
+    }
+    const start = -3.2;
+    const center = start + p.v * t;
+    return pulseValue(x - center, p);
+  }
+
+  function reflectedValue(x, t, p, R) {
+    if (p.mode === "sine") {
+      return R * p.A * Math.sin((2 * Math.PI / p.lambda) * (2 * L - x) - (2 * Math.PI / p.period) * t);
+    }
+    const start = -3.2;
+    const incidentCenter = start + p.v * t;
+    const reflectedCenter = 2 * L - incidentCenter;
+    return R * pulseValue(x - reflectedCenter, p);
+  }
+
+  function pulseValue(offset, p) {
+    const sigma = Math.max(0.18, p.lambda * 0.23);
+    const envelope = Math.exp(-(offset * offset) / (2 * sigma * sigma));
+    const carrier = Math.cos((2 * Math.PI * offset) / p.lambda);
+    return p.A * envelope * carrier;
+  }
+
+  function componentValues(x, R, p) {
+    const yi = incidentValue(x, state.t, p);
+    const yr = reflectedValue(x, state.t, p, R);
+    return { yi, yr, y: yi + yr };
+  }
+
+  function updateLabels() {
+    const p = params();
+    els.amplitudeOut.textContent = p.A.toFixed(2);
+    els.waveLengthOut.textContent = `${p.lambda.toFixed(1)} m`;
+    els.periodOut.textContent = `${p.period.toFixed(1)} s`;
+    els.speedOut.textContent = `${p.speed.toFixed(1)}x`;
+    els.timeOut.textContent = `${state.t.toFixed(2)} s`;
+    els.markerOut.textContent = `${p.marker.toFixed(1)} m`;
+    els.time.value = state.t.toFixed(2);
+
+    const free = componentValues(p.marker, 1, p);
+    const fixed = componentValues(p.marker, -1, p);
+    els.freeIncident.textContent = free.yi.toFixed(2);
+    els.freeReflected.textContent = free.yr.toFixed(2);
+    els.freeSum.textContent = free.y.toFixed(2);
+    els.fixedIncident.textContent = fixed.yi.toFixed(2);
+    els.fixedReflected.textContent = fixed.yr.toFixed(2);
+    els.fixedSum.textContent = fixed.y.toFixed(2);
+    els.play.textContent = state.playing ? "一時停止" : "再生";
+  }
+
+  function resizeCanvas() {
+    const rect = canvas.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+    const cssWidth = Math.max(320, Math.round(rect.width));
+    const cssHeight = Math.max(480, Math.round(rect.height));
+    const nextWidth = Math.round(cssWidth * dpr);
+    const nextHeight = Math.round(cssHeight * dpr);
+    if (canvas.width !== nextWidth || canvas.height !== nextHeight) {
+      canvas.width = nextWidth;
+      canvas.height = nextHeight;
+    }
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+
+  function draw() {
+    resizeCanvas();
+    const width = canvas.width / (window.devicePixelRatio || 1);
+    const height = canvas.height / (window.devicePixelRatio || 1);
+    const p = params();
+    ctx.clearRect(0, 0, width, height);
+    drawPanel({
+      x: 46,
+      y: 34,
+      w: width - 92,
+      h: (height - 92) / 2,
+      title: "自由端反射",
+      subtitle: "端点は上下に動く / 反射波は同位相",
+      R: 1,
+      color: colors.free,
+      p
+    });
+    drawPanel({
+      x: 46,
+      y: 58 + (height - 92) / 2,
+      w: width - 92,
+      h: (height - 92) / 2,
+      title: "固定端反射",
+      subtitle: "端点の変位は常に 0 / 反射波は逆位相",
+      R: -1,
+      color: colors.fixed,
+      p
+    });
+    updateLabels();
+  }
+
+  function drawPanel(panel) {
+    const { x, y, w, h, title, subtitle, R, color, p } = panel;
+    const top = y;
+    const bottom = y + h;
+    const left = x;
+    const right = x + w;
+    const mid = y + h * 0.55;
+    const ampScale = h * 0.19 / Math.max(1, p.A * 1.8);
+    const xScale = w / L;
+    const yValue = (value) => mid - value * ampScale;
+    const xValue = (value) => left + value * xScale;
+
+    ctx.save();
+    ctx.fillStyle = "#ffffff";
+    ctx.strokeStyle = "#d8e0ec";
+    roundRect(left - 22, top - 16, w + 44, h + 24, 8);
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+
+    ctx.fillStyle = color;
+    ctx.font = "700 15px system-ui, sans-serif";
+    ctx.fillText(title, left, top + 4);
+    ctx.fillStyle = "#657083";
+    ctx.font = "12px system-ui, sans-serif";
+    ctx.fillText(subtitle, left + 104, top + 4);
+
+    drawGrid(left, right, top + 20, bottom - 18, mid, xScale);
+    drawBoundary(right, top + 20, bottom - 18, R, color);
+    drawMarker(xValue(p.marker), top + 20, bottom - 18);
+
+    if (els.showIncident.checked) {
+      drawWave(left, right, xScale, yValue, (xPos) => incidentValue(xPos, state.t, p), colors.incident, 2, false);
+    }
+    if (els.showReflected.checked) {
+      const virtual = p.mode === "sine" || els.showVirtual.checked;
+      drawWave(left, right, xScale, yValue, (xPos) => reflectedValue(xPos, state.t, p, R), colors.reflected, 2, !virtual);
+      if (p.mode === "pulse" && !virtual) {
+        drawWave(left, right, xScale, yValue, (xPos) => reflectedValue(xPos, state.t, p, R), colors.reflected, 1, true);
+      }
+    }
+    if (els.showSum.checked) {
+      drawWave(left, right, xScale, yValue, (xPos) => {
+        return incidentValue(xPos, state.t, p) + reflectedValue(xPos, state.t, p, R);
+      }, colors.sum, 3, false);
+    }
+
+    const boundary = componentValues(L, R, p);
+    const marker = componentValues(p.marker, R, p);
+    drawPoint(xValue(L), yValue(boundary.y), color, R === 1 ? "自由端" : "固定端");
+    drawPoint(xValue(p.marker), yValue(marker.y), colors.marker, `x=${p.marker.toFixed(1)}m`);
+  }
+
+  function drawGrid(left, right, top, bottom, mid, xScale) {
+    ctx.save();
+    ctx.strokeStyle = "#edf2f7";
+    ctx.lineWidth = 1;
+    for (let m = 0; m <= L; m += 1) {
+      const x = left + m * xScale;
+      line(x, top, x, bottom);
+    }
+    ctx.strokeStyle = "#cad5e4";
+    line(left, mid, right, mid);
+    ctx.fillStyle = "#657083";
+    ctx.font = "11px system-ui, sans-serif";
+    ctx.fillText("x=0", left - 3, bottom + 13);
+    ctx.fillText("反射端 x=L", right - 66, bottom + 13);
+    ctx.restore();
+  }
+
+  function drawBoundary(x, top, bottom, R, color) {
+    ctx.save();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = R === 1 ? 4 : 6;
+    line(x, top, x, bottom);
+    if (R === -1) {
+      ctx.strokeStyle = "#fecaca";
+      ctx.lineWidth = 1.5;
+      for (let y = top + 8; y < bottom; y += 12) {
+        line(x - 9, y + 8, x, y);
+      }
+    } else {
+      ctx.fillStyle = "#d1fae5";
+      ctx.beginPath();
+      ctx.arc(x, top + 14, 8, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 2;
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  function drawMarker(x, top, bottom) {
+    ctx.save();
+    ctx.strokeStyle = "rgba(124, 58, 237, 0.65)";
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([5, 5]);
+    line(x, top, x, bottom);
+    ctx.restore();
+  }
+
+  function drawWave(left, right, xScale, yValue, fn, color, lineWidth, dashed) {
+    ctx.save();
+    ctx.strokeStyle = color;
+    ctx.globalAlpha = dashed ? 0.38 : 1;
+    ctx.lineWidth = lineWidth;
+    ctx.lineJoin = "round";
+    ctx.lineCap = "round";
+    if (dashed) ctx.setLineDash([8, 7]);
+    ctx.beginPath();
+    const samples = 420;
+    for (let i = 0; i <= samples; i += 1) {
+      const x = (L * i) / samples;
+      const px = left + x * xScale;
+      const py = yValue(fn(x));
+      if (i === 0) ctx.moveTo(px, py);
+      else ctx.lineTo(px, py);
+    }
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawPoint(x, y, color, label) {
+    ctx.save();
+    ctx.fillStyle = color;
+    ctx.strokeStyle = "#fff";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(x, y, 5.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = color;
+    ctx.font = "700 11px system-ui, sans-serif";
+    ctx.fillText(label, x + 8, y - 8);
+    ctx.restore();
+  }
+
+  function roundRect(x, y, w, h, r) {
+    ctx.beginPath();
+    ctx.moveTo(x + r, y);
+    ctx.arcTo(x + w, y, x + w, y + h, r);
+    ctx.arcTo(x + w, y + h, x, y + h, r);
+    ctx.arcTo(x, y + h, x, y, r);
+    ctx.arcTo(x, y, x + w, y, r);
+    ctx.closePath();
+  }
+
+  function line(x1, y1, x2, y2) {
+    ctx.beginPath();
+    ctx.moveTo(x1, y1);
+    ctx.lineTo(x2, y2);
+    ctx.stroke();
+  }
+
+  function setTime(value) {
+    state.t = Math.max(0, Math.min(timeMax, value));
+    draw();
+  }
+
+  function reset() {
+    state.playing = false;
+    setTime(0);
+  }
+
+  [
+    els.mode,
+    els.amplitude,
+    els.waveLength,
+    els.period,
+    els.speed,
+    els.marker,
+    els.showIncident,
+    els.showReflected,
+    els.showSum,
+    els.showVirtual
+  ].forEach((el) => el.addEventListener("input", draw));
+
+  els.time.addEventListener("input", () => {
+    state.playing = false;
+    setTime(Number(els.time.value));
+  });
+
+  els.play.addEventListener("click", () => {
+    state.playing = !state.playing;
+    draw();
+  });
+
+  els.step.addEventListener("click", () => {
+    state.playing = false;
+    setTime(state.t + 0.08);
+  });
+
+  els.reset.addEventListener("click", reset);
+
+  window.addEventListener("resize", draw);
+
+  const clock = new PhysicsSimClock.FixedStepClock({
+    step: 1 / 120,
+    onStep(dt) {
+      if (!state.playing) return;
+      const p = params();
+      state.t += dt * p.speed;
+      if (state.t >= timeMax) {
+        state.t = timeMax;
+        state.playing = false;
+      }
+    },
+    onRender() {
+      draw();
+    }
+  });
+
+  draw();
+  clock.start();
+})();
+</script>
+</body>
+</html>

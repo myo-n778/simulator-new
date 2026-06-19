@@ -339,6 +339,19 @@
     "reStatus": "リメイク版"
   },
   {
+    "id": "wave-reflection",
+    "title": "自由端反射・固定端反射",
+    "category": "波動",
+    "route": "./simulators/wave-reflection/",
+    "originalSource": "new-simulator-2026-06-19",
+    "alternateSources": [],
+    "status": "初版作成",
+    "dependencies": [],
+    "physicsModel": "1次元波の自由端反射と固定端反射、入射波、反射波、合成波、境界条件",
+    "purpose": "自由端と固定端で反射波の位相と合成波がどう変わるかを、同じ入射波で比較して確認する。",
+    "lastReviewed": "2026-06-19"
+  },
+  {
     "id": "circular-wave",
     "title": "等速円運動と正弦波",
     "category": "波動",
