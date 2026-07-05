@@ -1,0 +1,872 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ひもで描く楕円シミュレーター</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cellipse cx='32' cy='32' rx='24' ry='15' fill='none' stroke='%231d6fd1' stroke-width='6'/%3E%3Ccircle cx='22' cy='32' r='4' fill='%23182233'/%3E%3Ccircle cx='42' cy='32' r='4' fill='%23182233'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="../../assets/common-sim.css">
+<script src="../../assets/sim-shell.js"></script>
+<script src="../../assets/sim-clock.js"></script>
+<style>
+  :root {
+    --bg: #f5f7fb;
+    --surface: #ffffff;
+    --surface-2: #eef4fb;
+    --ink: #182233;
+    --muted: #607086;
+    --line: #d6dfeb;
+    --line-soft: rgba(96, 112, 134, .24);
+    --blue: #1d6fd1;
+    --cyan: #0b95a8;
+    --orange: #d77916;
+    --red: #c9353d;
+    --green: #168453;
+    --shadow: 0 14px 34px rgba(47, 83, 122, .11);
+    --radius: 8px;
+  }
+
+  * { box-sizing: border-box; }
+
+  html,
+  body {
+    margin: 0;
+    min-height: 100%;
+    background: var(--bg);
+    color: var(--ink);
+    font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Hiragino Kaku Gothic ProN", Meiryo, sans-serif;
+    font-size: 14px;
+    line-height: 1.5;
+  }
+
+  button,
+  input {
+    font: inherit;
+  }
+
+  .app {
+    width: min(1380px, calc(100% - 24px));
+    margin: 14px auto 24px;
+  }
+
+  .topbar,
+  .stage,
+  .controls,
+  .readout,
+  .note {
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--surface);
+    box-shadow: var(--shadow);
+  }
+
+  .topbar {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 12px;
+    align-items: center;
+    padding: 12px;
+    margin-bottom: 12px;
+  }
+
+  h1 {
+    margin: 0;
+    font-size: 22px;
+    line-height: 1.25;
+    letter-spacing: 0;
+  }
+
+  .subtitle {
+    margin: 4px 0 0;
+    color: var(--muted);
+    font-size: 13px;
+  }
+
+  .status {
+    min-width: 112px;
+    border: 1px solid var(--line);
+    border-radius: 999px;
+    background: var(--surface-2);
+    padding: 7px 12px;
+    color: var(--blue);
+    font-size: 13px;
+    font-weight: 800;
+    text-align: center;
+  }
+
+  .layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 360px;
+    gap: 12px;
+    align-items: start;
+  }
+
+  .stage {
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  .stage-head,
+  .controls-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    min-height: 50px;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .panel-title {
+    font-size: 14px;
+    font-weight: 900;
+  }
+
+  .formula {
+    color: var(--muted);
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+  .canvas-wrap {
+    padding: 12px;
+  }
+
+  canvas {
+    display: block;
+    width: 100%;
+    height: min(62vh, 620px);
+    min-height: 480px;
+    border: 1px solid var(--line-soft);
+    border-radius: var(--radius);
+    background: #fbfdff;
+    touch-action: none;
+  }
+
+  .scene-actions {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 8px;
+    padding: 0 12px 12px;
+  }
+
+  .action-button,
+  .small-button {
+    min-height: 38px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    background: var(--surface);
+    color: var(--ink);
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 800;
+  }
+
+  .action-button.primary {
+    border-color: #125fae;
+    background: linear-gradient(180deg, #2179d2 0%, #1762ad 100%);
+    color: #ffffff;
+  }
+
+  .action-button:hover,
+  .action-button:focus-visible,
+  .small-button:hover,
+  .small-button:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(29, 111, 209, .18);
+  }
+
+  .readout-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 8px;
+    padding: 0 12px 12px;
+  }
+
+  .readout {
+    min-width: 0;
+    padding: 9px 10px;
+    box-shadow: none;
+  }
+
+  .readout-label {
+    overflow: hidden;
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 800;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .readout-value {
+    margin-top: 2px;
+    font-size: 20px;
+    font-weight: 900;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.15;
+  }
+
+  .readout-unit {
+    color: var(--muted);
+    font-size: 12px;
+    font-weight: 700;
+  }
+
+  .side {
+    display: grid;
+    gap: 12px;
+  }
+
+  .controls {
+    overflow: hidden;
+  }
+
+  .control-body {
+    display: grid;
+    gap: 12px;
+    padding: 12px;
+  }
+
+  .control {
+    display: grid;
+    gap: 7px;
+  }
+
+  .control label {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 10px;
+    color: var(--ink);
+    font-size: 13px;
+    font-weight: 850;
+  }
+
+  .control output {
+    color: var(--blue);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+  input[type="range"] {
+    width: 100%;
+    accent-color: var(--blue);
+  }
+
+  .toggle-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .toggle {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 38px;
+    border: 1px solid var(--line);
+    border-radius: var(--radius);
+    padding: 7px 9px;
+    background: #fbfdff;
+    font-size: 13px;
+    font-weight: 750;
+  }
+
+  .toggle input {
+    width: 16px;
+    height: 16px;
+    accent-color: var(--blue);
+  }
+
+  .note {
+    padding: 12px;
+    box-shadow: none;
+  }
+
+  .note-title {
+    margin-bottom: 6px;
+    font-size: 13px;
+    font-weight: 900;
+  }
+
+  .note p {
+    margin: 0;
+    color: var(--muted);
+    font-size: 13px;
+  }
+
+  .note strong {
+    color: var(--ink);
+  }
+
+  .warning {
+    display: none;
+    border-color: rgba(201, 53, 61, .35);
+    background: #fff7f7;
+    color: var(--red);
+  }
+
+  .warning.is-visible {
+    display: block;
+  }
+
+  @media (max-width: 960px) {
+    .layout {
+      grid-template-columns: 1fr;
+    }
+
+    .side {
+      grid-template-columns: 1fr 1fr;
+    }
+  }
+
+  @media (max-width: 720px) {
+    .app {
+      width: min(100% - 16px, 1380px);
+      margin-top: 10px;
+    }
+
+    .topbar {
+      grid-template-columns: 1fr;
+    }
+
+    .status {
+      justify-self: start;
+    }
+
+    .stage-head,
+    .controls-head {
+      align-items: flex-start;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .formula {
+      white-space: normal;
+    }
+
+    canvas {
+      height: 520px;
+      min-height: 420px;
+    }
+
+    .scene-actions,
+    .readout-grid,
+    .side,
+    .toggle-grid {
+      grid-template-columns: 1fr;
+    }
+  }
+</style>
+</head>
+<body>
+<main class="app">
+  <section class="topbar" aria-labelledby="main-title">
+    <div>
+      <h1 id="main-title">ひもで描く楕円</h1>
+      <p class="subtitle">2つの焦点に輪のひもを掛け、ペンで張ったまま動かすと、距離の和が一定の軌跡になります。</p>
+    </div>
+    <div class="status" id="status">停止中</div>
+  </section>
+
+  <div class="layout">
+    <section class="stage" aria-label="楕円作図の表示">
+      <div class="stage-head">
+        <div class="panel-title">焦点・ひも・ペン先の動き</div>
+        <div class="formula">PF1 + PF2 = ひもの張った長さ = 2a</div>
+      </div>
+      <div class="canvas-wrap">
+        <canvas id="scene" width="980" height="620"></canvas>
+      </div>
+      <div class="scene-actions">
+        <button class="action-button primary" id="playButton" type="button">再生</button>
+        <button class="action-button" id="stepButton" type="button">少し進める</button>
+        <button class="action-button" id="traceButton" type="button">軌跡を描き直す</button>
+        <button class="action-button" id="resetButton" type="button">リセット</button>
+      </div>
+      <div class="readout-grid">
+        <div class="readout">
+          <div class="readout-label">PF1</div>
+          <div class="readout-value"><span id="d1Value">0.00</span> <span class="readout-unit">cm</span></div>
+        </div>
+        <div class="readout">
+          <div class="readout-label">PF2</div>
+          <div class="readout-value"><span id="d2Value">0.00</span> <span class="readout-unit">cm</span></div>
+        </div>
+        <div class="readout">
+          <div class="readout-label">距離の和</div>
+          <div class="readout-value"><span id="sumValue">0.00</span> <span class="readout-unit">cm</span></div>
+        </div>
+        <div class="readout">
+          <div class="readout-label">短半径 b</div>
+          <div class="readout-value"><span id="bValue">0.00</span> <span class="readout-unit">cm</span></div>
+        </div>
+      </div>
+    </section>
+
+    <aside class="side" aria-label="操作と説明">
+      <section class="controls">
+        <div class="controls-head">
+          <div class="panel-title">条件</div>
+          <button class="small-button" id="fitButton" type="button">画面フィット</button>
+        </div>
+        <div class="control-body">
+          <div class="control">
+            <label for="stringLength">ひもの張った長さ 2a <output id="stringOut">36.0 cm</output></label>
+            <input id="stringLength" type="range" min="20" max="56" step="0.5" value="36">
+          </div>
+          <div class="control">
+            <label for="focusDistance">焦点間距離 2c <output id="focusOut">22.0 cm</output></label>
+            <input id="focusDistance" type="range" min="0" max="42" step="0.5" value="22">
+          </div>
+          <div class="control">
+            <label for="angle">ペン先の位置 <output id="angleOut">0°</output></label>
+            <input id="angle" type="range" min="0" max="360" step="1" value="0">
+          </div>
+          <div class="control">
+            <label for="speed">再生速度 <output id="speedOut">1.0倍</output></label>
+            <input id="speed" type="range" min="0.2" max="2.4" step="0.1" value="1">
+          </div>
+          <div class="toggle-grid">
+            <label class="toggle"><input id="showTrace" type="checkbox" checked>描いた軌跡</label>
+            <label class="toggle"><input id="showGuides" type="checkbox" checked>補助線</label>
+            <label class="toggle"><input id="showEllipse" type="checkbox" checked>完成楕円</label>
+            <label class="toggle"><input id="showLoop" type="checkbox" checked>輪のひも</label>
+          </div>
+        </div>
+      </section>
+
+      <section class="note">
+        <div class="note-title">見方</div>
+        <p>ペン先をドラッグしても動かせます。どの位置でも <strong>PF1 + PF2</strong> が一定なので、描かれる点の集まりが楕円になります。</p>
+      </section>
+
+      <section class="note warning" id="warning">
+        <div class="note-title">条件の確認</div>
+        <p>焦点間距離がひもの長さに近すぎるため、焦点間距離を自動的に少し短くしました。</p>
+      </section>
+    </aside>
+  </div>
+</main>
+
+<script>
+(() => {
+  PhysicsSimShell.create({
+    title: "ひもで描く楕円",
+    subtitle: "焦点に掛けた輪のひもで、距離の和が一定になる軌跡を観察する"
+  });
+
+  const canvas = document.getElementById("scene");
+  const ctx = canvas.getContext("2d");
+  const controls = {
+    stringLength: document.getElementById("stringLength"),
+    focusDistance: document.getElementById("focusDistance"),
+    angle: document.getElementById("angle"),
+    speed: document.getElementById("speed"),
+    showTrace: document.getElementById("showTrace"),
+    showGuides: document.getElementById("showGuides"),
+    showEllipse: document.getElementById("showEllipse"),
+    showLoop: document.getElementById("showLoop")
+  };
+  const outputs = {
+    stringOut: document.getElementById("stringOut"),
+    focusOut: document.getElementById("focusOut"),
+    angleOut: document.getElementById("angleOut"),
+    speedOut: document.getElementById("speedOut"),
+    d1Value: document.getElementById("d1Value"),
+    d2Value: document.getElementById("d2Value"),
+    sumValue: document.getElementById("sumValue"),
+    bValue: document.getElementById("bValue"),
+    status: document.getElementById("status"),
+    warning: document.getElementById("warning")
+  };
+
+  const state = {
+    playing: false,
+    theta: 0,
+    traceTheta: 0,
+    scale: 18,
+    dragging: false
+  };
+
+  const clock = new PhysicsSimClock.FixedStepClock({
+    step: 1 / 60,
+    onStep(dt) {
+      if (!state.playing) return;
+      const speed = Number(controls.speed.value);
+      state.theta = wrapAngle(state.theta + dt * speed * 0.78);
+      state.traceTheta = Math.max(state.traceTheta, state.theta);
+      controls.angle.value = String(Math.round(radToDeg(state.theta)));
+      update();
+    }
+  });
+
+  function wrapAngle(theta) {
+    const full = Math.PI * 2;
+    return ((theta % full) + full) % full;
+  }
+
+  function radToDeg(theta) {
+    return wrapAngle(theta) * 180 / Math.PI;
+  }
+
+  function getParams() {
+    let length = Number(controls.stringLength.value);
+    let focusDistance = Number(controls.focusDistance.value);
+    const safeFocus = Math.max(0, length - 1);
+    let clamped = false;
+    if (focusDistance >= safeFocus) {
+      focusDistance = safeFocus;
+      controls.focusDistance.value = String(focusDistance);
+      clamped = true;
+    }
+    const a = length / 2;
+    const c = focusDistance / 2;
+    const b = Math.sqrt(Math.max(0.01, a * a - c * c));
+    return { length, focusDistance, a, b, c, clamped };
+  }
+
+  function ellipsePoint(params, theta) {
+    return {
+      x: params.a * Math.cos(theta),
+      y: params.b * Math.sin(theta)
+    };
+  }
+
+  function toCanvas(point, geom) {
+    return {
+      x: geom.cx + point.x * state.scale,
+      y: geom.cy - point.y * state.scale
+    };
+  }
+
+  function distance(p, q) {
+    return Math.hypot(p.x - q.x, p.y - q.y);
+  }
+
+  function resizeCanvas() {
+    const rect = canvas.getBoundingClientRect();
+    const ratio = window.devicePixelRatio || 1;
+    canvas.width = Math.round(rect.width * ratio);
+    canvas.height = Math.round(rect.height * ratio);
+    ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+    fitScale(false);
+  }
+
+  function fitScale(shouldDraw = true) {
+    const params = getParams();
+    const rect = canvas.getBoundingClientRect();
+    const availableW = Math.max(300, rect.width - 92);
+    const availableH = Math.max(260, rect.height - 112);
+    const stringSlackTop = 4.8;
+    state.scale = Math.min(availableW / (params.a * 2.28), availableH / ((params.b + stringSlackTop) * 2.05));
+    if (shouldDraw) update();
+  }
+
+  function getGeometry() {
+    const rect = canvas.getBoundingClientRect();
+    return {
+      width: rect.width,
+      height: rect.height,
+      cx: rect.width / 2,
+      cy: rect.height / 2 + 32
+    };
+  }
+
+  function drawGrid(geom) {
+    ctx.save();
+    ctx.strokeStyle = "rgba(141, 156, 176, .22)";
+    ctx.lineWidth = 1;
+    const spacing = state.scale * 2;
+    const startX = geom.cx % spacing;
+    const startY = geom.cy % spacing;
+    for (let x = startX; x < geom.width; x += spacing) {
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, geom.height);
+      ctx.stroke();
+    }
+    for (let y = startY; y < geom.height; y += spacing) {
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(geom.width, y);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  function drawEllipse(params, geom, maxTheta, style) {
+    const steps = 240;
+    ctx.save();
+    ctx.strokeStyle = style.color;
+    ctx.lineWidth = style.width;
+    ctx.setLineDash(style.dash || []);
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    for (let i = 0; i <= steps; i++) {
+      const theta = (maxTheta ?? Math.PI * 2) * i / steps;
+      const point = toCanvas(ellipsePoint(params, theta), geom);
+      if (i === 0) ctx.moveTo(point.x, point.y);
+      else ctx.lineTo(point.x, point.y);
+    }
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  function drawPointLabel(point, label, color, dx = 0, dy = 0) {
+    ctx.save();
+    ctx.fillStyle = color;
+    ctx.font = "800 12px system-ui, sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(label, point.x + dx, point.y + dy);
+    ctx.restore();
+  }
+
+  function drawArrow(from, to, color) {
+    const angle = Math.atan2(to.y - from.y, to.x - from.x);
+    const head = 9;
+    ctx.save();
+    ctx.strokeStyle = color;
+    ctx.fillStyle = color;
+    ctx.lineWidth = 2;
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.moveTo(from.x, from.y);
+    ctx.lineTo(to.x, to.y);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(to.x, to.y);
+    ctx.lineTo(to.x - head * Math.cos(angle - .45), to.y - head * Math.sin(angle - .45));
+    ctx.lineTo(to.x - head * Math.cos(angle + .45), to.y - head * Math.sin(angle + .45));
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
+
+  function drawScene() {
+    const params = getParams();
+    const geom = getGeometry();
+    const theta = Number(controls.angle.value) * Math.PI / 180;
+    state.theta = theta;
+    const penModel = ellipsePoint(params, theta);
+    const f1Model = { x: -params.c, y: 0 };
+    const f2Model = { x: params.c, y: 0 };
+    const pen = toCanvas(penModel, geom);
+    const f1 = toCanvas(f1Model, geom);
+    const f2 = toCanvas(f2Model, geom);
+    const d1 = distance(penModel, f1Model);
+    const d2 = distance(penModel, f2Model);
+
+    ctx.clearRect(0, 0, geom.width, geom.height);
+    drawGrid(geom);
+
+    if (controls.showGuides.checked) {
+      ctx.save();
+      ctx.strokeStyle = "rgba(96, 112, 134, .38)";
+      ctx.lineWidth = 1;
+      ctx.setLineDash([6, 6]);
+      ctx.beginPath();
+      ctx.moveTo(geom.cx - params.a * state.scale, geom.cy);
+      ctx.lineTo(geom.cx + params.a * state.scale, geom.cy);
+      ctx.moveTo(geom.cx, geom.cy - params.b * state.scale);
+      ctx.lineTo(geom.cx, geom.cy + params.b * state.scale);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    if (controls.showEllipse.checked) {
+      drawEllipse(params, geom, Math.PI * 2, { color: "rgba(29, 111, 209, .35)", width: 2, dash: [8, 7] });
+    }
+
+    if (controls.showTrace.checked) {
+      const traceLimit = state.playing ? Math.max(theta, state.traceTheta) : theta;
+      const maxTheta = Math.max(0.04, traceLimit);
+      drawEllipse(params, geom, maxTheta, { color: "#1d6fd1", width: 4 });
+    }
+
+    if (controls.showLoop.checked) {
+      ctx.save();
+      ctx.strokeStyle = "#d77916";
+      ctx.lineWidth = 5;
+      ctx.lineCap = "round";
+      ctx.lineJoin = "round";
+      ctx.beginPath();
+      ctx.moveTo(f1.x, f1.y);
+      ctx.lineTo(pen.x, pen.y);
+      ctx.lineTo(f2.x, f2.y);
+      ctx.stroke();
+      ctx.strokeStyle = "rgba(215, 121, 22, .38)";
+      ctx.lineWidth = 3;
+      ctx.setLineDash([7, 8]);
+      ctx.beginPath();
+      const topY = geom.cy - (params.b + 3.6) * state.scale;
+      ctx.moveTo(f2.x, f2.y);
+      ctx.quadraticCurveTo(geom.cx, topY, f1.x, f1.y);
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    ctx.save();
+    ctx.strokeStyle = "rgba(11, 149, 168, .6)";
+    ctx.lineWidth = 2;
+    ctx.setLineDash([5, 5]);
+    ctx.beginPath();
+    ctx.moveTo(f1.x, f1.y);
+    ctx.lineTo(pen.x, pen.y);
+    ctx.lineTo(f2.x, f2.y);
+    ctx.stroke();
+    ctx.restore();
+
+    const pullFrom = { x: pen.x, y: pen.y - 46 };
+    drawArrow(pullFrom, { x: pen.x, y: pen.y - 11 }, "#168453");
+
+    [f1, f2].forEach((focus, index) => {
+      ctx.save();
+      ctx.fillStyle = "#182233";
+      ctx.strokeStyle = "#ffffff";
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.arc(focus.x, focus.y, 8, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = "rgba(201, 53, 61, .16)";
+      ctx.beginPath();
+      ctx.arc(focus.x, focus.y, 17, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+      drawPointLabel(focus, `F${index + 1}`, "#182233", 0, 28);
+    });
+
+    ctx.save();
+    ctx.fillStyle = "#168453";
+    ctx.strokeStyle = "#ffffff";
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.arc(pen.x, pen.y, 11, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = "#182233";
+    ctx.font = "800 12px system-ui, sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText("ペン", pen.x, pen.y - 22);
+    ctx.restore();
+
+    ctx.save();
+    ctx.fillStyle = "rgba(255, 255, 255, .92)";
+    ctx.strokeStyle = "rgba(96, 112, 134, .28)";
+    ctx.lineWidth = 1;
+    roundRect(ctx, 16, 16, Math.min(330, geom.width - 32), 88, 8);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = "#182233";
+    ctx.font = "900 14px system-ui, sans-serif";
+    ctx.fillText("ひもの条件", 34, 42);
+    ctx.fillStyle = "#607086";
+    ctx.font = "700 12px system-ui, sans-serif";
+    ctx.fillText(`PF1 ${d1.toFixed(2)} cm + PF2 ${d2.toFixed(2)} cm = ${(d1 + d2).toFixed(2)} cm`, 34, 66);
+    ctx.fillText(`長半径 a = ${params.a.toFixed(2)} cm / 焦点距離 c = ${params.c.toFixed(2)} cm`, 34, 88);
+    ctx.restore();
+
+    outputs.stringOut.textContent = `${params.length.toFixed(1)} cm`;
+    outputs.focusOut.textContent = `${params.focusDistance.toFixed(1)} cm`;
+    outputs.angleOut.textContent = `${Math.round(radToDeg(theta))}°`;
+    outputs.speedOut.textContent = `${Number(controls.speed.value).toFixed(1)}倍`;
+    outputs.d1Value.textContent = d1.toFixed(2);
+    outputs.d2Value.textContent = d2.toFixed(2);
+    outputs.sumValue.textContent = (d1 + d2).toFixed(2);
+    outputs.bValue.textContent = params.b.toFixed(2);
+    outputs.warning.classList.toggle("is-visible", params.clamped);
+  }
+
+  function roundRect(context, x, y, width, height, radius) {
+    const r = Math.min(radius, width / 2, height / 2);
+    context.beginPath();
+    context.moveTo(x + r, y);
+    context.arcTo(x + width, y, x + width, y + height, r);
+    context.arcTo(x + width, y + height, x, y + height, r);
+    context.arcTo(x, y + height, x, y, r);
+    context.arcTo(x, y, x + width, y, r);
+    context.closePath();
+  }
+
+  function update() {
+    outputs.status.textContent = state.playing ? "再生中" : "停止中";
+    document.getElementById("playButton").textContent = state.playing ? "一時停止" : "再生";
+    drawScene();
+  }
+
+  function setPlaying(value) {
+    state.playing = value;
+    if (value) clock.start();
+    else clock.pause();
+    update();
+  }
+
+  function setThetaFromPointer(event) {
+    const rect = canvas.getBoundingClientRect();
+    const params = getParams();
+    const geom = getGeometry();
+    const x = (event.clientX - rect.left - geom.cx) / state.scale;
+    const y = -(event.clientY - rect.top - geom.cy) / state.scale;
+    const theta = Math.atan2(y / params.b, x / params.a);
+    state.theta = wrapAngle(theta);
+    state.traceTheta = Math.max(state.traceTheta, state.theta);
+    controls.angle.value = String(Math.round(radToDeg(state.theta)));
+    update();
+  }
+
+  document.getElementById("playButton").addEventListener("click", () => setPlaying(!state.playing));
+  document.getElementById("stepButton").addEventListener("click", () => {
+    setPlaying(false);
+    state.theta = wrapAngle(state.theta + Math.PI / 36);
+    state.traceTheta = Math.max(state.traceTheta, state.theta);
+    controls.angle.value = String(Math.round(radToDeg(state.theta)));
+    update();
+  });
+  document.getElementById("traceButton").addEventListener("click", () => {
+    state.traceTheta = Math.PI * 2;
+    update();
+  });
+  document.getElementById("resetButton").addEventListener("click", () => {
+    setPlaying(false);
+    state.theta = 0;
+    state.traceTheta = 0;
+    controls.angle.value = "0";
+    update();
+  });
+  document.getElementById("fitButton").addEventListener("click", () => fitScale(true));
+
+  Object.values(controls).forEach((control) => {
+    control.addEventListener("input", () => {
+      if (control === controls.stringLength || control === controls.focusDistance) fitScale(false);
+      if (control === controls.angle) state.theta = Number(control.value) * Math.PI / 180;
+      update();
+    });
+  });
+
+  canvas.addEventListener("pointerdown", (event) => {
+    state.dragging = true;
+    canvas.setPointerCapture(event.pointerId);
+    setPlaying(false);
+    setThetaFromPointer(event);
+  });
+  canvas.addEventListener("pointermove", (event) => {
+    if (!state.dragging) return;
+    setThetaFromPointer(event);
+  });
+  canvas.addEventListener("pointerup", () => {
+    state.dragging = false;
+  });
+  canvas.addEventListener("pointercancel", () => {
+    state.dragging = false;
+  });
+
+  window.addEventListener("resize", resizeCanvas);
+  resizeCanvas();
+  update();
+})();
+</script>
+</body>
+</html>

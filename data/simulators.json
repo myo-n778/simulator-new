@@ -60,6 +60,19 @@
     "lastReviewed": "2026-06-12"
   },
   {
+    "id": "ellipse-string",
+    "title": "ひもで描く楕円",
+    "category": "数学補助",
+    "route": "./simulators/ellipse-string/",
+    "originalSource": "new-simulator-2026-07-05",
+    "alternateSources": [],
+    "status": "初版作成",
+    "dependencies": [],
+    "physicsModel": "2焦点からの距離の和が一定となる点の軌跡、楕円の作図",
+    "purpose": "2つの焦点に掛けた輪のひもをペンで張ったまま動かすと、距離の和が一定になり楕円が描かれることを確認する。",
+    "lastReviewed": "2026-07-05"
+  },
+  {
     "id": "car-vertical-throw",
     "title": "車上鉛直投げ上げ",
     "category": "力学",
