@@ -100,7 +100,8 @@ function normalCDF(value) {
 }
 function rankFromDeviation(deviation) {
   const upperTail = 1 - normalCDF((deviation - 50) / 10);
-  return Math.max(1, Math.min(totalCompetitors, Math.round(upperTail * totalCompetitors + .5)));
+  const comparisonPopulation = Math.min(ACTUAL_EXAMINEE_COUNT, totalCompetitors);
+  return Math.max(1, Math.min(totalCompetitors, Math.round(upperTail * comparisonPopulation + .5)));
 }
 function formatRank(rank) {
   if (rank >= 1_000_000) return `${Math.round(rank / 10_000).toLocaleString()}万人`;
@@ -273,4 +274,4 @@ totalCompetitorsInput.addEventListener('change', () => {
 deviationToggle.addEventListener('change', () => { showDeviation = deviationToggle.checked; rebuildStartRankOptions(showDeviation); updateUI(); });
 resetButtons.forEach(button => button.addEventListener('click', reset));
 gradeButtons.forEach(button => button.addEventListener('click', () => { grade = Number(button.dataset.grade); gradeButtons.forEach(item => item.classList.toggle('selected', item === button)); updateUI(); }));
-rebuildStartRankOptions(false); reset(); requestAnimationFrame(tick);
+showDeviation = deviationToggle.checked; selectStartRank(rankFromDeviation(50)); rebuildStartRankOptions(showDeviation); reset(); requestAnimationFrame(tick);
