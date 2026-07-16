@@ -503,5 +503,18 @@
     "lastReviewed": "2026-06-10",
     "reRoute": "./simulators/function-graph/Remake-function-graph.html",
     "reStatus": "リメイク版"
+  },
+  {
+    "id": "reverse-belt",
+    "title": "逆走ベルト",
+    "category": "学習・受験",
+    "route": "./simulators/reverse-belt/",
+    "originalSource": "Documents/動画作成/simulator",
+    "alternateSources": [],
+    "status": "初版統合",
+    "dependencies": [],
+    "physicsModel": "相対的な位置、順位スケール、進行速度と環境変化の関係",
+    "purpose": "開始順位・全体人数・学年・自分のペースを変え、相対的な順位の変化を逆走ベルトで可視化する。",
+    "lastReviewed": "2026-07-16"
   }
 ]
