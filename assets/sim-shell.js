@@ -1,9 +1,8 @@
 (function () {
   function resolveBasePath() {
-    const script = document.currentScript;
-    const src = script?.getAttribute("src") ?? "";
-    if (!src) return "../../";
-    return new URL("../../", new URL(src, window.location.href)).pathname;
+    // The common script is under /assets/, while each simulator page is two
+    // levels below the catalog. Resolve from the page, not from this script.
+    return new URL("../../", window.location.href).pathname;
   }
 
   function createShell(options) {
