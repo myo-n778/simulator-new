@@ -1,0 +1,267 @@
+:root {
+  --lab-bg: #f4f7fb;
+  --lab-surface: #ffffff;
+  --lab-panel: #eef4fa;
+  --lab-ink: #17202a;
+  --lab-muted: #667085;
+  --lab-line: #d8e0ea;
+  --lab-accent: #2364aa;
+  --lab-accent-soft: #e8f1fb;
+  --lab-good: #087f5b;
+  --lab-warn: #b45309;
+  --lab-danger: #c2413b;
+}
+
+* { box-sizing: border-box; }
+
+html,
+body {
+  min-height: 100%;
+  margin: 0;
+  background: var(--lab-bg);
+  color: var(--lab-ink);
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "Noto Sans JP", sans-serif;
+}
+
+button,
+input,
+select { font: inherit; }
+
+.physics-lab {
+  width: min(1240px, calc(100% - 28px));
+  margin: 0 auto;
+  padding: 18px 0 30px;
+}
+
+.lab-layout {
+  display: grid;
+  grid-template-columns: minmax(270px, 330px) minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.lab-panel,
+.lab-stage,
+.lab-explanation {
+  border: 1px solid var(--lab-line);
+  border-radius: 10px;
+  background: var(--lab-surface);
+  box-shadow: 0 14px 36px rgba(35, 54, 86, 0.08);
+}
+
+.lab-panel {
+  position: sticky;
+  top: 76px;
+  padding: 16px;
+}
+
+.lab-panel h1 {
+  margin: 0;
+  font-size: 19px;
+  line-height: 1.35;
+}
+
+.lab-lead {
+  margin: 8px 0 0;
+  color: var(--lab-muted);
+  font-size: 13px;
+  line-height: 1.65;
+}
+
+.lab-controls {
+  display: grid;
+  gap: 13px;
+  margin-top: 17px;
+}
+
+.lab-field {
+  display: grid;
+  gap: 7px;
+}
+
+.lab-field-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--lab-muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.lab-field output {
+  color: var(--lab-ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.lab-field input[type="range"] {
+  width: 100%;
+  accent-color: var(--lab-accent);
+}
+
+.lab-field select {
+  width: 100%;
+  min-height: 38px;
+  padding: 6px 9px;
+  border: 1px solid var(--lab-line);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--lab-ink);
+}
+
+.lab-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.lab-actions button {
+  min-height: 38px;
+  padding: 0 13px;
+  border: 1px solid #c8d3e4;
+  border-radius: 8px;
+  background: #fff;
+  color: var(--lab-ink);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.lab-actions .primary {
+  border-color: var(--lab-accent);
+  background: var(--lab-accent);
+  color: #fff;
+}
+
+.lab-stage {
+  overflow: hidden;
+}
+
+.lab-stage-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--lab-line);
+  background: #fff;
+}
+
+.lab-stage-head h2 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.lab-stage-note {
+  color: var(--lab-muted);
+  font-size: 12px;
+  text-align: right;
+}
+
+.lab-canvas-wrap {
+  padding: 12px;
+  background: #f8fafc;
+}
+
+.lab-canvas {
+  display: block;
+  width: 100%;
+  height: min(58vh, 540px);
+  min-height: 390px;
+  border: 1px solid var(--lab-line);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.lab-readouts {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  padding: 12px;
+  border-top: 1px solid var(--lab-line);
+  background: var(--lab-panel);
+}
+
+.lab-readout {
+  min-width: 0;
+  padding: 9px 10px;
+  border: 1px solid var(--lab-line);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.lab-readout span {
+  display: block;
+  overflow: hidden;
+  color: var(--lab-muted);
+  font-size: 11px;
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.lab-readout strong {
+  display: block;
+  margin-top: 4px;
+  overflow-wrap: anywhere;
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+}
+
+.lab-explanation {
+  margin-top: 16px;
+  padding: 16px 18px;
+}
+
+.lab-explanation h2 {
+  margin: 0 0 8px;
+  font-size: 15px;
+}
+
+.lab-explanation p {
+  margin: 6px 0;
+  color: var(--lab-muted);
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.lab-formula {
+  padding: 10px 12px;
+  border-left: 4px solid var(--lab-accent);
+  border-radius: 4px;
+  background: var(--lab-accent-soft);
+  color: #173a62;
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 13px;
+  line-height: 1.7;
+  white-space: pre-wrap;
+}
+
+.lab-status {
+  min-height: 20px;
+  margin-top: 10px;
+  color: var(--lab-good);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+@media (max-width: 900px) {
+  .lab-layout { grid-template-columns: 1fr; }
+  .lab-panel { position: static; }
+  .lab-canvas { height: 480px; }
+}
+
+@media (max-width: 600px) {
+  .physics-lab { width: min(100% - 18px, 1240px); padding-top: 10px; }
+  .lab-panel { padding: 13px; }
+  .lab-stage-head { align-items: flex-start; flex-direction: column; gap: 5px; }
+  .lab-stage-note { text-align: left; }
+  .lab-canvas-wrap { padding: 7px; }
+  .lab-canvas { height: 390px; min-height: 390px; }
+  .lab-readouts { grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 8px; }
+  .lab-readout strong { font-size: 13px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { scroll-behavior: auto !important; }
+}
