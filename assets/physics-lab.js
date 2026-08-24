@@ -261,6 +261,7 @@
 
   function magneticScenario() {
     return {
+      timeRelevant: true,
       title: "磁場とローレンツ力",
       subtitle: "荷電粒子の速度、磁場、円運動",
       lead: "速度と磁場のなす角を変え、ローレンツ力の向きと円運動の半径を確かめます。",
@@ -323,6 +324,7 @@
 
   function inductionScenario() {
     return {
+      timeRelevant: true,
       title: "電磁誘導と発電機",
       subtitle: "磁束の時間変化、誘導起電力、レンツの法則",
       lead: "回転コイルの磁束と誘導起電力を同じ時刻で追い、変化率が最大のとき起電力が最大になることを確認します。",
@@ -535,6 +537,7 @@
 
   function radioactiveScenario() {
     return {
+      timeRelevant: true,
       title: "放射性崩壊と半減期",
       subtitle: "指数関数的減少、残存核数、放射能",
       lead: "初期核数、半減期、経過時間を変え、確率的崩壊の集団平均が指数関数になることを確認します。",
@@ -738,6 +741,7 @@
 
   function standingWaveScenario() {
     return {
+      timeRelevant: true,
       title: "弦の定常波",
       subtitle: "両端固定弦の固有振動、節、腹",
       lead: "弦長、張力、線密度、振動モードを変え、固有振動数と節・腹の位置を確認します。",
@@ -783,6 +787,7 @@
 
   function dopplerScenario() {
     return {
+      timeRelevant: true,
       title: "ドップラー効果",
       subtitle: "音源・観測者の運動と観測振動数",
       lead: "音源と観測者の速度を変え、波面間隔と聞こえる振動数の変化を同時に見ます。",
@@ -829,6 +834,7 @@
 
   function beatsScenario() {
     return {
+      timeRelevant: true,
       title: "うなり",
       subtitle: "近い2振動数の重ね合わせと振幅包絡線",
       lead: "2つの純音の振動数を近づけたり離したりして、うなりの回数が振動数差に一致することを確かめます。",
@@ -918,6 +924,7 @@
 
   function forceMotionScenario() {
     return {
+      timeRelevant: true,
       title: "力と運動方程式",
       subtitle: "自由物体図、合力、加速度、速度・位置",
       lead: "台車に働く力を変え、自由物体図と運動グラフを同じ時間軸で読みます。",
@@ -978,6 +985,7 @@
 
   function mechanicalEnergyScenario() {
     return {
+      timeRelevant: true,
       title: "力学的エネルギーと摩擦",
       subtitle: "位置・運動エネルギー、仕事、散逸",
       lead: "斜面を下る物体について、位置エネルギーが運動エネルギーと摩擦による熱へ移る様子を追います。",
@@ -1028,6 +1036,7 @@
   function rigidRotationScenario() {
     const factors = { disk: ["円板", .5], ring: ["輪", 1], sphere: ["球", .4], rod: ["棒（中心軸）", 1 / 12] };
     return {
+      timeRelevant: true,
       title: "剛体の回転運動",
       subtitle: "慣性モーメント、トルク、角加速度",
       lead: "同じ質量と大きさでも、質量分布によって回転しにくさが変わることを比較します。",
@@ -1079,6 +1088,7 @@
 
   function collision2DScenario() {
     return {
+      timeRelevant: true,
       title: "二次元衝突",
       subtitle: "運動量ベクトル、反発係数、衝突後速度",
       lead: "2つの球の質量、速さ、ずれ、反発係数を変え、斜め衝突でも運動量ベクトルが保存されることを確認します。",
@@ -1233,6 +1243,11 @@
       return;
     }
 
+    const timeRelevant = scenario.timeRelevant === true;
+    const actionsMarkup = timeRelevant
+      ? `<div class="lab-actions"><button class="primary" type="button" data-action="play">再生</button><button type="button" data-action="step">0.2秒進める</button><button type="button" data-action="reset">初期状態</button></div><div class="lab-status" aria-live="polite">停止中</div>`
+      : `<div class="lab-actions"><button type="button" data-action="reset">条件を初期値へ戻す</button></div><div class="lab-status" aria-live="polite">条件を変えると、図と結果が連動します。</div>`;
+
     root.className = "physics-lab";
     root.innerHTML = `
       <div class="lab-layout">
@@ -1240,12 +1255,7 @@
           <h1 id="lab-title"></h1>
           <p class="lab-lead"></p>
           <div class="lab-controls" aria-label="物理条件"></div>
-          <div class="lab-actions">
-            <button class="primary" type="button" data-action="play">再生</button>
-            <button type="button" data-action="step">0.2秒進める</button>
-            <button type="button" data-action="reset">初期状態</button>
-          </div>
-          <div class="lab-status" aria-live="polite">停止中</div>
+          ${actionsMarkup}
         </section>
         <section class="lab-stage" aria-labelledby="stage-title">
           <div class="lab-stage-head"><h2 id="stage-title">現象の可視化</h2><div class="lab-stage-note"></div></div>
@@ -1292,7 +1302,12 @@
         state[control.key] = control.type === "range" ? Number(input.value) : input.value;
         output.value = control.type === "range" ? `${fmt(Number(input.value), 2)}${control.unit}` : input.options[input.selectedIndex].textContent;
       };
-      input.addEventListener("input", updateControl); input.addEventListener("change", updateControl); updateControl();
+      const handleControl = () => {
+        updateControl();
+        if (!timeRelevant) status.textContent = "条件を更新しました。図と結果を見比べてください。";
+        render();
+      };
+      input.addEventListener("input", handleControl); input.addEventListener("change", handleControl); updateControl();
     });
 
     const canvas = root.querySelector("canvas");
@@ -1301,7 +1316,7 @@
     const readouts = root.querySelector(".lab-readouts");
     const playButton = root.querySelector('[data-action="play"]');
     const status = root.querySelector(".lab-status");
-    let running = false, time = 0, last = performance.now();
+    let running = false, physicsTime = 0, visualTime = 0, last = performance.now();
 
     function reset() {
       scenario.controls.forEach(control => {
@@ -1309,15 +1324,19 @@
         item.input.value = String(control.value);
         item.input.dispatchEvent(new Event("input"));
       });
-      running = false; time = 0; playButton.textContent = "再生"; status.textContent = "初期状態に戻しました";
+      running = false; physicsTime = 0;
+      if (playButton) playButton.textContent = "再生";
+      status.textContent = timeRelevant ? "初期状態に戻しました" : "初期条件に戻しました。";
     }
 
-    playButton.addEventListener("click", () => {
-      running = !running;
-      playButton.textContent = running ? "一時停止" : "再生";
-      status.textContent = running ? "再生中" : "停止中";
-    });
-    root.querySelector('[data-action="step"]').addEventListener("click", () => { running = false; time += .2; playButton.textContent = "再生"; status.textContent = `時刻 ${fmt(time)} s`; });
+    if (timeRelevant) {
+      playButton.addEventListener("click", () => {
+        running = !running;
+        playButton.textContent = running ? "一時停止" : "再生";
+        status.textContent = running ? "再生中" : "停止中";
+      });
+      root.querySelector('[data-action="step"]').addEventListener("click", () => { running = false; physicsTime += .2; playButton.textContent = "再生"; status.textContent = `時刻 ${fmt(physicsTime)} s`; render(); });
+    }
     root.querySelector('[data-action="reset"]').addEventListener("click", reset);
 
     function fitCanvas() {
@@ -1332,22 +1351,30 @@
       return { width, height };
     }
 
-    function render(now) {
-      const delta = Math.min(.05, Math.max(0, (now - last) / 1000)); last = now;
-      if (running) time += delta;
-      const result = scenario.calc(state, time);
+    function render() {
+      const displayTime = timeRelevant ? physicsTime : visualTime;
+      const result = scenario.calc(state, displayTime);
       const size = fitCanvas();
-      scenario.draw(ctx, size.width, size.height, state, time, result);
+      scenario.draw(ctx, size.width, size.height, state, displayTime, result);
       readouts.replaceChildren(...result.metrics.map(item => {
         const box = document.createElement("div"); box.className = "lab-readout";
         const name = document.createElement("span"); name.textContent = item.label;
         const value = document.createElement("strong"); value.textContent = item.value;
         box.append(name, value); return box;
       }));
-      requestAnimationFrame(render);
     }
 
-    requestAnimationFrame(render);
+    function animate(now) {
+      const delta = Math.min(.05, Math.max(0, (now - last) / 1000));
+      last = now;
+      visualTime += delta;
+      if (running) physicsTime += delta;
+      if (!timeRelevant || running) render();
+      requestAnimationFrame(animate);
+    }
+
+    reset();
+    requestAnimationFrame(animate);
   }
 
   launch();

@@ -167,6 +167,7 @@
   function bars(parts = {}) { return { kind: "bars", ...parts }; }
 
   add("air-resistance", {
+    timeRelevant: true,
     title: "空気抵抗と終端速度", subtitle: "抗力を受ける落下速度と終端速度", lead: "速度に比例する空気抵抗を受ける物体について、速度が一定値へ近づく過程を追います。",
     formula: "m dv/dt = mg − bv\nv(t) = v∞(1−e^(−t/τ))\nv∞ = mg/b,  τ = m/b", focus: "加速度が0になるのは重力と空気抵抗がつり合ったときです。",
     controls: [range("mass", "質量 m", .1, 10, .1, 2, " kg"), range("drag", "抗力係数 b", .1, 8, .1, 1.5, " N·s/m"), range("time", "観察時間", 1, 30, .5, 12, " s")],
@@ -179,6 +180,7 @@
   });
 
   add("coupled-pulley-dynamics", {
+    timeRelevant: true,
     title: "連結物体と滑車の運動", subtitle: "アトウッドの装置の加速度と張力", lead: "軽い糸と摩擦のない滑車でつながれた2物体の運動を、2本の運動方程式から調べます。",
     formula: "m₂g−T = m₂a\nT−m₁g = m₁a\na = (m₂−m₁)g/(m₁+m₂)", focus: "2物体の加速度の大きさは、伸びない糸の条件により等しくなります。",
     controls: [range("m1", "左の質量 m₁", .5, 10, .5, 3, " kg"), range("m2", "右の質量 m₂", .5, 10, .5, 6, " kg"), range("height", "移動可能距離", .5, 3, .1, 1.5, " m")],
@@ -190,6 +192,7 @@
   });
 
   add("conical-pendulum", {
+    timeRelevant: true,
     title: "円錐振り子", subtitle: "張力の成分と水平円運動", lead: "糸が鉛直となす角度を変え、張力の鉛直成分と水平成分の役割を分けて考えます。",
     formula: "T cosθ = mg\nT sinθ = mω²r\nr = L sinθ,  ω = √(g/(L cosθ))", focus: "高さ方向はつり合い、水平方向の合力は向心力になります。",
     controls: [range("mass", "質量 m", .1, 5, .1, 1, " kg"), range("length", "糸の長さ L", .3, 3, .1, 1.2, " m"), range("angle", "鉛直からの角度 θ", 5, 70, 1, 35, "°")],
@@ -259,6 +262,7 @@
   });
 
   add("kepler-orbit", {
+    timeRelevant: true,
     title: "ケプラー運動と人工衛星", subtitle: "楕円軌道・速度・面積速度", lead: "軌道の長半径と離心率を変え、中心天体からの距離と速度の変化を追います。",
     formula: "r = a(1−e²)/(1+e cosν)\nv² = μ(2/r−1/a)\nT² ∝ a³", focus: "近日点では速く、遠日点では遅くても、面積速度は一定です。",
     controls: [range("axis", "長半径 a", .5, 5, .1, 1.5, " AU"), range("ecc", "離心率 e", 0, .85, .05, .45, ""), range("anomaly", "真近点角 ν", 0, 360, 2, 45, "°")],
@@ -282,6 +286,7 @@
   });
 
   add("newton-cooling", {
+    timeRelevant: true,
     title: "ニュートンの冷却則", subtitle: "温度差の指数関数的減少", lead: "物体と周囲の温度差に比例して熱が逃げるモデルを観察します。",
     formula: "dT/dt = −k(T−Ta)\nT = Ta + (T₀−Ta)e^(−kt)", focus: "一定時間ごとに、周囲温度との差が同じ割合だけ小さくなります。",
     controls: [range("initial", "初期温度 T₀", 30, 150, 5, 90, " ℃"), range("ambient", "周囲温度 Ta", -10, 35, 1, 20, " ℃"), range("rate", "冷却定数 k", .02, .5, .01, .12, " s⁻¹"), range("time", "表示時間", 5, 60, 1, 30, " s")],
@@ -325,6 +330,7 @@
   });
 
   add("brownian-diffusion", {
+    timeRelevant: true,
     title: "ブラウン運動と拡散", subtitle: "熱運動と平均二乗変位", lead: "液体分子の熱運動による微粒子の不規則運動を、拡散係数と結び付けます。",
     formula: "D = kBT/(6πηr)\n2次元：⟨r²⟩ = 4Dt", focus: "個々の軌跡は予測できなくても、平均二乗変位には規則性があります。",
     controls: [range("temperature", "温度 T", 250, 400, 5, 300, " K"), range("radius", "粒子半径 r", .05, 2, .05, .5, " μm"), range("viscosity", "粘性率 η", .2, 5, .1, 1, " mPa·s"), range("time", "観察時間", 1, 60, 1, 20, " s")],
@@ -419,6 +425,7 @@
   });
 
   add("wave-packet", {
+    timeRelevant: true,
     title: "波束と群速度", subtitle: "位相速度と包絡線の移動", lead: "近い波数をもつ2つの波を重ね、細かい波と包絡線が異なる速度で進む様子を観察します。",
     formula: "y = cos(k₁x−ω₁t)+cos(k₂x−ω₂t)\nvₚ=ω/k,  v_g=Δω/Δk", focus: "情報やエネルギーのまとまりは、一般に群速度で移動します。",
     controls: [range("k1", "波数 k₁", 2, 20, .5, 8, " rad/m"), range("k2", "波数 k₂", 2.5, 22, .5, 10, " rad/m"), range("speed", "基準速度 c", .2, 5, .1, 1.5, " m/s"), range("dispersion", "分散係数 β", 0, .3, .01, .08, " m²/s")],
@@ -431,6 +438,7 @@
   });
 
   add("wave-transmission", {
+    timeRelevant: true,
     title: "境界面での反射と透過", subtitle: "波のインピーダンスとエネルギー分配", lead: "異なる波動インピーダンスをもつ媒質の境界で、反射波と透過波を比較します。",
     formula: "r = (Z₁−Z₂)/(Z₁+Z₂)\nR = r²\nT = 4Z₁Z₂/(Z₁+Z₂)²", focus: "反射振幅の符号は位相反転を表し、エネルギーではR+T=1になります。",
     controls: [range("z1", "媒質1のZ₁", .2, 10, .1, 2, ""), range("z2", "媒質2のZ₂", .2, 10, .1, 6, ""), range("amplitude", "入射振幅", .2, 1, .05, .8, "")],
@@ -444,6 +452,7 @@
   });
 
   add("rc-circuit", {
+    timeRelevant: true,
     title: "RC回路の充電と放電", subtitle: "コンデンサー電圧・電流・時定数", lead: "抵抗とコンデンサーを直列につなぎ、スイッチ操作後の指数関数的変化を追います。",
     formula: "τ = RC\n充電：VC=V(1−e^(−t/τ)), I=(V/R)e^(−t/τ)\n放電：VC=V₀e^(−t/τ)", focus: "1時定数後には充電で約63%、放電で約37%になります。",
     controls: [select("mode","動作","charge",[["charge","充電"],["discharge","放電"]]),range("voltage","電源／初期電圧",1,24,.5,12," V"),range("resistance","抵抗 R",1,200,1,50," kΩ"),range("capacitance","容量 C",1,500,1,100," μF"),range("ratio","時刻 t/τ",0,5,.1,1,"")],
@@ -451,6 +460,7 @@
   });
 
   add("lr-circuit", {
+    timeRelevant: true,
     title: "LR回路と自己誘導", subtitle: "コイル電流と逆起電力", lead: "抵抗とコイルを直列につなぎ、スイッチ投入後に電流がゆっくり増える様子を調べます。",
     formula: "τ = L/R\nI = (V/R)(1−e^(−t/τ))\nVL = Ve^(−t/τ)", focus: "自己誘導起電力は電流の変化を妨げ、定常状態では0になります。",
     controls:[range("voltage","電源電圧",1,48,1,12," V"),range("resistance","抵抗 R",1,100,1,20," Ω"),range("inductance","自己インダクタンス L",10,2000,10,500," mH"),range("ratio","時刻 t/τ",0,5,.1,1,"")],
@@ -479,6 +489,7 @@
   });
 
   add("motional-emf", {
+    timeRelevant: true,
     title:"導体棒の電磁誘導",subtitle:"運動起電力・誘導電流・磁気抵抗力",lead:"一様磁場中のレール上を導体棒が動くときの起電力と力を求めます。",
     formula:"e = BLv\nI = e/R\nF = BIL\nP機械 = Pジュール",focus:"誘導電流による力は運動を妨げる向きに働きます。",
     controls:[range("field","磁束密度 B",.05,2,.05,.5," T"),range("length","棒の長さ L",.1,2,.1,.8," m"),range("speed","棒の速さ v",.1,20,.1,5," m/s"),range("resistance","回路抵抗 R",.1,20,.1,4," Ω")],
@@ -500,6 +511,7 @@
   });
 
   add("cyclotron", {
+    timeRelevant: true,
     title:"サイクロトロン",subtitle:"高周波加速とらせん状軌道",lead:"荷電粒子がD形電極のすき間を通るたびに加速され、軌道半径が広がる様子を追います。",
     formula:"f = qB/(2πm)\nr = mv/(qB)\nKmax = q²B²R²/(2m)",focus:"非相対論的範囲では回転周期が速さによらないため、一定周波数で加速できます。",
     controls:[range("mass","粒子質量",1,20,.5,2," u"),range("charge","電荷数",1,3,1,1," e"),range("field","磁束密度 B",.1,3,.1,1," T"),range("radius","電極半径 R",.1,2,.1,.6," m"),range("gapVoltage","すき間電圧",100,10000,100,1000," V")],
@@ -563,6 +575,7 @@
   });
 
   add("fission-chain-reaction", {
+    timeRelevant: true,
     title:"核分裂連鎖反応",subtitle:"中性子増倍率と臨界",lead:"1世代の中性子が次世代に何個の核分裂を起こすかを増倍率kで表します。",
     formula:"Nₙ = N₀kⁿ\nk<1：未臨界, k=1：臨界, k>1：超臨界",focus:"制御棒は余分な中性子を吸収し、実効増倍率を1付近に保ちます。",
     controls:[range("initial","初期中性子数 N₀",1,20,1,4," 個"),range("factor","増倍率 k",.3,1.6,.05,1,""),range("generations","世代数",1,20,1,10," 世代")],
@@ -597,14 +610,18 @@
     `;
     document.head.append(style);
 
+    const timeRelevant = scenario.timeRelevant === true;
+    const actionsMarkup = timeRelevant
+      ? `<div class="lab-actions"><button class="primary" type="button" data-action="play">再生</button><button type="button" data-action="step">0.2秒進める</button><button type="button" data-action="reset">初期状態</button></div><div class="lab-status" aria-live="polite">停止中</div>`
+      : `<div class="lab-actions"><button type="button" data-action="reset">条件を初期値へ戻す</button></div><div class="lab-status" aria-live="polite">条件を変えると、図と結果が連動します。</div>`;
+
     root.className = "physics-lab";
     root.innerHTML = `
       <div class="lab-layout">
         <section class="lab-panel" aria-labelledby="lab-title">
           <h1 id="lab-title"></h1><p class="lab-lead"></p>
           <div class="lab-controls" aria-label="物理条件"></div>
-          <div class="lab-actions"><button class="primary" type="button" data-action="play">再生</button><button type="button" data-action="step">0.2秒進める</button><button type="button" data-action="reset">初期状態</button></div>
-          <div class="lab-status" aria-live="polite">停止中</div>
+          ${actionsMarkup}
         </section>
         <section class="lab-stage" aria-labelledby="stage-title">
           <div class="lab-stage-head"><div><h2 id="stage-title">現象の可視化</h2><div class="lab-stage-note"></div></div><div class="lab-view-tools" aria-label="表示倍率"><button type="button" data-fit>自動</button><button type="button" data-zoom-out aria-label="縮小">−</button><output data-zoom-label>100%</output><button type="button" data-zoom-in aria-label="拡大">＋</button></div></div>
@@ -640,6 +657,7 @@
       inputs.set(control.key, { input, output, control });
       input.addEventListener("input", () => {
         state[control.key] = control.type === "range" ? Number(input.value) : input.value;
+        if (!timeRelevant) status.textContent = "条件を更新しました。図と結果を見比べてください。";
         updateOutputs(); render();
       });
     }
@@ -650,7 +668,7 @@
     const playButton = root.querySelector("[data-action=play]");
     const status = root.querySelector(".lab-status");
     const zoomLabel = root.querySelector("[data-zoom-label]");
-    let playing = false, elapsed = 0, lastFrame = performance.now(), metricSignature = "";
+    let playing = false, elapsed = 0, visualTime = 0, lastFrame = performance.now(), metricSignature = "";
     const view = { zoom: 1, panX: 0, panY: 0, auto: true, dragging: false, pointerX: 0, pointerY: 0 };
 
     function updateOutputs() {
@@ -696,7 +714,7 @@
 
     function render() {
       const size = ensureCanvas();
-      const result = scenario.calc(state, elapsed);
+      const result = scenario.calc(state, timeRelevant ? elapsed : visualTime);
       updateMetrics(result.metrics);
       ctx.setTransform(size.dpr, 0, 0, size.dpr, 0, 0);
       ctx.clearRect(0, 0, size.width, size.height);
@@ -711,13 +729,17 @@
     }
 
     function reset() {
-      playing = false; elapsed = 0; playButton.textContent = "再生"; status.textContent = "停止中";
+      playing = false; elapsed = 0;
+      if (playButton) playButton.textContent = "再生";
+      status.textContent = timeRelevant ? "停止中" : "初期条件に戻しました。";
       for (const { input, control } of inputs.values()) { input.value = control.value; state[control.key] = control.type === "range" ? Number(control.value) : control.value; }
       updateOutputs(); setZoom(1, true); render();
     }
 
-    playButton.addEventListener("click", () => { playing = !playing; playButton.textContent = playing ? "一時停止" : "再生"; status.textContent = playing ? "再生中" : "停止中"; lastFrame = performance.now(); });
-    root.querySelector("[data-action=step]").addEventListener("click", () => { elapsed += .2; render(); });
+    if (timeRelevant) {
+      playButton.addEventListener("click", () => { playing = !playing; playButton.textContent = playing ? "一時停止" : "再生"; status.textContent = playing ? "再生中" : "停止中"; lastFrame = performance.now(); });
+      root.querySelector("[data-action=step]").addEventListener("click", () => { playing = false; elapsed += .2; playButton.textContent = "再生"; status.textContent = `時刻 ${fmt(elapsed)} s`; render(); });
+    }
     root.querySelector("[data-action=reset]").addEventListener("click", reset);
     root.querySelector("[data-fit]").addEventListener("click", () => setZoom(1, true));
     root.querySelector("[data-zoom-in]").addEventListener("click", () => setZoom(view.zoom + .25));
@@ -735,7 +757,10 @@
     });
 
     function animate(now) {
-      if (playing) { elapsed += Math.min(.05, (now - lastFrame) / 1000); render(); }
+      const delta = Math.min(.05, Math.max(0, (now - lastFrame) / 1000));
+      visualTime += delta;
+      if (playing) { elapsed += delta; }
+      if (!timeRelevant || playing) render();
       lastFrame = now; requestAnimationFrame(animate);
     }
     updateOutputs(); reset(); requestAnimationFrame(animate);
