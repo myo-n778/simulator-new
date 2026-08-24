@@ -832,38 +832,49 @@
         const observerMeter = observerStart + observerDirection * s.observerSpeed * sceneT;
         const sourceX = toX(sourceMeter), observerX = toX(observerMeter);
         const sourceAt = emitted => sourceStart + sourceDirection * s.sourceSpeed * emitted;
-        const crestPeriod = 1 / s.frequency;
+        // 実音は毎秒数百波面で、すべて描けば間隔を読めない。
+        // 同位相の3周期ごとの波面だけを示すことで、前後の間隔比は保ったまま読み取れる大きさにする。
+        const displayedCycles = 3;
+        const representativePeriod = displayedCycles / s.frequency;
         const oldestEmission = Math.max(0, sceneT - Math.min(.09, cycle));
-        const firstCrest = Math.ceil(oldestEmission / crestPeriod);
+        const firstWave = Math.ceil(oldestEmission / representativePeriod);
         let closestArrival = Infinity;
 
         ctx.strokeStyle = "#98a2b3"; ctx.lineWidth = 2;
         ctx.beginPath(); ctx.moveTo(left, cy); ctx.lineTo(right, cy); ctx.stroke();
-        label(ctx, "音の進行を横から見た図", left, 28, "#667085", 12, "left");
+        label(ctx, "音の進行の横断面（波面の位置）", left, 28, "#667085", 12, "left");
+        label(ctx, `青線は${displayedCycles}周期ごとの代表波面（間の${displayedCycles - 1}波は省略）`, right, 28, "#667085", 12, "right");
 
-        // 各円は「その時点の音源位置」から出た同じ位相の波面。中心を固定しないので、前後の波長差が現れる。
-        for (let crest = firstCrest; crest <= Math.floor(sceneT / crestPeriod); crest++) {
-          const emitted = crest * crestPeriod;
+        // 各青線は、同位相の代表波面が中央の横断面を通る位置。
+        // 発音時点の音源位置を使うため、進行方向では3λ前、反対側では3λ後の間隔になる。
+        for (let wave = firstWave; wave <= Math.floor(sceneT / representativePeriod); wave++) {
+          const emitted = wave * representativePeriod;
           const age = sceneT - emitted;
           const radius = s.sound * age * pixelsPerMeter;
           if (radius < 2) continue;
           const originX = toX(sourceAt(emitted));
-          ctx.strokeStyle = "rgba(35,100,170,.40)"; ctx.lineWidth = 1.35;
-          ctx.beginPath(); ctx.arc(originX, cy, radius, 0, TAU); ctx.stroke();
+          const forwardX = originX + radius, backwardX = originX - radius;
+          ctx.strokeStyle = "rgba(35,100,170,.72)"; ctx.lineWidth = 2.4;
+          if (forwardX >= left && forwardX <= right) {
+            ctx.beginPath(); ctx.moveTo(forwardX, cy - 58); ctx.lineTo(forwardX, cy + 58); ctx.stroke();
+          }
+          if (backwardX >= left && backwardX <= right) {
+            ctx.beginPath(); ctx.moveTo(backwardX, cy - 58); ctx.lineTo(backwardX, cy + 58); ctx.stroke();
+          }
           const separation = Math.abs(observerMeter - sourceAt(emitted));
           closestArrival = Math.min(closestArrival, Math.abs(separation - s.sound * age));
         }
 
         const towardObserver = observerMeter > sourceMeter ? 1 : -1;
-        const frontLambda = r.frontWave * pixelsPerMeter;
-        const backLambda = r.backWave * pixelsPerMeter;
+        const frontLambda = r.frontWave * displayedCycles * pixelsPerMeter;
+        const backLambda = r.backWave * displayedCycles * pixelsPerMeter;
         const frontY = cy - 76, backY = cy + 82;
         arrow(ctx, sourceX + 10 * towardObserver, frontY, sourceX + 10 * towardObserver + towardObserver * frontLambda, frontY, "#2364aa", 2);
-        label(ctx, `観測者側の波長 λ = ${fmt(towardObserver > 0 ? r.frontWave : r.backWave)} m`, sourceX + towardObserver * (frontLambda / 2 + 10), frontY - 10, "#2364aa", 12, "center");
+        label(ctx, `観測者側：${displayedCycles}λ = ${fmt((towardObserver > 0 ? r.frontWave : r.backWave) * displayedCycles)} m`, sourceX + towardObserver * (frontLambda / 2 + 10), frontY - 10, "#2364aa", 12, "center");
         arrow(ctx, sourceX - 10 * towardObserver, backY, sourceX - 10 * towardObserver - towardObserver * backLambda, backY, "#64748b", 2);
-        label(ctx, `反対側 λ = ${fmt(towardObserver > 0 ? r.backWave : r.frontWave)} m`, sourceX - towardObserver * (backLambda / 2 + 10), backY + 19, "#64748b", 12, "center");
+        label(ctx, `反対側：${displayedCycles}λ = ${fmt((towardObserver > 0 ? r.backWave : r.frontWave) * displayedCycles)} m`, sourceX - towardObserver * (backLambda / 2 + 10), backY + 19, "#64748b", 12, "center");
 
-        const arrivalThreshold = Math.max(.42, s.sound * .0045);
+        const arrivalThreshold = clamp(s.sound * representativePeriod * .12, .16, .45);
         const received = closestArrival < arrivalThreshold;
         if (received) {
           const pulse = 18 + (closestArrival / arrivalThreshold) * 20;
