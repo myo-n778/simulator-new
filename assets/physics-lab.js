@@ -789,10 +789,10 @@
     return {
       timeRelevant: true,
       title: "ドップラー効果",
-      subtitle: "音源・観測者の運動と観測振動数",
-      lead: "音源と観測者の速度を変え、波面間隔と聞こえる振動数の変化を同時に見ます。",
+      subtitle: "動く音源・動く観測者・波面の受信",
+      lead: "音源が出した波面が広がり、動く観測者に届くまでを追います。波面の間隔と受信の回数から、聞こえる高さの変化を読み取ります。",
       formula: "接近：f′ = f(v+vO)/(v−vS)\n遠ざかる：f′ = f(v−vO)/(v+vS)",
-      focus: "音源の前方では波長が短く、後方では長くなることを波面で確認します。",
+      focus: "音源の移動方向では波面が詰まり、反対側では広がります。緑の受信パルスが観測者に重なる回数が、観測振動数に対応します。",
       controls: [
         select("motion", "相対運動", "approach", [["approach", "互いに接近"], ["recede", "互いに遠ざかる"]]),
         range("frequency", "音源振動数", 200, 1000, 10, 440, " Hz"),
@@ -814,20 +814,78 @@
       },
       draw(ctx, w, h, s, t, r) {
         clearStage(ctx, w, h, "#fbfdff");
-        const cy = h / 2, sourceX = w * .37 + Math.sin(t * .3) * 20;
-        const spacingFront = clamp(r.frontWave * 180, 18, 70);
-        const spacingBack = clamp(r.backWave * 180, 20, 85);
-        ctx.strokeStyle = "rgba(35,100,170,.55)"; ctx.lineWidth = 2;
-        for (let i = 1; i < 8; i++) {
-          ctx.beginPath(); ctx.arc(sourceX, cy, i * spacingFront + (t * 25 % spacingFront), -Math.PI / 2, Math.PI / 2); ctx.stroke();
-          ctx.beginPath(); ctx.arc(sourceX, cy, i * spacingBack + (t * 25 % spacingBack), Math.PI / 2, Math.PI * 1.5); ctx.stroke();
+        const cy = h * .56, left = 34, right = w - 34, pixelsPerMeter = Math.min(27, (right - left) / 19);
+        const toX = meters => left + meters * pixelsPerMeter;
+        const approaching = s.motion === "approach";
+        // 描画は実時間をスローモーション化する。速度・波長・受信の比は物理量のまま保持する。
+        const sceneScale = .045;
+        const sourceStart = approaching ? 5.2 : 12.8;
+        const observerStart = approaching ? 14.8 : 6.2;
+        const sourceDirection = 1;
+        const observerDirection = -1;
+        const available = approaching
+          ? (observerStart - sourceStart) / Math.max(1, s.sourceSpeed + s.observerSpeed) * .82
+          : Math.min((18.3 - sourceStart) / Math.max(1, s.sourceSpeed), observerStart / Math.max(1, s.observerSpeed)) * .82;
+        const cycle = clamp(available, .06, .28);
+        const sceneT = (t * sceneScale) % cycle;
+        const sourceMeter = sourceStart + sourceDirection * s.sourceSpeed * sceneT;
+        const observerMeter = observerStart + observerDirection * s.observerSpeed * sceneT;
+        const sourceX = toX(sourceMeter), observerX = toX(observerMeter);
+        const sourceAt = emitted => sourceStart + sourceDirection * s.sourceSpeed * emitted;
+        const crestPeriod = 1 / s.frequency;
+        const oldestEmission = Math.max(0, sceneT - Math.min(.09, cycle));
+        const firstCrest = Math.ceil(oldestEmission / crestPeriod);
+        let closestArrival = Infinity;
+
+        ctx.strokeStyle = "#98a2b3"; ctx.lineWidth = 2;
+        ctx.beginPath(); ctx.moveTo(left, cy); ctx.lineTo(right, cy); ctx.stroke();
+        label(ctx, "音の進行を横から見た図", left, 28, "#667085", 12, "left");
+
+        // 各円は「その時点の音源位置」から出た同じ位相の波面。中心を固定しないので、前後の波長差が現れる。
+        for (let crest = firstCrest; crest <= Math.floor(sceneT / crestPeriod); crest++) {
+          const emitted = crest * crestPeriod;
+          const age = sceneT - emitted;
+          const radius = s.sound * age * pixelsPerMeter;
+          if (radius < 2) continue;
+          const originX = toX(sourceAt(emitted));
+          ctx.strokeStyle = "rgba(35,100,170,.40)"; ctx.lineWidth = 1.35;
+          ctx.beginPath(); ctx.arc(originX, cy, radius, 0, TAU); ctx.stroke();
+          const separation = Math.abs(observerMeter - sourceAt(emitted));
+          closestArrival = Math.min(closestArrival, Math.abs(separation - s.sound * age));
         }
-        dot(ctx, sourceX, cy, 20, "#dc4c45"); label(ctx, "音源", sourceX, cy + 37, "#344054", 13, "center");
-        const observerX = s.motion === "approach" ? w * .82 : w * .12;
-        ctx.fillStyle = "#087f5b"; ctx.fillRect(observerX - 10, cy - 24, 20, 48); dot(ctx, observerX, cy - 38, 11, "#087f5b");
-        label(ctx, "観測者", observerX, cy + 43, "#344054", 13, "center");
-        arrow(ctx, sourceX - 50, cy - 80, sourceX + (s.motion === "approach" ? 35 : -35), cy - 80, "#dc4c45", 3);
-        label(ctx, `${fmt(r.observed)} Hz`, w / 2, 48, "#7c3aed", 18, "center");
+
+        const towardObserver = observerMeter > sourceMeter ? 1 : -1;
+        const frontLambda = r.frontWave * pixelsPerMeter;
+        const backLambda = r.backWave * pixelsPerMeter;
+        const frontY = cy - 76, backY = cy + 82;
+        arrow(ctx, sourceX + 10 * towardObserver, frontY, sourceX + 10 * towardObserver + towardObserver * frontLambda, frontY, "#2364aa", 2);
+        label(ctx, `観測者側の波長 λ = ${fmt(towardObserver > 0 ? r.frontWave : r.backWave)} m`, sourceX + towardObserver * (frontLambda / 2 + 10), frontY - 10, "#2364aa", 12, "center");
+        arrow(ctx, sourceX - 10 * towardObserver, backY, sourceX - 10 * towardObserver - towardObserver * backLambda, backY, "#64748b", 2);
+        label(ctx, `反対側 λ = ${fmt(towardObserver > 0 ? r.backWave : r.frontWave)} m`, sourceX - towardObserver * (backLambda / 2 + 10), backY + 19, "#64748b", 12, "center");
+
+        const arrivalThreshold = Math.max(.42, s.sound * .0045);
+        const received = closestArrival < arrivalThreshold;
+        if (received) {
+          const pulse = 18 + (closestArrival / arrivalThreshold) * 20;
+          ctx.strokeStyle = "rgba(8,127,91,.7)"; ctx.lineWidth = 4;
+          ctx.beginPath(); ctx.arc(observerX, cy - 21, pulse, 0, TAU); ctx.stroke();
+          label(ctx, "波面を受信！", observerX, cy - 76, "#087f5b", 14, "center");
+        }
+
+        dot(ctx, sourceX, cy, 19, "#dc4c45");
+        ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.arc(sourceX, cy, 6, 0, TAU); ctx.fill();
+        label(ctx, "音源", sourceX, cy + 35, "#344054", 13, "center");
+        arrow(ctx, sourceX - 32, cy - 42, sourceX + 32, cy - 42, "#dc4c45", 3);
+        label(ctx, `${fmt(s.sourceSpeed)} m/s`, sourceX, cy - 52, "#c2413b", 12, "center");
+
+        ctx.fillStyle = "#087f5b"; ctx.fillRect(observerX - 9, cy - 22, 18, 38); dot(ctx, observerX, cy - 32, 10, "#087f5b");
+        label(ctx, "観測者", observerX, cy + 35, "#344054", 13, "center");
+        arrow(ctx, observerX + 30, cy - 42, observerX - 30, cy - 42, "#087f5b", 3);
+        label(ctx, `${fmt(s.observerSpeed)} m/s`, observerX, cy - 52, "#087f5b", 12, "center");
+
+        const relation = approaching ? "近づく：受信間隔が短い" : "遠ざかる：受信間隔が長い";
+        label(ctx, relation, w / 2, 52, "#7c3aed", 16, "center");
+        label(ctx, `観測振動数 ${fmt(r.observed)} Hz`, w / 2, 76, "#7c3aed", 14, "center");
       }
     };
   }
