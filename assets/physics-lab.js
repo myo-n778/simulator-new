@@ -789,31 +789,61 @@
     return {
       timeRelevant: true,
       title: "ドップラー効果",
-      subtitle: "動く音源・動く観測者・波面の受信",
-      lead: "音源が出した波面が広がり、動く観測者に届くまでを追います。波面の間隔と受信の回数から、聞こえる高さの変化を読み取ります。",
-      formula: "接近：f′ = f(v+vO)/(v−vS)\n遠ざかる：f′ = f(v−vO)/(v+vS)",
-      focus: "音源の移動方向では波面が詰まり、反対側では広がります。緑の受信パルスが観測者に重なる回数が、観測振動数に対応します。",
+      subtitle: "斜め見下ろしの疑似球面波・独立した速度",
+      lead: "左の音源と右の観測者を、それぞれ右向き正の速度で動かします。波面は教材用にゆっくり発生しますが、前後の縮み・広がりの比は物理量のままです。",
+      formula: "右側の観測者：f′ = f(c−vO)/(c−vS)\n右側波長 λR = (c−vS)/f、左側波長 λL = (c+vS)/f",
+      focus: "楕円の疑似球面波を追います。音源が右へ動けば右側の波面は密に、左側は疎になります。緑の輪は観測者が代表波面を受信した瞬間です。",
       controls: [
-        select("motion", "相対運動", "approach", [["approach", "互いに接近"], ["recede", "互いに遠ざかる"]]),
         range("frequency", "音源振動数", 200, 1000, 10, 440, " Hz"),
         range("sound", "音速", 300, 360, 1, 340, " m/s"),
-        range("sourceSpeed", "音源の速さ", 0, 80, 2, 30, " m/s"),
-        range("observerSpeed", "観測者の速さ", 0, 50, 2, 10, " m/s")
+        range("sourceSpeed", "音源速度 vS（右を＋）", -80, 80, 2, 30, " m/s"),
+        range("observerSpeed", "観測者速度 vO（右を＋）", -80, 80, 2, -10, " m/s"),
+        range("visualRate", "教材用の波面発生", .8, 3.5, .1, 1.8, " 回/s")
       ],
       calc(s) {
-        const approach = s.motion === "approach";
-        const observed = approach
-          ? s.frequency * (s.sound + s.observerSpeed) / (s.sound - s.sourceSpeed)
-          : s.frequency * (s.sound - s.observerSpeed) / (s.sound + s.sourceSpeed);
-        const frontWave = (s.sound - s.sourceSpeed) / s.frequency;
-        const backWave = (s.sound + s.sourceSpeed) / s.frequency;
-        return { observed, frontWave, backWave, metrics: [
+        const observed = s.frequency * (s.sound - s.observerSpeed) / (s.sound - s.sourceSpeed);
+        const rightWave = (s.sound - s.sourceSpeed) / s.frequency;
+        const leftWave = (s.sound + s.sourceSpeed) / s.frequency;
+        return { observed, rightWave, leftWave, metrics: [
           metric("観測振動数", `${fmt(observed)} Hz`), metric("変化率", `${fmt((observed / s.frequency - 1) * 100, 1)} %`),
-          metric("前方波長", `${fmt(frontWave)} m`), metric("後方波長", `${fmt(backWave)} m`)
+          metric("右側波長", `${fmt(rightWave)} m`), metric("左側波長", `${fmt(leftWave)} m`), metric("表示用波面", `${fmt(s.visualRate, 1)} 回/s`)
         ] };
       },
       draw(ctx, w, h, s, t, r) {
         clearStage(ctx, w, h, "#fbfdff");
+        // 教材用の遅い疑似球面波。速度比 vS/c は保つので、左右の波面間隔比は物理的に正しい。
+        const viewLeft = 42, viewRight = w - 42, baseY = h * .70, scaleX = Math.min(31, (viewRight - viewLeft) / 18), scaleY = scaleX * .32;
+        const project = (x, y = 0) => [viewLeft + x * scaleX + y * scaleX * .22, baseY - y * scaleY];
+        const sourceStart = 4.1, observerStart = 14.4, visualSound = 4.6;
+        const sourceVisual = s.sourceSpeed / s.sound * visualSound, observerVisual = s.observerSpeed / s.sound * visualSound;
+        const closing = sourceVisual - observerVisual;
+        const meet = closing > 0 ? (observerStart - sourceStart) / closing * .82 : 8;
+        const edge = Math.min(sourceVisual > 0 ? (17.1-sourceStart)/sourceVisual : sourceVisual < 0 ? (sourceStart-.9)/-sourceVisual : 8, observerVisual > 0 ? (17.1-observerStart)/observerVisual : observerVisual < 0 ? (observerStart-.9)/-observerVisual : 8);
+        const sceneT = t % clamp(Math.min(meet, edge), 3.2, 8);
+        const sourceMeter = sourceStart + sourceVisual * sceneT, observerMeter = observerStart + observerVisual * sceneT;
+        const period = 1 / s.visualRate, firstWave = Math.max(0, Math.ceil((sceneT - 3.3) / period));
+        let closestArrival = Infinity;
+        const a=project(0,-5), b=project(18,-5), c=project(18,5), d=project(0,5);
+        ctx.fillStyle="#f4f7fb"; ctx.beginPath();ctx.moveTo(...a);ctx.lineTo(...b);ctx.lineTo(...c);ctx.lineTo(...d);ctx.closePath();ctx.fill();
+        ctx.strokeStyle="#d5dde8";ctx.lineWidth=1;
+        for(let x=0;x<=18;x+=2){const p=project(x,-5),q=project(x,5);ctx.beginPath();ctx.moveTo(...p);ctx.lineTo(...q);ctx.stroke();}
+        for(let y=-4;y<=4;y+=2){const p=project(0,y),q=project(18,y);ctx.beginPath();ctx.moveTo(...p);ctx.lineTo(...q);ctx.stroke();}
+        label(ctx,"斜め見下ろし：教材用の疑似球面波（縮み・広がりの比は物理量を保持）",w/2,30,"#475467",13,"center");
+        for(let wave=firstWave;wave<=Math.floor(sceneT/period);wave++){
+          const emitted=wave*period, age=sceneT-emitted, radius=visualSound*age;if(radius<.12)continue;
+          const [cx,cy]=project(sourceStart+sourceVisual*emitted,0);
+          ctx.strokeStyle="rgba(35,100,170,.58)";ctx.lineWidth=2;ctx.beginPath();ctx.ellipse(cx,cy,radius*scaleX,radius*scaleY,0,0,TAU);ctx.stroke();
+          closestArrival=Math.min(closestArrival,Math.abs(Math.abs(observerMeter-(sourceStart+sourceVisual*emitted))-visualSound*age));
+        }
+        const [sourceX,sourceY]=project(sourceMeter),[observerX,observerY]=project(observerMeter);
+        const threshold=clamp(visualSound*period*.13,.12,.38);
+        if(closestArrival<threshold){const pulse=18+closestArrival/threshold*20;ctx.strokeStyle="rgba(8,127,91,.7)";ctx.lineWidth=4;ctx.beginPath();ctx.ellipse(observerX,observerY,pulse,pulse*.36,0,0,TAU);ctx.stroke();label(ctx,"波面を受信！",observerX,observerY-55,"#087f5b",14,"center");}
+        dot(ctx,sourceX,sourceY,18,"#dc4c45");dot(ctx,sourceX,sourceY,5,"#fff");ctx.fillStyle="#087f5b";ctx.fillRect(observerX-8,observerY-19,16,32);dot(ctx,observerX,observerY-27,9,"#087f5b");
+        const sa=Math.sign(s.sourceSpeed)||1,oa=Math.sign(s.observerSpeed)||1;arrow(ctx,sourceX,sourceY-42,sourceX+sa*36,sourceY-42,"#dc4c45",3);arrow(ctx,observerX,observerY-42,observerX+oa*36,observerY-42,"#087f5b",3);
+        label(ctx,`音源 vS=${s.sourceSpeed>=0?"+":""}${fmt(s.sourceSpeed)} m/s`,sourceX,sourceY+34,"#c2413b",12,"center");label(ctx,`観測者 vO=${s.observerSpeed>=0?"+":""}${fmt(s.observerSpeed)} m/s`,observerX,observerY+34,"#087f5b",12,"center");
+        label(ctx,`右側 λ=${fmt(r.rightWave)} m　左側 λ=${fmt(r.leftWave)} m　観測 ${fmt(r.observed)} Hz`,w/2,56,"#7c3aed",14,"center");
+        return;
+        {
         const cy = h * .56, left = 34, right = w - 34, pixelsPerMeter = Math.min(27, (right - left) / 19);
         const toX = meters => left + meters * pixelsPerMeter;
         const approaching = s.motion === "approach";
@@ -897,6 +927,7 @@
         const relation = approaching ? "近づく：受信間隔が短い" : "遠ざかる：受信間隔が長い";
         label(ctx, relation, w / 2, 52, "#7c3aed", 16, "center");
         label(ctx, `観測振動数 ${fmt(r.observed)} Hz`, w / 2, 76, "#7c3aed", 14, "center");
+        }
       }
     };
   }
