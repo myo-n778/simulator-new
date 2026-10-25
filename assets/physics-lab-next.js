@@ -613,7 +613,7 @@
     const timeRelevant = scenario.timeRelevant === true;
     const actionsMarkup = timeRelevant
       ? `<div class="lab-actions"><button class="primary" type="button" data-action="play">再生</button><button type="button" data-action="step">0.2秒進める</button><button type="button" data-action="reset">初期状態</button></div><div class="lab-status" aria-live="polite">停止中</div>`
-      : `<div class="lab-actions"><button type="button" data-action="reset">条件を初期値へ戻す</button></div><div class="lab-status" aria-live="polite">条件を変えると、図と結果が連動します。</div>`;
+      : `<div class="lab-actions"><button type="button" data-action="reset">条件を初期値へ戻す</button></div><div class="lab-status" aria-live="polite"></div>`;
 
     root.className = "physics-lab";
     root.innerHTML = `
