@@ -497,10 +497,14 @@
     el.btnStep.addEventListener('touchstart', (e) => { e.preventDefault(); stepHolding = true; stepHoldLoop(); }, { passive:false });
     window.addEventListener('touchend', () => { stepHolding = false; cancelAnimationFrame(stepHoldRAF); });
 
-    // 表示系チェック（実行中のみ即時反映）
-    ;['showV','showA','trace'].forEach(k => {
-      if (el[k]) el[k].addEventListener('change', () => { if (running) { drawPendulum(); drawPlot(); } });
-    });
+    for (const key of ['L','m','g','c','dt','small','showV','showA','trace','autoFit']) {
+      el[key].addEventListener('input', () => { readParams(); drawOnce(); });
+    }
+    for (const key of ['th0','om0']) {
+      el[key].addEventListener('input', () => {
+        if (!running && el[key].value !== '') reset();
+      });
+    }
 
     // フィット/リセット
     el.btnFit.addEventListener('click', () => { doFit(); });

@@ -36,6 +36,7 @@
   }
 
   function arrow(ctx, x1, y1, x2, y2, color = "#2364aa", width = 2) {
+    if(Math.hypot(x2-x1,y2-y1)<1e-7) return;
     const angle = Math.atan2(y2 - y1, x2 - x1);
     const size = 8 + width;
     ctx.save();
@@ -138,7 +139,7 @@
             });
             const mag = Math.hypot(ex, ey);
             if (mag > 0.02) {
-              const length = 10;
+              const length = 3 + 13*mag/(mag+4);
               const px = cx + gx * scale, py = cy - gy * scale;
               arrow(ctx, px, py, px + ex / mag * length, py - ey / mag * length, "rgba(35,100,170,.48)", 1);
             }
@@ -152,7 +153,7 @@
         });
         const px = cx + s.probeX * scale, py = cy - s.probeY * scale;
         dot(ctx, px, py, 7, "#111827");
-        const visual = 52;
+        const visual = 85*r.magnitude/(r.magnitude+40000);
         if (r.magnitude > 0) arrow(ctx, px, py, px + r.ex / r.magnitude * visual, py - r.ey / r.magnitude * visual, "#7c3aed", 3);
         label(ctx, "観測点 P", px + 10, py - 12, "#111827", 12);
         label(ctx, "電場ベクトル E", 20, 24, "#7c3aed", 13);
@@ -188,26 +189,7 @@
       },
       draw(ctx, w, h, s, t, r) {
         clearStage(ctx, w, h);
-        const left = 100, right = w - 100, top = 100, bottom = h - 110;
-        ctx.strokeStyle = "#344054"; ctx.lineWidth = 4;
-        ctx.beginPath(); ctx.moveTo(left, top); ctx.lineTo(right, top); ctx.stroke();
-        if (s.mode === "series") {
-          ctx.beginPath(); ctx.moveTo(right, top); ctx.lineTo(right, bottom); ctx.lineTo(left, bottom); ctx.lineTo(left, top); ctx.stroke();
-          drawResistor(ctx, w * 0.43, top, "R₁", s.r1, true);
-          drawResistor(ctx, w * 0.68, top, "R₂", s.r2, true);
-          movingDots(ctx, [[left, top], [right, top], [right, bottom], [left, bottom], [left, top]], t, "#f59e0b");
-        } else {
-          const mid = (top + bottom) / 2;
-          ctx.beginPath(); ctx.moveTo(right, top); ctx.lineTo(right, bottom); ctx.lineTo(left, bottom); ctx.lineTo(left, top); ctx.stroke();
-          ctx.beginPath(); ctx.moveTo(w * .34, top); ctx.lineTo(w * .34, mid); ctx.lineTo(w * .76, mid); ctx.lineTo(w * .76, top); ctx.stroke();
-          drawResistor(ctx, w * .55, top, "R₁", s.r1, true);
-          drawResistor(ctx, w * .55, mid, "R₂", s.r2, true);
-          arrow(ctx, w * .43, top - 32, w * .64, top - 32, "#f59e0b", 2);
-          arrow(ctx, w * .43, mid - 32, w * .64, mid - 32, "#7c3aed", 2);
-        }
-        drawBattery(ctx, left, (top + bottom) / 2, s.voltage);
-        label(ctx, `I = ${fmt(r.total)} A`, right - 20, bottom + 38, "#2364aa", 14, "right");
-        label(ctx, s.mode === "series" ? "電流はどこでも同じ" : "分岐前の電流 = 枝電流の和", w / 2, 42, "#344054", 15, "center");
+        drawCircuitPair(ctx,w,h,s,r,false);
       }
     };
   }
@@ -241,20 +223,7 @@
       },
       draw(ctx, w, h, s, t, r) {
         clearStage(ctx, w, h, "#fbfdff");
-        const y = h / 2;
-        drawBattery(ctx, 95, y, s.voltage);
-        ctx.strokeStyle = "#344054"; ctx.lineWidth = 3;
-        if (s.mode === "series") {
-          ctx.beginPath(); ctx.moveTo(95, y - 65); ctx.lineTo(w - 90, y - 65); ctx.lineTo(w - 90, y + 65); ctx.lineTo(95, y + 65); ctx.stroke();
-          drawCapacitor(ctx, w * .42, y - 65, "C₁", r.v1, s.c1);
-          drawCapacitor(ctx, w * .68, y - 65, "C₂", r.v2, s.c2);
-        } else {
-          ctx.beginPath(); ctx.moveTo(95, y - 105); ctx.lineTo(w - 90, y - 105); ctx.lineTo(w - 90, y + 105); ctx.lineTo(95, y + 105); ctx.stroke();
-          ctx.beginPath(); ctx.moveTo(w * .34, y - 105); ctx.lineTo(w * .34, y); ctx.lineTo(w * .75, y); ctx.lineTo(w * .75, y - 105); ctx.stroke();
-          drawCapacitor(ctx, w * .54, y - 105, "C₁", r.v1, s.c1);
-          drawCapacitor(ctx, w * .54, y, "C₂", r.v2, s.c2);
-        }
-        label(ctx, s.mode === "series" ? "同じ電荷 Q、電圧を分け合う" : "同じ電圧 V、電荷が加わる", w / 2, 42, "#344054", 15, "center");
+        drawCircuitPair(ctx,w,h,s,r,true);
       }
     };
   }
@@ -296,20 +265,19 @@
         }
         const cx = w / 2, cy = h / 2;
         if (Math.abs(s.charge) < 1e-9 || r.vPerp < 1e-9) {
-          const x = 55 + (t * 65 % Math.max(1, w - 110));
+          const x = r.vPerp===0 ? cx : 55+(t*45*r.vPerp/s.speed % Math.max(1,w-110));
           dot(ctx, x, cy, 13, s.charge >= 0 ? "#dc4c45" : "#2f6fbd");
-          arrow(ctx, x, cy, Math.min(w - 25, x + 72), cy, "#087f5b", 3);
-          label(ctx, "v", Math.min(w - 18, x + 82), cy, "#087f5b", 14, "center");
-          label(ctx, "F = 0：等速直線運動", w / 2, 38, "#344054", 16, "center");
-          label(ctx, "・ は磁場が手前向き", 20, 25, "#667085", 12);
+          if(r.vPerp>0) arrow(ctx,x,cy,Math.min(w-25,x+72*r.vPerp/s.speed),cy,"#087f5b",3);
+          if(r.vPerp>0) label(ctx, "v⊥", Math.min(w - 18, x + 82), cy, "#087f5b", 14, "center");
+          label(ctx, r.vPerp===0?"磁場に沿って直進・投影位置は一定":"合力はゼロ・等速直線運動", w / 2, 49, "#344054", 16, "center");
+          label(ctx, "磁場は手前向き・紙面への投影", 20, 25, "#667085", 12);
           return;
         }
-        const radiusRatio = Math.sqrt(r.radius / 30000);
-        const radius = Math.min(w, h) * .22 * clamp(radiusRatio, .55, 1.55);
+        const radius = Math.min(w,h)*.38*r.radius/(r.radius+10000);
         ctx.strokeStyle = "#98a2b3"; ctx.setLineDash([7, 6]); ctx.lineWidth = 2;
         ctx.beginPath(); ctx.arc(cx, cy, radius, 0, TAU); ctx.stroke(); ctx.setLineDash([]);
         const direction = s.charge >= 0 ? 1 : -1;
-        const phase = direction * t * 1.2;
+        const phase=direction*t*TAU/r.period*1000;
         const x = cx + radius * Math.cos(phase), y = cy + radius * Math.sin(phase);
         dot(ctx, x, y, 13, s.charge >= 0 ? "#dc4c45" : "#2f6fbd");
         const tangent = phase + direction * Math.PI / 2;
@@ -317,7 +285,7 @@
         arrow(ctx, x, y, x + 52 * Math.cos(phase + Math.PI), y + 52 * Math.sin(phase + Math.PI), "#7c3aed", 3);
         label(ctx, "v", x + 72 * Math.cos(tangent), y + 72 * Math.sin(tangent), "#087f5b", 14, "center");
         label(ctx, "F", x + 61 * Math.cos(phase + Math.PI), y + 61 * Math.sin(phase + Math.PI), "#7c3aed", 14, "center");
-        label(ctx, "・ は磁場が手前向き", 20, 25, "#667085", 12);
+        label(ctx, "磁場は手前向き　表示1秒＝実時間1000秒", 16, 25, "#667085", 12);
       }
     };
   }
@@ -328,7 +296,7 @@
       title: "電磁誘導と発電機",
       subtitle: "磁束の時間変化、誘導起電力、レンツの法則",
       lead: "回転コイルの磁束と誘導起電力を同じ時刻で追い、変化率が最大のとき起電力が最大になることを確認します。",
-      formula: "Φ = NBA cos(ωt)\ne = −dΦ/dt = NBAω sin(ωt)",
+      formula: "Φ = BA cos(ωt)\nNΦ = NBA cos(ωt)\ne = −d(NΦ)/dt = NBAω sin(ωt)",
       focus: "磁束そのものではなく、磁束の時間変化が起電力を生む点に注目します。",
       controls: [
         range("turns", "巻数 N", 10, 300, 10, 100, " 回"),
@@ -354,22 +322,33 @@
         label(ctx, "S", split - 58, 94, "#dc4c45", 24, "center");
         const cx = split / 2, cy = h / 2;
         const angle = r.omega * t;
-        ctx.save(); ctx.translate(cx, cy); ctx.rotate(angle);
-        ctx.strokeStyle = "#b45309"; ctx.lineWidth = 7; ctx.strokeRect(-90, -42, 180, 84);
-        ctx.restore();
-        arrow(ctx, 85, cy, split - 85, cy, "#2364aa", 3);
-        label(ctx, "B", split / 2, cy - 25, "#2364aa", 16, "center");
+        const size=Math.min(split*.29,h*.18)*Math.sqrt(s.area/300);
+        // z is the vertical rotation axis. The horizontal depth direction projects down.
+        const edgeX=-size*Math.sin(angle), edgeY=.35*size*Math.cos(angle);
+        const halfHeight=size*.85;
+        ctx.strokeStyle="#94a3b8";ctx.setLineDash([4,3]);
+        ctx.beginPath();ctx.moveTo(cx,cy-halfHeight-18);ctx.lineTo(cx,cy+halfHeight+18);ctx.stroke();ctx.setLineDash([]);
+        ctx.strokeStyle="#b45309";ctx.lineWidth=2+4*s.turns/300;
+        ctx.beginPath();ctx.moveTo(cx-edgeX,cy-edgeY-halfHeight);ctx.lineTo(cx+edgeX,cy+edgeY-halfHeight);
+        ctx.lineTo(cx+edgeX,cy+edgeY+halfHeight);ctx.lineTo(cx-edgeX,cy-edgeY+halfHeight);ctx.closePath();ctx.stroke();
+        arrow(ctx,cx,cy,cx+size*Math.cos(angle),cy+.35*size*Math.sin(angle),"#7c3aed",3);
+        const fieldY=cy+halfHeight+24, fieldLength=split*.29*s.field;
+        arrow(ctx,cx-fieldLength,fieldY,cx+fieldLength,fieldY,"#2364aa",3);
+        label(ctx,"B",cx+fieldLength+9,fieldY,"#2364aa",12,"center");
         const left = split + 50, top = 80, pw = w - left - 35, ph = h - 150;
-        axes(ctx, left, top, pw, ph, "t", "e");
+        axes(ctx,left,top,pw,ph,"2周期","e");
+        const axisMax=2**Math.ceil(Math.log2(Math.max(2,r.max)));
+        label(ctx,"縦軸 ±"+fmt(axisMax)+" V",left,top-26,"#475467",11);
+        ctx.strokeStyle="#94a3b8";ctx.beginPath();ctx.moveTo(left,top+ph/2);ctx.lineTo(left+pw,top+ph/2);ctx.stroke();
         const pts = [];
         for (let i = 0; i <= 160; i++) {
           const phase = i / 160 * TAU * 2;
-          pts.push([left + i / 160 * pw, top + ph / 2 - Math.sin(phase) * ph * .38]);
+          pts.push([left + i / 160 * pw, top + ph / 2 - Math.sin(phase) * ph * .5*r.max/axisMax]);
         }
         plot(ctx, pts, "#7c3aed", 3);
         const markerX = left + ((s.frequency * t) % 2) / 2 * pw;
         ctx.strokeStyle = "#dc4c45"; ctx.beginPath(); ctx.moveTo(markerX, top); ctx.lineTo(markerX, top + ph); ctx.stroke();
-        label(ctx, "回転コイル", cx, h - 40, "#344054", 14, "center");
+        label(ctx, "紫はコイル面の法線", cx, h - 40, "#344054", 14, "center");
       }
     };
   }
@@ -404,24 +383,24 @@
       draw(ctx, w, h, s, t, r) {
         clearStage(ctx, w, h, "#fbfdff");
         const cx = w * .28, cy = h * .5, scale = Math.min(120, w * .17);
-        arrow(ctx, cx, cy, cx + scale, cy, "#344054", 3);
-        arrow(ctx, cx, cy, cx, cy - scale * r.xl / Math.max(r.xl, r.xc, 1), "#dc4c45", 3);
-        arrow(ctx, cx, cy, cx, cy + scale * r.xc / Math.max(r.xl, r.xc, 1), "#2f6fbd", 3);
-        arrow(ctx, cx, cy, cx + scale * Math.cos(r.phase), cy - scale * Math.sin(r.phase), "#7c3aed", 4);
-        label(ctx, "R", cx + scale + 15, cy, "#344054", 14);
-        label(ctx, "Xᴸ", cx, cy - scale - 15, "#dc4c45", 14, "center");
-        label(ctx, "Xᶜ", cx, cy + scale + 15, "#2f6fbd", 14, "center");
-        label(ctx, "Z", cx + scale * Math.cos(r.phase) + 12, cy - scale * Math.sin(r.phase), "#7c3aed", 14);
+        const unit=scale/Math.max(s.resistance,r.xl,r.xc,r.z);
+        const dx=unit*s.resistance, dy=unit*(r.xc-r.xl);
+        arrow(ctx,cx,cy,cx+dx,cy,"#344054",2);
+        arrow(ctx,cx,cy,cx,cy-unit*r.xl,"#dc4c45",2);
+        arrow(ctx,cx,cy,cx,cy+unit*r.xc,"#2f6fbd",2);
+        arrow(ctx,cx,cy,cx+dx,cy+dy,"#7c3aed",3);
+        label(ctx,"R",cx+dx+5,cy+12);label(ctx,"Xᴸ",cx-8,cy-unit*r.xl-10,"#dc4c45");
+        label(ctx,"Xᶜ",cx-8,cy+unit*r.xc+12,"#2f6fbd");label(ctx,"Z",cx+dx+5,cy+dy-9,"#7c3aed");
         const left = w * .53, top = 80, pw = w * .42, ph = h - 150;
         axes(ctx, left, top, pw, ph, "t", "V, I");
         const vPts = [], iPts = [];
         for (let i = 0; i <= 180; i++) {
           const phase = i / 180 * TAU * 2;
-          vPts.push([left + i / 180 * pw, top + ph / 2 - Math.sin(phase) * ph * .32]);
-          iPts.push([left + i / 180 * pw, top + ph / 2 - Math.sin(phase - r.phase) * ph * .28]);
+          vPts.push([left + i / 180 * pw, top + ph / 2 - Math.sin(phase) * ph * .4 * s.voltage/120]);
+          iPts.push([left + i / 180 * pw, top + ph / 2 - Math.sin(phase - r.phase) * ph * .4*r.current/(r.current+1)]);
         }
         plot(ctx, vPts, "#dc4c45", 2.5); plot(ctx, iPts, "#2364aa", 2.5);
-        label(ctx, "電圧", left + 15, top + 16, "#dc4c45", 12); label(ctx, "電流", left + 65, top + 16, "#2364aa", 12);
+        label(ctx, "電圧 ±170 V", left, top - 27, "#dc4c45", 12); label(ctx, "電流 ±"+fmt(Math.SQRT2*(r.current+1),1)+" A", left, top - 10, "#2364aa", 12);
       }
     };
   }
@@ -549,7 +528,7 @@
         range("elapsed", "経過時間 t", 0, 100, 1, 24, " s")
       ],
       calc(s, t) {
-        const shownTime = s.elapsed + (t % Math.max(s.halfLife * 4, 1));
+        const shownTime = s.elapsed + t;
         const lambda = Math.log(2) / s.halfLife;
         const remaining = s.initial * Math.exp(-lambda * shownTime);
         const activity = lambda * remaining;
@@ -563,7 +542,7 @@
         clearStage(ctx, w, h);
         const left = 55, top = 55, pw = w * .58, ph = h - 120;
         axes(ctx, left, top, pw, ph, "t", "N/N₀");
-        const maxT = s.halfLife * 5;
+        const maxT = Math.max(s.elapsed+s.halfLife*4, r.shownTime);
         const pts = [];
         for (let i = 0; i <= 160; i++) {
           const tt = i / 160 * maxT;
@@ -573,13 +552,14 @@
         const mx = left + clamp(r.shownTime / maxT, 0, 1) * pw;
         const my = top + ph - clamp(r.remaining / s.initial, 0, 1) * ph;
         dot(ctx, mx, my, 7, "#dc4c45");
-        const gridX = w * .69, gridY = 80, cols = 10, rows = 10;
-        const visible = Math.round(clamp(r.remaining / s.initial, 0, 1) * cols * rows);
-        for (let i = 0; i < cols * rows; i++) {
-          const x = gridX + (i % cols) * 22, y = gridY + Math.floor(i / cols) * 22;
-          dot(ctx, x, y, 6, i < visible ? "#7c3aed" : "#d0d5dd", null);
+        const gridX = w * .69, gridY = 80, cols = 10;
+        const count = Math.ceil(s.initial/10), visible = Math.round(r.remaining/10);
+        const pitch=Math.min(19,(w-gridX-12)/10);
+        for (let i = 0; i < count; i++) {
+          const x = gridX + (i % cols) * pitch, y = gridY + Math.floor(i / cols) * pitch;
+          dot(ctx, x, y, pitch*.34, i < visible ? "#7c3aed" : "#d0d5dd", null);
         }
-        label(ctx, "100個を代表表示", gridX + 100, gridY + 235, "#667085", 12, "center");
+        label(ctx, "1点で約10個", gridX + pitch*4, gridY + pitch*10+16, "#667085", 12, "center");
       }
     };
   }
@@ -685,11 +665,22 @@
       },
       draw(ctx, w, h, s, t, r) {
         clearStage(ctx, w, h);
-        drawBeaker(ctx, w * .18, h * .56, 150, 210, "#ef8f6b", s.t1, "温水");
-        drawBeaker(ctx, w * .49, h * .56, 150, 210, s.mode === "ice" ? "#b9d9f5" : "#6bb6e8", s.mode === "ice" ? s.iceT : s.waterT, s.mode === "ice" ? "氷" : "冷水");
-        arrow(ctx, w * .66, h * .48, w * .76, h * .48, "#7c3aed", 4);
-        drawBeaker(ctx, w * .77, h * .56, 160, 230, r.finalT > 20 ? "#e7a27f" : "#83bfe8", r.finalT, "混合後");
-        label(ctx, `T = ${fmt(r.finalT)} ℃`, w * .85, h * .22, "#17202a", 17, "center");
+        const icy=s.mode==="ice", total=s.m1+s.m2;
+        const samples=[
+          ["温水",s.m1,s.t1,0], [icy?"氷":"冷水",s.m2,icy?s.iceT:s.waterT,icy?s.m2:0],
+          ["混合後",total,r.finalT,icy?s.m2-r.melted+r.frozenWater:0]
+        ];
+        for (const [i,[name,mass,temp,ice]] of samples.entries()) {
+          const x=w*(.04+i*.325), bw=w*.25, bh=h*.58, bottom=h*.78;
+          const level=mass/800*bh, frozen=Math.max(0,ice)/800*bh;
+          ctx.fillStyle="hsl("+clamp(205-temp*2.2,5,205)+" 65% 65%)";
+          ctx.fillRect(x,bottom-level,bw,level);
+          ctx.fillStyle="#d0ecff";ctx.fillRect(x,bottom-level,bw,frozen);
+          ctx.strokeStyle="#667085";ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(x,bottom-bh);ctx.lineTo(x,bottom);ctx.lineTo(x+bw,bottom);ctx.lineTo(x+bw,bottom-bh);ctx.stroke();
+          label(ctx,name,x+bw/2,bottom+23,"#344054",13,"center");
+          label(ctx,fmt(temp,1)+" ℃",x+bw/2,bottom-level-15,"#344054",13,"center");
+        }
+        label(ctx,"色は温度、高さは質量、薄い水色は氷",w/2,28,"#475467",13,"center");
       }
     };
   }
@@ -719,22 +710,13 @@
       },
       draw(ctx, w, h, s, t, r) {
         clearStage(ctx, w, h, "#fbfdff");
-        const cx = w * .35;
-        drawReservoir(ctx, cx, 80, 250, 70, "高温熱源", `${s.hot} K`, "#dc4c45");
-        drawReservoir(ctx, cx, h - 110, 250, 70, "低温熱源", `${s.cold} K`, "#2f6fbd");
-        ctx.fillStyle = "#7c3aed"; ctx.fillRect(cx - 85, h / 2 - 48, 170, 96);
-        label(ctx, "熱機関", cx, h / 2, "#ffffff", 20, "center");
-        arrow(ctx, cx, 150, cx, h / 2 - 55, "#dc4c45", 6);
-        arrow(ctx, cx, h / 2 + 55, cx, h - 118, "#2f6fbd", 6);
-        arrow(ctx, cx + 95, h / 2, w * .73, h / 2, "#087f5b", 7);
-        label(ctx, `QH ${fmt(s.heat)} J`, cx + 18, 190, "#dc4c45", 13);
-        label(ctx, `QC ${fmt(r.rejected)} J`, cx + 18, h - 180, "#2f6fbd", 13);
-        label(ctx, `仕事 W ${fmt(r.work)} J`, w * .76, h / 2 - 25, "#087f5b", 16, "center");
-        const gx = w * .68, gy = 120, gw = w * .24, gh = h - 240;
-        axes(ctx, gx, gy, gw, gh, "V", "P");
-        const cycle = [[.15,.75],[.72,.72],[.82,.28],[.3,.2],[.15,.75]].map(([x,y]) => [gx+x*gw, gy+y*gh]);
-        plot(ctx, cycle, "#b45309", 4);
-        label(ctx, "概念的なp–Vサイクル", gx + gw / 2, gy + gh + 30, "#667085", 12, "center");
+        const x=w*.23, bw=w*.55, rows=[["吸収熱",s.heat,"#c2413b"],["仕事",r.work,"#087f5b"],["放出熱",r.rejected,"#2364aa"]];
+        rows.forEach(([name,value,color],i)=>{
+          const y=h*(.29+.19*i);
+          label(ctx,name,x-12,y,color,14,"right");ctx.fillStyle=color;ctx.fillRect(x,y-10,bw*value/2000,20);
+          label(ctx,fmt(value,1)+" J",x,y+23,color,12);
+        });
+        label(ctx,"吸収熱が仕事と放出熱に分かれる",w/2,30,"#344054",15,"center");
       }
     };
   }
@@ -1070,19 +1052,19 @@
       },
       draw(ctx, w, h, s, t, r) {
         clearStage(ctx, w, h);
-        const x1 = 70, y1 = 85, x2 = w * .65, y2 = h * .68;
+        const x1=w*.10,y1=h*(.68-.05*s.height),x2=w*.65,y2=h*.68;
         ctx.strokeStyle = "#667085"; ctx.lineWidth = 10; ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.lineTo(w - 40, y2); ctx.stroke();
         const x = x1 + (x2 - x1) * r.progress, y = y1 + (y2 - y1) * r.progress;
         ctx.save(); ctx.translate(x, y - 18); ctx.rotate(Math.atan2(y2 - y1, x2 - x1));
-        ctx.fillStyle = "#2364aa"; ctx.fillRect(-28, -20, 56, 40); ctx.restore();
-        const barX = w * .73, base = h * .78, maxH = h * .5, total = Math.max(r.total, 1);
+        const half=12+5*Math.sqrt(s.mass); ctx.fillStyle = "#2364aa"; ctx.fillRect(-half, -18, half*2, 36); ctx.restore();
+        const barX=w*.71, slot=w*.091, base=h*.78, maxH=h*.5, total=Math.max(r.total,1);
         const values = [["位置", r.currentU, "#2f6fbd"], ["運動", r.currentK, "#087f5b"], ["熱", r.thermal, "#dc4c45"]];
         values.forEach(([name, value, color], i) => {
           const bh = value / total * maxH;
-          ctx.fillStyle = color; ctx.fillRect(barX + i * 72, base - bh, 48, bh);
-          label(ctx, name, barX + i * 72 + 24, base + 20, "#344054", 12, "center");
+          ctx.fillStyle = color; ctx.fillRect(barX + i * slot, base - bh, slot*.65, bh);
+          label(ctx, name, barX + i * slot+slot*.33, base + 20, "#344054", 12, "center");
         });
-        label(ctx, "エネルギーの移り変わり", barX + 96, 65, "#17202a", 15, "center");
+        label(ctx, "エネルギーの移り変わり", w*.82, 65, "#17202a", 15, "center");
       }
     };
   }
@@ -1117,8 +1099,8 @@
       },
       draw(ctx, w, h, s, t, r) {
         clearStage(ctx, w, h, "#fbfdff");
-        const cx = w * .46, cy = h / 2, radius = Math.min(w, h) * .25;
-        ctx.save(); ctx.translate(cx, cy); ctx.rotate(r.angle * .12);
+        const cx=w*.46,cy=h/2,radius=Math.min(w,h)*(.07+.12*s.radius);
+        ctx.save(); ctx.translate(cx, cy); ctx.rotate(r.angle);
         if (s.shape === "rod") {
           ctx.fillStyle = "#2364aa"; ctx.fillRect(-radius, -18, radius * 2, 36);
         } else {
@@ -1177,17 +1159,12 @@
       },
       draw(ctx, w, h, s, t, r) {
         clearStage(ctx, w, h);
-        const cy = h / 2, collisionX = w / 2, radius = 28;
-        let ax, ay, bx, by;
-        if (r.phase < .5) {
-          const p = r.phase / .5;
-          ax = 70 + (collisionX - 55 - 70) * p; ay = cy - s.impact * 35;
-          bx = w - 70 + (collisionX + 55 - (w - 70)) * p; by = cy + s.impact * 35;
-        } else {
-          const dt = (r.phase - .5) / .5;
-          ax = collisionX - 55 + r.a.x * dt * 30; ay = cy - s.impact * 35 + r.a.y * dt * 30;
-          bx = collisionX + 55 + r.b.x * dt * 30; by = cy + s.impact * 35 + r.b.y * dt * 30;
-        }
+        const cy=h*.5, collisionX=w*.5, radius=Math.min(25,w*.042);
+        const scale=Math.min((w*.43-radius)/12,(h*.36-radius)/10);
+        const dt=(r.phase-.5)*2;
+        const vaX=dt<0?s.v1:r.a.x, vbX=dt<0?-s.v2:r.b.x;
+        const ax=collisionX-radius*r.nx+vaX*dt*scale, bx=collisionX+radius*r.nx+vbX*dt*scale;
+        const ay=cy-radius*r.ny+(dt<0?0:r.a.y*dt*scale), by=cy+radius*r.ny+(dt<0?0:r.b.y*dt*scale);
         dot(ctx, ax, ay, radius, "#2f6fbd"); dot(ctx, bx, by, radius, "#dc4c45");
         label(ctx, `m₁=${fmt(s.m1)} kg`, ax, ay + 45, "#344054", 12, "center");
         label(ctx, `m₂=${fmt(s.m2)} kg`, bx, by + 45, "#344054", 12, "center");
@@ -1200,59 +1177,41 @@
     };
   }
 
-  function movingDots(ctx, points, time, color) {
-    const segments = [];
-    let total = 0;
-    for (let i = 0; i < points.length - 1; i++) {
-      const length = Math.hypot(points[i + 1][0] - points[i][0], points[i + 1][1] - points[i][1]);
-      segments.push({ a: points[i], b: points[i + 1], start: total, length }); total += length;
-    }
-    for (let n = 0; n < 10; n++) {
-      let distance = (time * 70 + n / 10 * total) % total;
-      const segment = segments.find(item => distance >= item.start && distance <= item.start + item.length) || segments[0];
-      const p = (distance - segment.start) / segment.length;
-      dot(ctx, segment.a[0] + (segment.b[0] - segment.a[0]) * p, segment.a[1] + (segment.b[1] - segment.a[1]) * p, 4, color, null);
-    }
-  }
-
-  function drawResistor(ctx, x, y, name, resistance) {
-    ctx.fillStyle = "#fff4d8"; ctx.strokeStyle = "#b45309"; ctx.lineWidth = 3;
-    ctx.fillRect(x - 55, y - 20, 110, 40); ctx.strokeRect(x - 55, y - 20, 110, 40);
-    label(ctx, `${name} ${fmt(resistance)}Ω`, x, y, "#7a3e00", 13, "center");
-  }
-
-  function drawBattery(ctx, x, y, voltage) {
-    ctx.strokeStyle = "#344054"; ctx.lineWidth = 4;
-    ctx.beginPath(); ctx.moveTo(x - 18, y - 30); ctx.lineTo(x - 18, y + 30); ctx.moveTo(x + 12, y - 48); ctx.lineTo(x + 12, y + 48); ctx.stroke();
-    label(ctx, "+", x + 12, y - 62, "#dc4c45", 16, "center"); label(ctx, "−", x - 18, y - 46, "#2f6fbd", 16, "center");
-    label(ctx, `${fmt(voltage)} V`, x, y + 68, "#344054", 12, "center");
-  }
-
-  function drawCapacitor(ctx, x, y, name, voltage, capacitance) {
-    ctx.strokeStyle = "#344054"; ctx.lineWidth = 5;
-    ctx.beginPath(); ctx.moveTo(x - 9, y - 35); ctx.lineTo(x - 9, y + 35); ctx.moveTo(x + 9, y - 35); ctx.lineTo(x + 9, y + 35); ctx.stroke();
-    label(ctx, `${name} ${fmt(capacitance)}μF`, x, y - 52, "#344054", 12, "center");
-    label(ctx, `${fmt(voltage)} V`, x, y + 54, "#7c3aed", 12, "center");
-    for (let i = 0; i < 5; i++) { label(ctx, "+", x - 24, y - 28 + i * 14, "#dc4c45", 11, "center"); label(ctx, "−", x + 24, y - 28 + i * 14, "#2f6fbd", 11, "center"); }
+  function drawCircuitPair(ctx,w,h,s,r,capacitors) {
+    const left=w*.1,right=w*.9,top=h*.30,bottom=h*.76,mid=h*.51,series=s.mode==="series";
+    const wire=(x,y,xx,yy)=>{ctx.beginPath();ctx.moveTo(x,y);ctx.lineTo(xx,yy);ctx.strokeStyle="#475467";ctx.lineWidth=2;ctx.stroke();};
+    wire(left,top,right,top);wire(right,top,right,bottom);wire(right,bottom,left,bottom);
+    wire(left,top,left,mid-7);wire(left,mid+7,left,bottom);
+    wire(left-16,mid-7,left+16,mid-7);wire(left-8,mid+7,left+8,mid+7);
+    label(ctx,"+",left+19,mid-11,"#c2413b");label(ctx,"−",left+19,mid+12,"#2364aa");
+    if(!series){wire(w*.29,top,w*.29,mid);wire(w*.29,mid,w*.78,mid);wire(w*.78,mid,w*.78,top);}
+    const items=series?[[w*.40,top],[w*.70,top]]:[[w*.54,top],[w*.54,mid]];
+    items.forEach(([x,y],i)=>{
+      const val=i===0?(capacitors?s.c1:s.r1):(capacitors?s.c2:s.r2);
+      const quantity=i===0?(capacitors?r.q1:r.i1):(capacitors?r.q2:r.i2);
+      if(capacitors){
+        ctx.fillStyle="#fbfdff";ctx.fillRect(x-8,y-22,16,44);
+        wire(x-8,y-19,x-8,y+19);wire(x+8,y-19,x+8,y+19);
+        const level=quantity/(quantity+150);
+        ctx.fillStyle="#dc4c45";ctx.fillRect(x-13,y+19-38*level,5,38*level);
+        ctx.fillStyle="#2364aa";ctx.fillRect(x+8,y+19-38*level,5,38*level);
+        label(ctx,"+   −",x,y+30,"#344054",12,"center");
+      }else{
+        const half=Math.min(w*.085,43);
+        ctx.fillStyle="#fff4d8";ctx.fillRect(x-half,y-13,2*half,26);ctx.strokeStyle="#b45309";ctx.strokeRect(x-half,y-13,2*half,26);
+        const len=w*.19*quantity/(1+quantity);
+        arrow(ctx,x-len/2,y-26,x+len/2,y-26,"#087f5b",2);
+      }
+      label(ctx,(capacitors?"C":"R")+(i+1)+" "+fmt(val)+(capacitors?" μF":" Ω"),x,y+(capacitors?-32:0),"#475467",12,"center");
+      label(ctx,fmt(quantity)+(capacitors?" μC":" A"),x,y+(capacitors?47:25),"#087f5b",12,"center");
+    });
+    label(ctx,capacitors?"極板の色の長さは電荷量の目安":"緑の矢印は各抵抗を流れる電流",w/2,28,"#344054",14,"center");
+    label(ctx,(series?"直列　":"並列　")+fmt(s.voltage)+" V",w/2,bottom+28,"#344054",13,"center");
   }
 
   function drawNucleus(ctx, x, y, name, color) {
     dot(ctx, x, y, name.length > 3 ? 31 : 25, color);
     label(ctx, name, x, y, "#ffffff", 13, "center");
-  }
-
-  function drawBeaker(ctx, x, y, width, height, color, temperature, name) {
-    ctx.strokeStyle = "#667085"; ctx.lineWidth = 4;
-    ctx.beginPath(); ctx.moveTo(x, y - height / 2); ctx.lineTo(x, y + height / 2); ctx.lineTo(x + width, y + height / 2); ctx.lineTo(x + width, y - height / 2); ctx.stroke();
-    ctx.fillStyle = color; ctx.globalAlpha = .65; ctx.fillRect(x + 5, y - height * .15, width - 10, height * .62); ctx.globalAlpha = 1;
-    label(ctx, name, x + width / 2, y + height / 2 + 24, "#344054", 13, "center");
-    label(ctx, `${fmt(temperature)}℃`, x + width / 2, y, "#17202a", 16, "center");
-  }
-
-  function drawReservoir(ctx, x, y, width, height, title, value, color) {
-    ctx.fillStyle = color; ctx.globalAlpha = .18; ctx.fillRect(x - width / 2, y - height / 2, width, height); ctx.globalAlpha = 1;
-    ctx.strokeStyle = color; ctx.lineWidth = 3; ctx.strokeRect(x - width / 2, y - height / 2, width, height);
-    label(ctx, title, x, y - 10, color, 15, "center"); label(ctx, value, x, y + 16, "#17202a", 14, "center");
   }
 
   function wavelengthColor(nm) {
@@ -1364,6 +1323,8 @@
       input.addEventListener("input", handleControl); input.addEventListener("change", handleControl); updateControl();
     });
 
+    const compareConditions = ["doppler-effect", "nuclear-reaction"].includes(window.PHYSICS_LAB_ID)
+      ? null : window.PhysicsSimShell.conditionComparison?.(root, scenario, state, render);
     const canvas = root.querySelector("canvas");
     canvas.setAttribute("aria-label", `${scenario.title}の可視化キャンバス`);
     const ctx = canvas.getContext("2d");
@@ -1411,6 +1372,7 @@
       const result = scenario.calc(state, displayTime);
       const size = fitCanvas();
       scenario.draw(ctx, size.width, size.height, state, displayTime, result);
+      compareConditions?.(result,displayTime,size.width,size.height,scenario.draw);
       readouts.replaceChildren(...result.metrics.map(item => {
         const box = document.createElement("div"); box.className = "lab-readout";
         const name = document.createElement("span"); name.textContent = item.label;

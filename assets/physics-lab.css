@@ -265,3 +265,17 @@ select { font: inherit; }
 @media (prefers-reduced-motion: reduce) {
   * { scroll-behavior: auto !important; }
 }
+
+.lab-comparison { margin: .75rem 0 0; padding: .7rem; border-top: 1px solid #c8d3e4; }
+.lab-comparison button { padding: .45rem .75rem; border: 1px solid #9aabc0; border-radius: .45rem; background: white; color: #23415e; cursor: pointer; }
+.lab-comparison p, .lab-compare-row { font-size: .82rem; color: #344054; }
+.lab-comparison > div { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,200px),1fr)); gap:.65rem 1rem; }
+.lab-compare-track { position: relative; height: 5px; margin-top: 3px; background: #edf1f6; }
+.lab-compare-track i { position: absolute; height: 100%; }
+
+.lab-comparison details { margin: .6rem 0; }
+.lab-comparison summary { color:#23415e; cursor:pointer; font-size:.9rem; }
+.lab-compare-pair { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:.4rem; }
+.lab-compare-pair figure { min-width:0; margin:.4rem 0; }
+.lab-compare-pair figcaption { font-size:.8rem; color:#344054; }
+.lab-compare-pair canvas { width:100%; height:auto; display:block; background:#fbfdff; }
