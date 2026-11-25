@@ -811,123 +811,77 @@
       },
       draw(ctx, w, h, s, t, r) {
         clearStage(ctx, w, h, "#fbfdff");
-        // 教材用の遅い疑似球面波。速度比 vS/c は保つので、左右の波面間隔比は物理的に正しい。
-        const viewLeft = 42, viewRight = w - 42, baseY = h * .70, scaleX = Math.min(31, (viewRight - viewLeft) / 18), scaleY = scaleX * .32;
-        const project = (x, y = 0) => [viewLeft + x * scaleX + y * scaleX * .22, baseY - y * scaleY];
-        const sourceStart = 4.1, observerStart = 14.4, visualSound = 4.6;
-        const sourceVisual = s.sourceSpeed / s.sound * visualSound, observerVisual = s.observerSpeed / s.sound * visualSound;
-        const closing = sourceVisual - observerVisual;
-        const meet = closing > 0 ? (observerStart - sourceStart) / closing * .82 : 8;
-        const edge = Math.min(sourceVisual > 0 ? (17.1-sourceStart)/sourceVisual : sourceVisual < 0 ? (sourceStart-.9)/-sourceVisual : 8, observerVisual > 0 ? (17.1-observerStart)/observerVisual : observerVisual < 0 ? (observerStart-.9)/-observerVisual : 8);
-        const sceneT = t % clamp(Math.min(meet, edge), 3.2, 8);
-        const sourceMeter = sourceStart + sourceVisual * sceneT, observerMeter = observerStart + observerVisual * sceneT;
-        const period = 1 / s.visualRate, firstWave = Math.max(0, Math.ceil((sceneT - 3.3) / period));
-        let closestArrival = Infinity;
-        const a=project(0,-5), b=project(18,-5), c=project(18,5), d=project(0,5);
-        ctx.fillStyle="#f4f7fb"; ctx.beginPath();ctx.moveTo(...a);ctx.lineTo(...b);ctx.lineTo(...c);ctx.lineTo(...d);ctx.closePath();ctx.fill();
+        const left=30, scale=(w-2*left)/20, baseY=h*.73;
+        const originS=5.1, originO=14.8, period=1/s.visualRate;
+        // A displayed cycle represents many acoustic cycles. Use one spatial
+        // conversion for all three velocities so that spacing also responds to f.
+        const c=4.6*(s.sound/340)*(440/s.frequency);
+        const vs=c*s.sourceSpeed/s.sound, vo=c*s.observerSpeed/s.sound;
+        const untilEdge=(origin,velocity) => velocity>0 ? (19-origin)/velocity :
+          velocity<0 ? (1-origin)/velocity : Infinity;
+        const duration=Math.min(12,untilEdge(originS,vs),untilEdge(originO,vo),
+          (originO-originS-2)/Math.max(.001,vs-vo,vs,-vo));
+        const time=t%duration;
+        const xPos=m=>left+m*scale;
+        const source=originS+vs*time, observer=originO+vo*time;
+        const sx=xPos(source), ox=xPos(observer);
+        const blue="#2364aa", green="#087f5b", red="#c2413b";
+        const spacingR=(c-vs)*period;
+        const phase=time%period;
+        function comparison(y, name, sourceV, observerV) {
+          const src=originS+sourceV*time, obs=originO+observerV*time;
+          const lineY=y+18, rightSpacing=(c-sourceV)*period;
+          label(ctx,name,left,y,"#344054",12,"left");
+          const frequency=s.frequency*(c-observerV)/(c-sourceV);
+          label(ctx,fmt(frequency,1)+" Hz",w-left,y,green,12,"right");
+          ctx.strokeStyle="#cbd5e1";ctx.beginPath();ctx.moveTo(left,lineY);ctx.lineTo(w-left,lineY);ctx.stroke();
+          for(const side of [-1,1]) {
+            const step=(c-side*sourceV)*period;
+            for(let dist=(phase/period)*step;dist<=20;dist+=step) {
+              const m=src+side*dist;
+              if(m<0 || m>20) break;
+              const px=xPos(m);
+              ctx.strokeStyle=blue;ctx.beginPath();ctx.moveTo(px,lineY-5);ctx.lineTo(px,lineY+5);ctx.stroke();
+            }
+          }
+          const gap=(obs-src)/rightSpacing-phase/period;
+          const hit=Math.abs(gap-Math.round(gap))<.15;
+          dot(ctx,xPos(src),lineY,5,red); dot(ctx,xPos(obs),lineY,hit?8:5,green);
+        }
+        comparison(20,"音源だけ動かす",vs,0);
+        comparison(66,"観測者だけ動かす",0,vo);
+        label(ctx,"設定した両者の運動",w/2,125,"#344054",15,"center");
+        label(ctx,"左 λ "+fmt(r.leftWave)+" m　｜　右 λ "+fmt(r.rightWave)+" m",w/2,149,blue,13,"center");
+        ctx.save();
+        ctx.beginPath();ctx.rect(0,166,w,h-166);ctx.clip();
         ctx.strokeStyle="#d5dde8";ctx.lineWidth=1;
-        for(let x=0;x<=18;x+=2){const p=project(x,-5),q=project(x,5);ctx.beginPath();ctx.moveTo(...p);ctx.lineTo(...q);ctx.stroke();}
-        for(let y=-4;y<=4;y+=2){const p=project(0,y),q=project(18,y);ctx.beginPath();ctx.moveTo(...p);ctx.lineTo(...q);ctx.stroke();}
-        label(ctx,"斜め見下ろし：教材用の疑似球面波（縮み・広がりの比は物理量を保持）",w/2,30,"#475467",13,"center");
-        for(let wave=firstWave;wave<=Math.floor(sceneT/period);wave++){
-          const emitted=wave*period, age=sceneT-emitted, radius=visualSound*age;if(radius<.12)continue;
-          const [cx,cy]=project(sourceStart+sourceVisual*emitted,0);
-          ctx.strokeStyle="rgba(35,100,170,.58)";ctx.lineWidth=2;ctx.beginPath();ctx.ellipse(cx,cy,radius*scaleX,radius*scaleY,0,0,TAU);ctx.stroke();
-          closestArrival=Math.min(closestArrival,Math.abs(Math.abs(observerMeter-(sourceStart+sourceVisual*emitted))-visualSound*age));
+        for(let m=0;m<=20;m+=2) {
+          ctx.beginPath();ctx.moveTo(xPos(m)-16,baseY+27);ctx.lineTo(xPos(m)+16,baseY-27);ctx.stroke();
         }
-        const [sourceX,sourceY]=project(sourceMeter),[observerX,observerY]=project(observerMeter);
-        const threshold=clamp(visualSound*period*.13,.12,.38);
-        if(closestArrival<threshold){const pulse=18+closestArrival/threshold*20;ctx.strokeStyle="rgba(8,127,91,.7)";ctx.lineWidth=4;ctx.beginPath();ctx.ellipse(observerX,observerY,pulse,pulse*.36,0,0,TAU);ctx.stroke();label(ctx,"波面を受信！",observerX,observerY-55,"#087f5b",14,"center");}
-        dot(ctx,sourceX,sourceY,18,"#dc4c45");dot(ctx,sourceX,sourceY,5,"#fff");ctx.fillStyle="#087f5b";ctx.fillRect(observerX-8,observerY-19,16,32);dot(ctx,observerX,observerY-27,9,"#087f5b");
-        const sa=Math.sign(s.sourceSpeed)||1,oa=Math.sign(s.observerSpeed)||1;arrow(ctx,sourceX,sourceY-42,sourceX+sa*36,sourceY-42,"#dc4c45",3);arrow(ctx,observerX,observerY-42,observerX+oa*36,observerY-42,"#087f5b",3);
-        label(ctx,`音源 vS=${s.sourceSpeed>=0?"+":""}${fmt(s.sourceSpeed)} m/s`,sourceX,sourceY+34,"#c2413b",12,"center");label(ctx,`観測者 vO=${s.observerSpeed>=0?"+":""}${fmt(s.observerSpeed)} m/s`,observerX,observerY+34,"#087f5b",12,"center");
-        label(ctx,`右側 λ=${fmt(r.rightWave)} m　左側 λ=${fmt(r.leftWave)} m　観測 ${fmt(r.observed)} Hz`,w/2,56,"#7c3aed",14,"center");
-        return;
-        {
-        const cy = h * .56, left = 34, right = w - 34, pixelsPerMeter = Math.min(27, (right - left) / 19);
-        const toX = meters => left + meters * pixelsPerMeter;
-        const approaching = s.motion === "approach";
-        // 描画は実時間をスローモーション化する。速度・波長・受信の比は物理量のまま保持する。
-        const sceneScale = .045;
-        const sourceStart = approaching ? 5.2 : 12.8;
-        const observerStart = approaching ? 14.8 : 6.2;
-        const sourceDirection = 1;
-        const observerDirection = -1;
-        const available = approaching
-          ? (observerStart - sourceStart) / Math.max(1, s.sourceSpeed + s.observerSpeed) * .82
-          : Math.min((18.3 - sourceStart) / Math.max(1, s.sourceSpeed), observerStart / Math.max(1, s.observerSpeed)) * .82;
-        const cycle = clamp(available, .06, .28);
-        const sceneT = (t * sceneScale) % cycle;
-        const sourceMeter = sourceStart + sourceDirection * s.sourceSpeed * sceneT;
-        const observerMeter = observerStart + observerDirection * s.observerSpeed * sceneT;
-        const sourceX = toX(sourceMeter), observerX = toX(observerMeter);
-        const sourceAt = emitted => sourceStart + sourceDirection * s.sourceSpeed * emitted;
-        // 実音は毎秒数百波面で、すべて描けば間隔を読めない。
-        // 同位相の3周期ごとの波面だけを示すことで、前後の間隔比は保ったまま読み取れる大きさにする。
-        const displayedCycles = 3;
-        const representativePeriod = displayedCycles / s.frequency;
-        const oldestEmission = Math.max(0, sceneT - Math.min(.09, cycle));
-        const firstWave = Math.ceil(oldestEmission / representativePeriod);
-        let closestArrival = Infinity;
-
-        ctx.strokeStyle = "#98a2b3"; ctx.lineWidth = 2;
-        ctx.beginPath(); ctx.moveTo(left, cy); ctx.lineTo(right, cy); ctx.stroke();
-        label(ctx, "音の進行の横断面（波面の位置）", left, 28, "#667085", 12, "left");
-        label(ctx, `青線は${displayedCycles}周期ごとの代表波面（間の${displayedCycles - 1}波は省略）`, right, 28, "#667085", 12, "right");
-
-        // 各青線は、同位相の代表波面が中央の横断面を通る位置。
-        // 発音時点の音源位置を使うため、進行方向では3λ前、反対側では3λ後の間隔になる。
-        for (let wave = firstWave; wave <= Math.floor(sceneT / representativePeriod); wave++) {
-          const emitted = wave * representativePeriod;
-          const age = sceneT - emitted;
-          const radius = s.sound * age * pixelsPerMeter;
-          if (radius < 2) continue;
-          const originX = toX(sourceAt(emitted));
-          const forwardX = originX + radius, backwardX = originX - radius;
-          ctx.strokeStyle = "rgba(35,100,170,.72)"; ctx.lineWidth = 2.4;
-          if (forwardX >= left && forwardX <= right) {
-            ctx.beginPath(); ctx.moveTo(forwardX, cy - 58); ctx.lineTo(forwardX, cy + 58); ctx.stroke();
-          }
-          if (backwardX >= left && backwardX <= right) {
-            ctx.beginPath(); ctx.moveTo(backwardX, cy - 58); ctx.lineTo(backwardX, cy + 58); ctx.stroke();
-          }
-          const separation = Math.abs(observerMeter - sourceAt(emitted));
-          closestArrival = Math.min(closestArrival, Math.abs(separation - s.sound * age));
+        for(let row=-2;row<=2;row++) {
+          ctx.beginPath();ctx.moveTo(left+row*8,baseY-row*13.5);ctx.lineTo(w-left+row*8,baseY-row*13.5);ctx.stroke();
         }
-
-        const towardObserver = observerMeter > sourceMeter ? 1 : -1;
-        const frontLambda = r.frontWave * displayedCycles * pixelsPerMeter;
-        const backLambda = r.backWave * displayedCycles * pixelsPerMeter;
-        const frontY = cy - 76, backY = cy + 82;
-        arrow(ctx, sourceX + 10 * towardObserver, frontY, sourceX + 10 * towardObserver + towardObserver * frontLambda, frontY, "#2364aa", 2);
-        label(ctx, `観測者側：${displayedCycles}λ = ${fmt((towardObserver > 0 ? r.frontWave : r.backWave) * displayedCycles)} m`, sourceX + towardObserver * (frontLambda / 2 + 10), frontY - 10, "#2364aa", 12, "center");
-        arrow(ctx, sourceX - 10 * towardObserver, backY, sourceX - 10 * towardObserver - towardObserver * backLambda, backY, "#64748b", 2);
-        label(ctx, `反対側：${displayedCycles}λ = ${fmt((towardObserver > 0 ? r.backWave : r.frontWave) * displayedCycles)} m`, sourceX - towardObserver * (backLambda / 2 + 10), backY + 19, "#64748b", 12, "center");
-
-        const arrivalThreshold = clamp(s.sound * representativePeriod * .12, .16, .45);
-        const received = closestArrival < arrivalThreshold;
-        if (received) {
-          const pulse = 18 + (closestArrival / arrivalThreshold) * 20;
-          ctx.strokeStyle = "rgba(8,127,91,.7)"; ctx.lineWidth = 4;
-          ctx.beginPath(); ctx.arc(observerX, cy - 21, pulse, 0, TAU); ctx.stroke();
-          label(ctx, "波面を受信！", observerX, cy - 76, "#087f5b", 14, "center");
+        // Include waves emitted before t=0 so spacing is visible even while paused.
+        const maxAge=23/(c-Math.abs(vs));
+        for(let wave=Math.floor((time-maxAge)/period);wave<=Math.floor(time/period);wave++) {
+          const emitted=wave*period, radius=c*(time-emitted)*scale;
+          if(radius<1) continue;
+          ctx.strokeStyle="rgba(35,100,170,.55)";ctx.lineWidth=2;ctx.beginPath();
+          ctx.ellipse(xPos(originS+vs*emitted),baseY,radius,.32*radius,0,0,TAU);ctx.stroke();
         }
-
-        dot(ctx, sourceX, cy, 19, "#dc4c45");
-        ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.arc(sourceX, cy, 6, 0, TAU); ctx.fill();
-        label(ctx, "音源", sourceX, cy + 35, "#344054", 13, "center");
-        arrow(ctx, sourceX - 32, cy - 42, sourceX + 32, cy - 42, "#dc4c45", 3);
-        label(ctx, `${fmt(s.sourceSpeed)} m/s`, sourceX, cy - 52, "#c2413b", 12, "center");
-
-        ctx.fillStyle = "#087f5b"; ctx.fillRect(observerX - 9, cy - 22, 18, 38); dot(ctx, observerX, cy - 32, 10, "#087f5b");
-        label(ctx, "観測者", observerX, cy + 35, "#344054", 13, "center");
-        arrow(ctx, observerX + 30, cy - 42, observerX - 30, cy - 42, "#087f5b", 3);
-        label(ctx, `${fmt(s.observerSpeed)} m/s`, observerX, cy - 52, "#087f5b", 12, "center");
-
-        const relation = approaching ? "近づく：受信間隔が短い" : "遠ざかる：受信間隔が長い";
-        label(ctx, relation, w / 2, 52, "#7c3aed", 16, "center");
-        label(ctx, `観測振動数 ${fmt(r.observed)} Hz`, w / 2, 76, "#7c3aed", 14, "center");
+        const gap=(observer-source)/spacingR-phase/period;
+        if(Math.abs(gap-Math.round(gap))<.14) {
+          ctx.strokeStyle=green;ctx.lineWidth=3;ctx.beginPath();ctx.ellipse(ox,baseY,20,9,0,0,TAU);ctx.stroke();
+          label(ctx,"受信",ox,baseY-63,green,13,"center");
         }
+        dot(ctx,sx,baseY,13,red);dot(ctx,sx,baseY,4,"#fff");
+        ctx.fillStyle=green;ctx.fillRect(ox-6,baseY-13,12,23);dot(ctx,ox,baseY-19,7,green);
+        for (const [x,speed,name,color] of [[sx,s.sourceSpeed,"音源",red],[ox,s.observerSpeed,"観測者",green]]) {
+          if(speed) arrow(ctx,x,baseY-39,x+Math.sign(speed)*(12+.23*Math.abs(speed)),baseY-39,color,2);
+          label(ctx,name+(speed===0?"（静止）":speed>0?" →":" ←"),x,baseY+27,color,12,"center");
+        }
+        ctx.restore();
+        label(ctx,"青の波面が緑の観測者に届くと点灯",w/2,h-16,green,12,"center");
       }
     };
   }
@@ -1425,6 +1379,7 @@
         item.input.dispatchEvent(new Event("input"));
       });
       running = false; physicsTime = 0;
+      render();
       if (playButton) playButton.textContent = "再生";
       status.textContent = timeRelevant ? "初期状態に戻しました" : "初期条件に戻しました。";
     }

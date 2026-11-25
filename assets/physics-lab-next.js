@@ -156,8 +156,113 @@
     if (visual.title) label(ctx, visual.title, width / 2, 30, "#17202a", 16, "center");
   }
 
+  function segment(ctx, x1, y1, x2, y2, color, width = 2) {
+    ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2);
+    ctx.strokeStyle = color; ctx.lineWidth = width; ctx.stroke();
+  }
+
+  function drawBrownian(ctx, w, h, v) {
+    drawGrid(ctx,w,h);
+    const cx = w/2, cy = h/2, diffusionScale = Math.sqrt(2*v.diffusion)*1e6;
+    // Choose one scale for the full observation, including the reference path.
+    const referenceScale = Math.sqrt(2 * KB * 300 / (6*Math.PI*1e-3*.5e-6))*1e6;
+    const largestScale = Math.max(referenceScale,diffusionScale);
+    const reach = largestScale*brownianReach[Math.ceil(v.duration/brownianStep)];
+    const halfSpan = 4*2**Math.max(0,Math.ceil(Math.log2(Math.max(1,reach/4))));
+    const px = Math.min(w*.43,h*.34)/halfSpan, barLength=halfSpan/4;
+    const point = ([x,y],scale) => [cx+x*scale*px,cy+y*scale*px];
+    label(ctx,"青い円は二乗平均平方根の変位",w/2,21,"#2364aa",14,"center");
+    label(ctx,"灰色の軌跡は初期条件での比較用",w/2,42,"#667085",12,"center");
+    ctx.beginPath(); ctx.arc(cx,cy,v.rms*px,0,TAU); ctx.strokeStyle="#2364aa"; ctx.lineWidth=2; ctx.stroke();
+    for(const [scale,color] of [[referenceScale,"#8995a5"],[diffusionScale,"#c2413b"]]) {
+      ctx.beginPath(); v.path.forEach((p,i) => i ? ctx.lineTo(...point(p,scale)) : ctx.moveTo(...point(p,scale)));
+      ctx.strokeStyle=color; ctx.lineWidth=1.8; ctx.stroke();
+    }
+    dot(ctx,cx,cy,3,"#344054"); dot(ctx,...point(v.path[v.path.length-1],diffusionScale),4,"#c2413b");
+    segment(ctx,18,h-35,18+barLength*px,h-35,"#344054",3);
+    label(ctx,fmt(barLength)+" μm",18,h-18); label(ctx,"赤は同じ乱数で追った1粒子",w-12,h-18,"#c2413b",12,"right");
+  }
+
+  function drawBragg(ctx,w,h,v) {
+    drawGrid(ctx,w,h);
+    const x=w*.5, y=h*.40, gap=v.spacing*Math.min(h*.47,w*.48);
+    for (let py=y; py<h*.88; py+=gap) segment(ctx,w*.07,py,w*.93,py,"#a4b0c2",2);
+    if (!Number.isFinite(v.theta)) {
+      label(ctx,"nλ が 2d を超えるため、この次数の反射は生じない",x,28,"#9a3412",12,"center");
+      return;
+    }
+    const sin=Math.sin(v.theta), cos=Math.cos(v.theta);
+    const length=Math.min((w*.43)/Math.max(.001,cos),(y-42)/Math.max(.001,sin));
+    const extra=gap*sin;
+    for (const [plane,origin,color] of [["lower",y+gap,"#7c3aed"],["upper",y,"#2364aa"]]) {
+      if (v.planes!=="both" && v.planes!==plane) continue;
+      arrow(ctx,x-length*cos,origin-length*sin,x-length*.48*cos,origin-length*.48*sin,color,2);
+      segment(ctx,x-length*cos,origin-length*sin,x,origin,color);
+      segment(ctx,x,origin,x+length*cos,origin-length*sin,color);
+      arrow(ctx,x+length*.55*cos,origin-length*.55*sin,x+length*cos,origin-length*sin,color,2);
+    }
+    for (const sign of v.planes==="both" ? [-1,1] : []) {
+      const footX=x+sign*extra*cos, footY=y+gap-extra*sin;
+      ctx.setLineDash([4,4]); segment(ctx,x,y,footX,footY,"#667085",1.5); ctx.setLineDash([]);
+      segment(ctx,x,y+gap,footX,footY,"#c2410c",4);
+    }
+    ctx.beginPath(); ctx.arc(x,v.planes==="lower" ? y+gap : y,Math.min(32,length*.32),-v.theta,0); ctx.strokeStyle="#2364aa"; ctx.lineWidth=2; ctx.stroke();
+    label(ctx,"結晶面との角度 θ = "+fmt(deg(v.theta),1)+"°",x,22,"#2364aa",14,"center");
+    if (Math.abs(cos)<1e-7) label(ctx,"入射と反射の光路が重なる",x,h-48,"#667085",12,"center");
+    if (v.planes==="both") label(ctx,"橙の2区間の和　2d sinθ = "+fmt(v.pathDifference)+" nm",x,h-24,"#9a3412",13,"center");
+    else label(ctx,v.planes==="upper" ? "上の格子面で反射する光線" : "下の格子面で反射する光線",x,h-24,"#475467",13,"center");
+  }
+
+  function drawCircuit(ctx,w,h,v) {
+    drawGrid(ctx,w,h);
+    const rc=v.device==="RC", x=w*.5, y=h*.18, span=Math.min(66,w*.18);
+    const blue="#2364aa", red="#b23c32", green="#087f5b";
+    const magnitude=Math.abs(v.current);
+    const arrowLen=span*(1-Math.exp(-magnitude/(rc ? .25 : .5)));
+    if (arrowLen>1) {
+      const dir=v.current<0 ? -1 : 1;
+      arrow(ctx,x-span*.6-dir*arrowLen/2,y-30,x-span*.6+dir*arrowLen/2,y-30,green,2);
+    }
+    label(ctx,"I = "+fmt(v.current)+(rc?" mA":" A"),x,y-54,green,14,"center");
+    if (rc) {
+      for (const side of [-1,1]) {
+        segment(ctx,x+side*12,y-18,x+side*12,y+23,blue,4);
+        segment(ctx,x+side*12,y,x+side*(span+20),y,blue);
+      }
+      if (v.charge > 0) { label(ctx,"+",x-24,y+12,red); label(ctx,"−",x+18,y+12,blue); }
+      label(ctx,"極板の電荷　"+fmt(v.charge)+" μC（"+fmt(100*v.fraction,1)+"%）",x,y+42,blue,13,"center");
+      const start=x-span, fill=v.fraction;
+      ctx.fillStyle="#e0e9f3"; ctx.fillRect(start,y+55,2*span,7);
+      ctx.fillStyle=blue; ctx.fillRect(start,y+55,2*span*fill,7);
+    } else {
+      ctx.strokeStyle=blue; ctx.lineWidth=3; ctx.beginPath(); ctx.moveTo(x-span-15,y);
+      for(let i=0;i<5;i++) ctx.arc(x-span+(2*i+1)*span/5,y,span/5,Math.PI,0);
+      ctx.lineTo(x+span+15,y); ctx.stroke();
+      const emfLen=span*(1-Math.exp(-v.voltage/8));
+      if(emfLen>1) arrow(ctx,x+emfLen/2,y+18,x-emfLen/2,y+18,red,2);
+      label(ctx,"自己誘導起電力　"+fmt(-v.voltage)+" V",x,y+42,red,13,"center");
+    }
+    const top=h*.47, bottom=h-82, left=40, right=w-22, gh=bottom-top;
+    const at=(u,level)=>[left+u*(right-left),bottom-level*gh];
+    const fraction=u=> rc && v.discharge ? Math.exp(-5*u) : 1-Math.exp(-5*u);
+    segment(ctx,left,top,left,bottom,"#94a3b8"); segment(ctx,left,bottom,right,bottom,"#94a3b8");
+    for(let i=0;i<=5;i++) {
+      label(ctx,String(i)+"τ",left+(right-left)*i/5,bottom+14,"#475467",11,"center");
+      label(ctx,fmt(i*v.tau,3)+" s",left+(right-left)*i/5,bottom+32,"#475467",10,"center");
+    }
+    label(ctx,"1",left-12,top); label(ctx,"0",left-12,bottom);
+    for (const [fn,color] of [[fraction,blue],...(rc ? [] : [[u=>Math.exp(-5*u),red]])]) {
+      plot(ctx,curve(100,fn),left,top,right-left,gh,color,2.5);
+      dot(ctx,...at(v.ratio/5,fn(v.ratio/5)),5,color);
+    }
+    label(ctx,rc ? "青　コンデンサー電圧 / 初期または電源電圧" : "青　I / I∞　　 赤　コイル電圧 / 電源電圧",x,h-18,blue,12,"center");
+  }
+
   function drawVisual(ctx, width, height, visual) {
     if (!visual || visual.kind === "diagram") drawDiagram(ctx, width, height, visual || {});
+    else if (visual.kind === "brownian") drawBrownian(ctx,width,height,visual);
+    else if (visual.kind === "bragg") drawBragg(ctx,width,height,visual);
+    else if (visual.kind === "circuit") drawCircuit(ctx,width,height,visual);
     else if (visual.kind === "graph") drawGraph(ctx, width, height, visual);
     else if (visual.kind === "bars") drawBars(ctx, width, height, visual);
   }
@@ -184,10 +289,39 @@
     title: "連結物体と滑車の運動", subtitle: "アトウッドの装置の加速度と張力", lead: "軽い糸と摩擦のない滑車でつながれた2物体の運動を、2本の運動方程式から調べます。",
     formula: "m₂g−T = m₂a\nT−m₁g = m₁a\na = (m₂−m₁)g/(m₁+m₂)", focus: "2物体の加速度の大きさは、伸びない糸の条件により等しくなります。",
     controls: [range("m1", "左の質量 m₁", .5, 10, .5, 3, " kg"), range("m2", "右の質量 m₂", .5, 10, .5, 6, " kg"), range("height", "移動可能距離", .5, 3, .1, 1.5, " m")],
+    duration(s) {
+      const a = G * Math.abs(s.m2 - s.m1) / (s.m1 + s.m2);
+      return a ? Math.sqrt(2 * s.height / a) : 0;
+    },
     calc(s, t) {
-      const acceleration = (s.m2 - s.m1) * G / (s.m1 + s.m2), tension = 2 * s.m1 * s.m2 * G / (s.m1 + s.m2);
-      const phase = (1 - Math.cos((t % 4) / 4 * TAU)) / 2, shift = Math.sign(acceleration) * phase * .2;
-      return { metrics: [metric("加速度 a", `${fmt(acceleration)} m/s²`), metric("糸の張力 T", `${fmt(tension)} N`), metric("m₁の重力", `${fmt(s.m1 * G)} N`), metric("m₂の重力", `${fmt(s.m2 * G)} N`)], visual: diagram({ title: "2物体は同じ大きさの加速度で動く", lines: [{ a: [.25, .25], b: [.75, .25], width: 5 }, { a: [.25, .25], b: [.25, .72 + shift] }, { a: [.75, .25], b: [.75, .72 - shift] }], circles: [{ x: .5, y: .25, r: 42, color: "#eef4fa" }], rects: [{ x: .18, y: .67 + shift, w: .14, h: .16, fill: "#dbeafe" }, { x: .68, y: .67 - shift, w: .14, h: .16, fill: "#fee2e2", stroke: "#dc4c45" }], arrows: [{ a: [.25, .58 + shift], b: [.25, .43 + shift], color: "#087f5b" }, { a: [.25, .77 + shift], b: [.25, .91 + shift], color: "#7c3aed" }, { a: [.75, .58 - shift], b: [.75, .43 - shift], color: "#087f5b" }, { a: [.75, .77 - shift], b: [.75, .91 - shift], color: "#7c3aed" }], texts: [{ text: `m₁ ${fmt(s.m1)} kg`, x: .25, y: .75 + shift }, { text: `m₂ ${fmt(s.m2)} kg`, x: .75, y: .75 - shift }, { text: "T", x: .29, y: .48 + shift, color: "#087f5b" }, { text: "mg", x: .29, y: .9 + shift, color: "#7c3aed" }] }) };
+      const a = G * (s.m2 - s.m1) / (s.m1 + s.m2);
+      const tension = 2 * G * s.m1 * s.m2 / (s.m1 + s.m2);
+      const distance = Math.min(s.height, Math.abs(a) * t * t / 2);
+      const shift = Math.sign(a) * distance * .075;
+      const objects = [
+        { x: .36, y: .56 - shift, mass: s.m1, name: "m₁", fill: "#dbeafe" },
+        { x: .64, y: .56 + shift, mass: s.m2, name: "m₂", fill: "#fee2e2" }
+      ];
+      const rope = Array.from({ length: 41 }, (_, i) => {
+        const angle = Math.PI * i / 40;
+        return [.5 - .14 * Math.cos(angle), .22 - .1 * Math.sin(angle)];
+      });
+      const visual = diagram({
+        title: a === 0 ? "質量が等しいので静止" : a > 0 ? "右のおもりが下がる" : "左のおもりが下がる",
+        polylines: [{ points: rope, fill: "#e2e8f0", color: "#475467" }],
+        lines: [{ a: [.15, .56], b: [.85, .56], dashed: true, color: "#94a3b8", width: 1 },
+          ...objects.map(o => ({ a: [o.x,.22], b: [o.x,o.y] }))],
+        rects: objects.map(o => ({ x: o.x-.095, y: o.y-.04, w: .19, h: .08, fill: o.fill })),
+        texts: objects.map(o => ({ text: o.name+" "+fmt(o.mass)+" kg", x:o.x, y:o.y })),
+        arrows: objects.flatMap(o => [
+          { a:[o.x-.055,o.y-.04], b:[o.x-.055,o.y-.04-.00135*tension], color:"#087f5b" },
+          { a:[o.x+.055,o.y+.04], b:[o.x+.055,o.y+.04+.00135*o.mass*G], color:"#7c3aed" }
+        ])
+      });
+      visual.texts.push({text:"緑 ↑ 張力　 紫 ↓ 重力　 破線は出発点", x:.5, y:.97});
+      return { metrics: [metric("加速度（右のおもりの下向きが正）", fmt(a)+" m/s²"),
+        metric("運動中の張力", fmt(tension)+" N"), metric("各おもりの移動距離", fmt(distance)+" m"),
+        metric("観察時刻", fmt(t)+" s")], visual };
     }
   });
 
@@ -329,16 +463,44 @@
     }
   });
 
+  // Independent Gaussian increments at fixed simulated intervals; reuse the same
+  // realization when comparing D so that random variation does not mask the effect.
+  const brownianStep = .1;
+  const brownianPath = (() => {
+    let seed = 2749;
+    const uniform = () => {
+      seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+      return (seed + .5) / 4294967296;
+    };
+    const points = [[0, 0]];
+    for (let i = 0; i < 600; i++) {
+      const length = Math.sqrt(-2 * brownianStep * Math.log(uniform()));
+      const angle = TAU * uniform(), [x, y] = points[i];
+      points.push([x + length * Math.cos(angle), y + length * Math.sin(angle)]);
+    }
+    return points;
+  })();
+
+  const brownianReach = [];
+  brownianPath.forEach(([x,y],i) => {
+    brownianReach.push(Math.max(brownianReach[i-1] || 0, Math.hypot(x,y), Math.sqrt(2*i*brownianStep)));
+  });
+
   add("brownian-diffusion", {
     timeRelevant: true,
     title: "ブラウン運動と拡散", subtitle: "熱運動と平均二乗変位", lead: "液体分子の熱運動による微粒子の不規則運動を、拡散係数と結び付けます。",
     formula: "D = kBT/(6πηr)\n2次元：⟨r²⟩ = 4Dt", focus: "個々の軌跡は予測できなくても、平均二乗変位には規則性があります。",
     controls: [range("temperature", "温度 T", 250, 400, 5, 300, " K"), range("radius", "粒子半径 r", .05, 2, .05, .5, " μm"), range("viscosity", "粘性率 η", .2, 5, .1, 1, " mPa·s"), range("time", "観察時間", 1, 60, 1, 20, " s")],
+    duration: s => s.time,
     calc(s, t) {
-      const diffusion = KB * s.temperature / (6 * Math.PI * s.viscosity * 1e-3 * s.radius * 1e-6), time = Math.min(s.time, t % (s.time + .001)), msd = 4 * diffusion * time, rms = Math.sqrt(msd);
-      const circles = Array.from({ length: 55 }, (_, i) => ({ x: .5 + .42 * Math.sin(i * 12.31 + time * (.11 + i % 5 * .01)), y: .53 + .36 * Math.sin(i * 7.17 + time * (.08 + i % 7 * .009)), r: i === 0 ? 13 : 3, color: i === 0 ? "#dc4c45" : "rgba(35,100,170,.45)", stroke: i === 0 }));
-      const path = Array.from({ length: 45 }, (_, i) => { const tt = time * i / 44; return [.5 + .22 * Math.sin(tt * 1.7 + Math.sin(tt * 3.1)), .52 + .2 * Math.sin(tt * 2.3 + 1.2)]; });
-      return { metrics: [metric("拡散係数 D", `${fmt(diffusion)} m²/s`), metric("平均二乗変位", `${fmt(msd)} m²`), metric("RMS変位", `${fmt(rms * 1e6)} μm`), metric("観察時刻", `${fmt(time)} s`)], visual: diagram({ title: "赤い微粒子の軌跡と周囲分子", polylines: [{ points: path, color: "rgba(220,76,69,.55)", width: 2 }], circles, texts: [{ text: "熱運動する分子", x: .2, y: .12, color: "#2364aa" }, { text: "観測粒子", x: circles[0].x + .08, y: circles[0].y, color: "#dc4c45" }] }) };
+      const diffusion = KB * s.temperature / (6 * Math.PI * s.viscosity * 1e-3 * s.radius * 1e-6);
+      const time = Math.min(s.time, t), msd = 4 * diffusion * time;
+      const steps = Math.min(600, time / brownianStep), i = Math.floor(steps);
+      const path = brownianPath.slice(0, i + 1);
+      if (i < 600) path.push(path[i].map((v, j) => v + (steps-i)*(brownianPath[i+1][j]-v)));
+      return { metrics: [metric("拡散係数 D", fmt(diffusion)+" m²/s"), metric("平均二乗変位（理論値）", fmt(msd)+" m²"),
+        metric("二乗平均平方根の変位", fmt(Math.sqrt(msd)*1e6)+" μm"), metric("観察時刻", fmt(time)+" s")],
+        visual: { kind:"brownian", path, diffusion, duration:s.time, rms: Math.sqrt(msd)*1e6 } };
     }
   });
 
@@ -455,16 +617,40 @@
     timeRelevant: true,
     title: "RC回路の充電と放電", subtitle: "コンデンサー電圧・電流・時定数", lead: "抵抗とコンデンサーを直列につなぎ、スイッチ操作後の指数関数的変化を追います。",
     formula: "τ = RC\n充電：VC=V(1−e^(−t/τ)), I=(V/R)e^(−t/τ)\n放電：VC=V₀e^(−t/τ)", focus: "1時定数後には充電で約63%、放電で約37%になります。",
-    controls: [select("mode","動作","charge",[["charge","充電"],["discharge","放電"]]),range("voltage","電源／初期電圧",1,24,.5,12," V"),range("resistance","抵抗 R",1,200,1,50," kΩ"),range("capacitance","容量 C",1,500,1,100," μF"),range("ratio","時刻 t/τ",0,5,.1,1,"")],
-    calc(s,t){const tau=s.resistance*s.capacitance/1000,ratio=(s.ratio+t*.35)%5,ex=Math.exp(-ratio),vc=s.mode==="charge"?s.voltage*(1-ex):s.voltage*ex,current=(s.voltage/(s.resistance*1000))*ex*(s.mode==="charge"?1:-1),charge=s.capacitance*vc,energy=.5*s.capacitance*1e-6*vc**2;return{metrics:[metric("時定数 τ",`${fmt(tau)} s`),metric("コンデンサー電圧",`${fmt(vc)} V`),metric("回路電流",`${fmt(current*1000)} mA`),metric("電荷",`${fmt(charge)} μC`),metric("静電エネルギー",`${fmt(energy*1000)} mJ`)],visual:graph({title:s.mode==="charge"?"充電曲線":"放電曲線",xLabel:"t/τ",yLabel:"V/V₀",curves:[{color:"#2364aa",points:curve(100,x=>s.mode==="charge"?1-Math.exp(-5*x):Math.exp(-5*x))}],markerX:ratio/5,legend:[{label:"コンデンサー電圧",color:"#2364aa"}]})};}
+    controls: [select("mode","動作","charge",[["charge","充電"],["discharge","放電"]]),range("voltage","電源／初期電圧",1,24,.5,12," V"),range("resistance","抵抗 R",1,200,1,50," kΩ"),range("capacitance","容量 C",1,500,1,100," μF"),range("ratio","観察時刻 t/τ",0,5,.01,0,"")],
+    tau: s => s.resistance*s.capacitance/1000,
+    duration(s) { return 5 * this.tau(s); },
+    calc(s, t) {
+      const tau = this.tau(s), ratio = t / tau, decay = Math.exp(-ratio);
+      const discharge = s.mode === "discharge", fraction = discharge ? decay : 1-decay;
+      const voltage = s.voltage*fraction, current = (discharge ? -1 : 1)*s.voltage/s.resistance*decay;
+      const charge = s.capacitance*voltage;
+      const metrics = [metric("時定数 τ",fmt(tau)+" s"), metric("コンデンサー電圧",fmt(voltage)+" V"),
+        metric("回路電流",fmt(current)+" mA"), metric("電荷",fmt(charge)+" μC"),
+        metric("静電エネルギー",fmt(.0005*s.capacitance*voltage**2)+" mJ")];
+      const visual = {kind:"circuit", device:"RC", discharge, fraction, current, voltage, charge};
+      metrics.push(metric("観察時刻",fmt(t)+" s"));
+      return { metrics, visual: {...visual, ratio, tau, decay} };
+    }
   });
 
   add("lr-circuit", {
     timeRelevant: true,
     title: "LR回路と自己誘導", subtitle: "コイル電流と逆起電力", lead: "抵抗とコイルを直列につなぎ、スイッチ投入後に電流がゆっくり増える様子を調べます。",
     formula: "τ = L/R\nI = (V/R)(1−e^(−t/τ))\nVL = Ve^(−t/τ)", focus: "自己誘導起電力は電流の変化を妨げ、定常状態では0になります。",
-    controls:[range("voltage","電源電圧",1,48,1,12," V"),range("resistance","抵抗 R",1,100,1,20," Ω"),range("inductance","自己インダクタンス L",10,2000,10,500," mH"),range("ratio","時刻 t/τ",0,5,.1,1,"")],
-    calc(s,t){const tau=s.inductance/1000/s.resistance,ratio=(s.ratio+t*.35)%5,ex=Math.exp(-ratio),current=s.voltage/s.resistance*(1-ex),emf=s.voltage*ex,energy=.5*s.inductance/1000*current**2;return{metrics:[metric("時定数 τ",`${fmt(tau)} s`),metric("電流 I",`${fmt(current)} A`),metric("コイル電圧 VL",`${fmt(emf)} V`),metric("磁気エネルギー",`${fmt(energy)} J`)],visual:graph({title:"電流の立ち上がりとコイル電圧",xLabel:"t/τ",yLabel:"比率",curves:[{color:"#2364aa",points:curve(100,x=>1-Math.exp(-5*x))},{color:"#dc4c45",points:curve(100,x=>Math.exp(-5*x))}],markerX:ratio/5,legend:[{label:"I/I∞",color:"#2364aa"},{label:"VL/V",color:"#dc4c45"}]})};}
+    controls:[range("voltage","電源電圧",1,48,1,12," V"),range("resistance","抵抗 R",1,100,1,20," Ω"),range("inductance","自己インダクタンス L",10,2000,10,500," mH"),range("ratio","観察時刻 t/τ",0,5,.01,0,"")],
+    tau: s => s.inductance/1000/s.resistance,
+    duration(s) { return 5 * this.tau(s); },
+    calc(s, t) {
+      const tau = this.tau(s), ratio = t / tau, decay = Math.exp(-ratio);
+      const fraction = 1-decay, current = s.voltage/s.resistance*fraction, voltage = s.voltage*decay;
+      const metrics = [metric("時定数 τ",fmt(tau)+" s"), metric("電流 I",fmt(current)+" A"),
+        metric("コイル電圧",fmt(voltage)+" V"), metric("自己誘導起電力",fmt(-voltage)+" V"),
+        metric("磁気エネルギー",fmt(.0005*s.inductance*current**2)+" J")];
+      const visual = {kind:"circuit", device:"LR", fraction, current, voltage};
+      metrics.push(metric("観察時刻",fmt(t)+" s"));
+      return { metrics, visual: {...visual, ratio, tau, decay} };
+    }
   });
 
   add("transformer", {
@@ -556,8 +742,18 @@
   add("xray-bragg", {
     title:"X線とブラッグ反射",subtitle:"結晶格子と強め合いの条件",lead:"平行な結晶面で反射したX線の光路差を調べ、回折ピークの角度を求めます。",
     formula:"2d sinθ = nλ",focus:"隣り合う面からの反射波の光路差が波長の整数倍になると強め合います。",
-    controls:[range("wavelength","X線波長 λ",.03,.3,.005,.1," nm"),range("spacing","格子面間隔 d",.08,.6,.01,.25," nm"),range("order","回折次数 n",1,5,1,1,"")],
-    calc(s){const ratio=s.order*s.wavelength/(2*s.spacing),valid=ratio<=1,theta=valid?Math.asin(ratio):NaN,pathDifference=valid?2*s.spacing*Math.sin(theta):NaN;const th=valid?theta:.25;return{metrics:[metric("ブラッグ角 θ",valid?`${fmt(deg(theta),2)}°`:"成立しない"),metric("光路差",valid?`${fmt(pathDifference)} nm`:"—"),metric("nλ",`${fmt(s.order*s.wavelength)} nm`),metric("回折条件",valid?"強め合い":"この次数は不可")],visual:diagram({title:valid?"反射波の位相がそろう":"sinθが1を超える",lines:Array.from({length:6},(_,i)=>({a:[.12,.26+i*.1],b:[.88,.26+i*.1],color:"#9ca3af",width:2})),polylines:[{points:[[.16,.12],[.45,.5],[.76,.12]],color:"#2364aa",width:4},{points:[[.16,.22],[.5,.6],[.82,.22]],color:"#7c3aed",width:4}],texts:[{text:`θ=${valid?fmt(deg(th),1):"—"}°`,x:.48,y:.42,color:"#dc4c45"},{text:"結晶面",x:.82,y:.76},{text:"光路差 = nλ",x:.5,y:.86,color:"#087f5b"}]})};}
+    controls:[range("wavelength","X線波長 λ",.03,.3,.005,.1," nm"),range("spacing","格子面間隔 d",.08,.6,.01,.25," nm"),range("order","回折次数 n",1,5,1,1,""),
+      select("planes","表示する光路","both",[["both","両方の光路と光路差"],["upper","上の面だけ"],["lower","下の面だけ"]])],
+    calc(s) {
+      const pathDifference = s.order * s.wavelength;
+      const ratio = pathDifference / (2 * s.spacing);
+      const valid = ratio <= 1 + 1e-12;
+      const theta = valid ? Math.asin(Math.min(ratio, 1)) : NaN;
+      return { metrics: [metric("ブラッグ角 θ", valid ? fmt(deg(theta),2)+"°" : "成立しない"),
+        metric("光路差",valid ? fmt(pathDifference)+" nm" : "—"), metric("nλ",fmt(pathDifference)+" nm"),
+        metric("回折条件", valid ? "強め合い" : "この次数は不可")],
+        visual: {kind:"bragg", theta, planes:s.planes, spacing:s.spacing, pathDifference} };
+    }
   });
 
   add("compton-scattering", {
@@ -657,6 +853,14 @@
       inputs.set(control.key, { input, output, control });
       input.addEventListener("input", () => {
         state[control.key] = control.type === "range" ? Number(input.value) : input.value;
+        if (scenario.tau && control.key === "ratio") elapsed = state.ratio * scenario.tau(state);
+        if (scenario.duration) {
+          const end = scenario.duration(state);
+          elapsed = Math.min(elapsed, end);
+          if (elapsed >= end) playing = false;
+          playButton.textContent = playing ? "一時停止" : elapsed >= end ? "もう一度再生" : "再生";
+          status.textContent = playing ? "再生中" : "時刻 "+fmt(elapsed)+" s";
+        }
         if (!timeRelevant) status.textContent = "条件を更新しました。図と結果を見比べてください。";
         updateOutputs(); render();
       });
@@ -714,6 +918,11 @@
 
     function render() {
       const size = ensureCanvas();
+      if (scenario.tau) {
+        const {input,output} = inputs.get("ratio");
+        state.ratio = elapsed / scenario.tau(state);
+        input.value = state.ratio; output.textContent = fmt(state.ratio,2);
+      }
       const result = scenario.calc(state, timeRelevant ? elapsed : visualTime);
       updateMetrics(result.metrics);
       ctx.setTransform(size.dpr, 0, 0, size.dpr, 0, 0);
@@ -736,9 +945,33 @@
       updateOutputs(); setZoom(1, true); render();
     }
 
+    let advancePlayback;
     if (timeRelevant) {
-      playButton.addEventListener("click", () => { playing = !playing; playButton.textContent = playing ? "一時停止" : "再生"; status.textContent = playing ? "再生中" : "停止中"; lastFrame = performance.now(); });
-      root.querySelector("[data-action=step]").addEventListener("click", () => { playing = false; elapsed += .2; playButton.textContent = "再生"; status.textContent = `時刻 ${fmt(elapsed)} s`; render(); });
+      const stepButton = root.querySelector("[data-action=step]");
+      if (scenario.tau) stepButton.textContent = "0.2τ 進める";
+      const limit = () => scenario.duration ? scenario.duration(state) : Infinity;
+      function advance(delta) {
+        elapsed = Math.min(elapsed + delta, limit());
+        if (elapsed >= limit()) {
+          playing = false; playButton.textContent = "もう一度再生";
+          status.textContent = "観察終了　"+fmt(elapsed)+" s";
+        }
+        render();
+      }
+      playButton.addEventListener("click", () => {
+        if (!playing && elapsed >= limit()) elapsed = 0;
+        playing = !playing; playButton.textContent = playing ? "一時停止" : "再生";
+        status.textContent = playing ? "再生中" : "停止中"; lastFrame = performance.now();
+      });
+      stepButton.addEventListener("click", () => {
+        playing = false; playButton.textContent = "再生";
+        const step = scenario.tau ? .2*scenario.tau(state) : .2;
+        status.textContent = "時刻 "+fmt(Math.min(limit(),elapsed+step))+" s"; advance(step);
+      });
+      advancePlayback = delta => {
+        const rate = scenario.tau ? clamp(scenario === scenarios["lr-circuit"] ? .01 : 1, scenario.tau(state)*.18, scenario.tau(state)) : 1;
+        advance(delta*rate);
+      };
     }
     root.querySelector("[data-action=reset]").addEventListener("click", reset);
     root.querySelector("[data-fit]").addEventListener("click", () => setZoom(1, true));
@@ -759,8 +992,8 @@
     function animate(now) {
       const delta = Math.min(.05, Math.max(0, (now - lastFrame) / 1000));
       visualTime += delta;
-      if (playing) { elapsed += delta; }
-      if (!timeRelevant || playing) render();
+      if (playing) advancePlayback(delta);
+      else if (!timeRelevant && scenario !== scenarios["xray-bragg"]) render();
       lastFrame = now; requestAnimationFrame(animate);
     }
     updateOutputs(); reset(); requestAnimationFrame(animate);
