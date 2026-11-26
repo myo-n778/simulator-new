@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>物理シミュレーター｜3D版</title>
+<link rel="stylesheet" href="lab.css">
+<script defer src="topics.js"></script><script defer src="scenes.js"></script><script defer src="view.js"></script>
+</head>
+<body>
+<header><div class="top"><a href="../index.html">← 教材一覧</a><span>物理シミュレーター <b>3D版</b></span></div></header>
+<main>
+<div class="heading"><div id="topic-slot"><label for="topic">3D教材を選ぶ</label></div><a id="original">この教材の元版へ</a></div>
+<div class="layout"><section class="stage" aria-labelledby="title">
+<div class="stage-head"><div><span id="category"></span><h1 id="title"></h1></div><div id="camera" role="group" aria-label="見る方向">
+<button data-camera="oblique">斜め</button><button data-camera="front">正面</button><button data-camera="above">真上</button><button data-camera="side">側面</button></div></div>
+<canvas id="world" tabindex="0" aria-label="立体図。ドラッグまたは矢印キーで視点を回転"></canvas>
+<div class="view-note"><span>ドラッグ・矢印キーで回転</span><div><button id="smaller" aria-label="縮小">−</button><output id="zoom">100%</output><button id="larger" aria-label="拡大">＋</button></div></div>
+<div id="legend" class="legend"></div></section>
+<aside><h2>条件を変える</h2><div id="controls"></div>
+<div id="transport"><div><button id="play">再生</button><button id="step">0.1秒進める</button></div><label for="time">表示時刻 <output id="clock"></output></label><input id="time" type="range" min="0" step=".01" value="0"></div>
+<button id="reset">初期条件に戻す</button></aside></div>
+<div class="readings" id="metrics"></div><section class="guide"><h2>観察のしかた</h2><p id="guide"></p><p id="formula"></p></section>
+</main></body></html>

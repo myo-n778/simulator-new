@@ -13,12 +13,14 @@ const countNode = document.querySelector("[data-simulator-count]");
 const reviewedNode = document.querySelector("[data-last-reviewed]");
 const versionButtons = [...document.querySelectorAll("[data-version-mode]")];
 
+const threeDIds = new Set((window.physics3DTopics || []).map(([id]) => id));
 let preferredVersion = localStorage.getItem("simulatorPreferredVersion") || "re";
 
 function setPreferredVersion(version, simulators = []) {
   preferredVersion = version;
   localStorage.setItem("simulatorPreferredVersion", version);
   versionButtons.forEach((button) => {
+    button.setAttribute("aria-pressed", String(button.dataset.versionMode === version));
     button.classList.toggle("is-active", button.dataset.versionMode === version);
   });
   if (simulators.length) {
@@ -89,6 +91,19 @@ function createCard(simulator) {
     actions.append(originalLink, pending);
   }
 
+  if (threeDIds.has(simulator.id)) {
+    const link = document.createElement("a");
+    link.className = "variant-link";
+    link.href = "./3d/index.html#" + simulator.id;
+    link.textContent = "3D版";
+    if (preferredVersion === "3d") {
+      actions.querySelector(".is-primary")?.classList.remove("is-primary");
+      link.classList.add("is-primary");
+      actions.prepend(link);
+    } else {
+      actions.append(link);
+    }
+  }
   card.append(body, meta, actions);
   return card;
 }
@@ -113,6 +128,7 @@ function renderCategory(category, simulators) {
 }
 
 function renderSimulators(simulators) {
+  if (preferredVersion === "3d") simulators = simulators.filter(item => threeDIds.has(item.id));
   const grouped = new Map();
   simulators.forEach((simulator) => {
     const group = grouped.get(simulator.category) ?? [];
